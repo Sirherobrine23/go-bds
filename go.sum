@@ -1,0 +1,4 @@
+github.com/zhyee/zipstream v0.0.0-20230625125559-133d8d1afaa0 h1:BcjUUYzMORs7sJtOCWLXaelG7woHMN1QEs4yCB1QZ48=
+github.com/zhyee/zipstream v0.0.0-20230625125559-133d8d1afaa0/go.mod h1:aaGtAo3dTqYtHjcliPNlyXMIIodvGm8y6uK2KMTYHrk=
+golang.org/x/net v0.22.0 h1:9sGLhx7iRIHEiX0oAJ3MRZMUCElJgy7Br1nO+AMN3Tc=
+golang.org/x/net v0.22.0/go.mod h1:JKghWKKOSdJwpW2GEx0Ja7fmaKnMsbu+MWVZTokSYmg=
