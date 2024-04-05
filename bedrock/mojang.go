@@ -40,10 +40,7 @@ type BedrockVersions struct {
 func GetMojangVersions() ([]BedrockVersions, error) {
 	var data []BedrockVersions
 	err := request.GetJson("https://sirherobrine23.org/Minecraft-Server/BedrockFetch/raw/branch/main/versions.json", &data)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	return data, err
 }
 
 type Player struct {
@@ -71,5 +68,3 @@ func ParseBedrockPlayerAction(line string) (Player, error) {
 
 	return Player{}, fmt.Errorf("cannot get player info")
 }
-
-func RunBedrock(serverPath string) {}
