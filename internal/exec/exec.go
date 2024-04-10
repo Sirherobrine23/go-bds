@@ -22,64 +22,118 @@ func ProgrammExist(Programm string) bool {
 	return true
 }
 
-type ServerRun struct {
-	Arguments      []string          // Command and Arguments to run server
-	Environment    map[string]string // Process env
-	Cwd            string            // Folder to run server
-	Stdin      io.WriteCloser    // Stdin to write and communicate to server
-	Stdout, Stderr io.ReadCloser     // stderr and stdout log
-	process        *os.Process       // Server process
+type Piped struct {
+	writer []io.WriteCloser
 }
 
-func (w *ServerRun) Kill() error {
-	return w.process.Kill()
+func (w *Piped) NewPipe() (io.ReadCloser, error) {
+	r, write, err := os.Pipe()
+	if err == nil {
+		w.writer = append(w.writer, write)
+	}
+	return r, err
 }
 
-func (w *ServerRun) Pid() int {
-	return w.process.Pid
-}
-
-func (w *ServerRun) Wait() (*os.ProcessState, error) {
-	return w.process.Wait()
-}
-
-func (Server *ServerRun) Start() error {
-	var cmd *exec.Cmd
-	if len(Server.Arguments) == 0 {
-		return ErrNoCommand
-	} else if len(Server.Arguments) == 1 {
-		cmd = exec.Command(Server.Arguments[0])
-	} else {
-		cmd = exec.Command(Server.Arguments[0], Server.Arguments[1:]...)
+func (w *Piped) Close() error {
+	if len(w.writer) > 0 {
+		for _, w := range w.writer {
+			err := w.Close()
+			if err == nil || err == io.EOF {
+				continue
+			}
+			return err
+		}
+		w.writer = []io.WriteCloser{}
+		return io.EOF
 	}
 
+	return io.EOF
+}
+
+func (w *Piped) Write(p []byte) (int, error) {
+	for indexWriter, wri := range w.writer {
+		_, err := wri.Write(p[:])
+		if err == nil {
+			continue
+		} else if err == io.EOF {
+			if (indexWriter + 1) == len(w.writer) {
+				w.writer = w.writer[:indexWriter]
+			} else {
+				w.writer = append(w.writer[:indexWriter], w.writer[indexWriter+1:]...)
+			}
+		} else {
+			return 0, err
+		}
+	}
+	return len(p), nil
+}
+
+func ReadPipe() *Piped {
+	return &Piped{[]io.WriteCloser{}}
+}
+
+type ServerOptions struct {
+	Cwd         string            `json:"cwd"`       // Folder to run server
+	Arguments   []string          `json:"arguments"` // Server command and arguments
+	Environment map[string]string `json:"env"`       // Process env
+}
+
+type Server struct {
+	ProcessState *os.ProcessState // Process state
+	Process      *os.Process      // Process
+	Stdin        io.WriteCloser   // Write to stdin stream
+	Stdlog       *Piped            // Log stdout and stderr
+}
+
+func Run(opts ServerOptions) (Server, error) {
+	var cmd *exec.Cmd
+	var main Server
+	if len(opts.Arguments) == 0 {
+		return main, ErrNoCommand
+	} else if len(opts.Arguments) == 1 {
+		cmd = exec.Command(opts.Arguments[0])
+	} else {
+		cmd = exec.Command(opts.Arguments[0], opts.Arguments[1:]...)
+	}
+
+	// make Server struct
+	main = Server{}
+
 	// Process cwd
-	if len(Server.Cwd) > 0 {
-		cmd.Dir = Server.Cwd
+	if len(opts.Cwd) > 0 {
+		cmd.Dir = opts.Cwd
 	}
 
 	// Copy current envs to process
-	for envKey, envValue := range Server.Environment {
+	for envKey, envValue := range opts.Environment {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, envValue))
 	}
 
-	// Pipes
 	var err error
-	if Server.Stdin, err = cmd.StdinPipe(); err != nil {
-		return fmt.Errorf("could not get stdin pipe: %v", err)
-	} else if Server.Stderr, err = cmd.StderrPipe(); err != nil {
-		return fmt.Errorf("could not get stderr pipe: %v", err)
-	} else if Server.Stdout, err = cmd.StdoutPipe(); err != nil {
-		return fmt.Errorf("could not get stdout pipe: %v", err)
+	if main.Stdin, err = cmd.StdinPipe(); err != nil {
+		return main, fmt.Errorf("could get pipe to stdin: %v", err)
 	}
+
+	// Pipe stderr and stdout
+	piped := ReadPipe()
+	cmd.Stderr = piped
+	cmd.Stdout = piped
+	main.Stdlog = piped
 
 	// Start server
 	if err = cmd.Start(); err != nil {
-		return err
+		main.Stdin.Close()
+		main.Stdlog.Close()
+		return main, err
 	}
 
-	// Pipe process to server struct
-	Server.process = cmd.Process
+	main.ProcessState = cmd.ProcessState
+	main.Process = cmd.Process
 
-	return nil
+	return main, nil
+}
+
+// Write to stdin
+func (w *Server) Writer(p []byte) (n int, err error) {
+	return w.Stdin.Write(p)
 }
