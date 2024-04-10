@@ -1,14 +1,16 @@
-module sirherobrine23.org/minecraft-server/go-bds
+module sirherobrine23.org/Minecraft-Server/go-bds
 
 go 1.22.1
 
 require (
+	github.com/PuerkitoBio/goquery v1.9.1
 	github.com/gookit/properties v0.3.0
 	golang.org/x/mod v0.17.0
-	golang.org/x/net v0.22.0
+	golang.org/x/net v0.24.0
 )
 
 require (
+	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/gookit/goutil v0.6.15 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect

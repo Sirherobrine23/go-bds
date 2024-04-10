@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"sirherobrine23.org/minecraft-server/go-bds/internal/request"
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
 )
 
 const (
