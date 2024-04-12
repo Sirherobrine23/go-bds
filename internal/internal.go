@@ -17,3 +17,14 @@ func FindAllGroups(re *regexp.Regexp, s string) map[string]string {
 	}
 	return matchMap
 }
+
+func ArrayStringIncludes(arr []string, names ...string) (string, bool) {
+	for _, n := range arr {
+		for _, name := range names {
+			if n == name {
+				return name, true
+			}
+		}
+	}
+	return "", false
+}

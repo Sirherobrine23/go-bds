@@ -47,9 +47,9 @@ type VersionTarget struct {
 }
 
 type Version struct {
-	Version     string        `json:"version"`
-	DateRelease time.Time     `json:"releaseDate"`
-	ReleaseType string        `json:"type"`
+	Version     string          `json:"version"`
+	DateRelease time.Time       `json:"releaseDate"`
+	ReleaseType string          `json:"type"`
 	Targets     []VersionTarget `json:"targets"`
 }
 
@@ -146,7 +146,7 @@ func (w *VersionTarget) Download(serverPath string) error {
 		return err
 	}
 
-	res, err := request.Request(request.RequestOptions{ HttpError: true, Method: "GET", Url: w.TarFile })
+	res, err := request.Request(request.RequestOptions{HttpError: true, Method: "GET", Url: w.TarFile})
 	if err != nil {
 		return err
 	}

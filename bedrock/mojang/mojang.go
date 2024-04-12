@@ -37,6 +37,12 @@ var (
 		`v2`: regexp.MustCompile(`(?m)^\[(?P<TimeAction>([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})):[0-9]{1,3} INFO\] Player (?P<Action>disconnected|connected|Spawned): (?P<Username>[0-9A-Za-z_\-\s]+), xuid:\s?(?P<Xuid>[0-9A-Za-z]+)?,?`),
 		`v1`: nil,
 	}
+	MojangPort = map[string]*regexp.Regexp{
+		// [2023-03-08 13:01:57 INFO] Listening on IPv4 port: 19132
+		`v2`: regexp.MustCompile(`(?m)^\[(?P<TimeAction>([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})):[0-9]{1,3} INFO\] Listening on IPv(?P<Protocol>4|6) port: (?P<Port>[0-9]+)`),
+		// [INFO] IPv4 supported, port: 19132
+		`v1`: nil,
+	}
 	MojangStarter = map[string]*regexp.Regexp{
 		// [2024-04-10 11:16:29:640 INFO] Server started.
 		`v2`: regexp.MustCompile(`(?m)^\[(?P<TimeAction>([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})):[0-9]{1,3} INFO\] Server started\.`),
