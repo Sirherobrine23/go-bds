@@ -18,6 +18,14 @@ func FindAllGroups(re *regexp.Regexp, s string) map[string]string {
 	return matchMap
 }
 
+func MountFindAllGroups(re string, s string) (map[string]string, error) {
+	rem, err := regexp.Compile(re)
+	if err != nil {
+		return nil, err
+	}
+	return FindAllGroups(rem, s), nil
+}
+
 func ArrayStringIncludes(arr []string, names ...string) (string, bool) {
 	for _, n := range arr {
 		for _, name := range names {

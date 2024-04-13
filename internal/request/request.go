@@ -34,23 +34,49 @@ var DefaultHeader = http.Header{
 }
 
 type RequestOptions struct {
-	Url       string      // Request url
-	Method    string      // Request Method
-	Body      io.Reader   // Body Reader
-	Headers   http.Header // Extra HTTP Headers
-	HttpError bool        // Return if status code is equal or then 300
+	HttpError  bool        // Return if status code is equal or then 300
+	EncodePath bool        // encode path to request
+	Method     string      // Request Method
+	Url        string      // Request url
+	Body       io.Reader   // Body Reader
+	Headers    http.Header // Extra HTTP Headers
+	Querys     map[string]string
+}
+
+func (w *RequestOptions) String() (string, error) {
+	if len(w.Url) == 0 {
+		return "", ErrNoUrl
+	}
+
+	urlParsed, err := url.Parse(w.Url)
+	if err != nil {
+		return"", err
+	}
+
+	if len(w.Querys) > 0 {
+		query := urlParsed.Query()
+		for key, value := range w.Querys {
+			query.Set(key, value)
+		}
+		urlParsed.RawQuery = query.Encode()
+	}
+
+	return urlParsed.String(), nil
 }
 
 // Make custom request and return request, response and error if exist
 func Request(opt RequestOptions) (http.Response, error) {
-	if len(opt.Url) == 0 {
-		return http.Response{}, ErrNoUrl
-	} else if len(opt.Method) == 0 {
+	if len(opt.Method) == 0 {
 		opt.Method = "GET"
 	}
 
+	urlRequest, err := opt.String()
+	if err != nil {
+		return http.Response{}, err
+	}
+
 	// Create request
-	req, err := http.NewRequest(opt.Method, opt.Url, opt.Body)
+	req, err := http.NewRequest(opt.Method, urlRequest, opt.Body)
 	if err != nil {
 		return http.Response{}, err
 	}
