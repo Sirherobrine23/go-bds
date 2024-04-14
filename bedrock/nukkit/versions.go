@@ -1,4 +1,4 @@
-package cloudbust
+package nukkit
 
 import (
 	"encoding/json"

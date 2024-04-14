@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal/ioextends"
 )
 
 var (
@@ -22,56 +24,6 @@ func ProgrammExist(Programm string) bool {
 	return true
 }
 
-type Piped struct {
-	writer []io.WriteCloser
-}
-
-func (w *Piped) NewPipe() (io.ReadCloser, error) {
-	r, write, err := os.Pipe()
-	if err == nil {
-		w.writer = append(w.writer, write)
-	}
-	return r, err
-}
-
-func (w *Piped) Close() error {
-	if len(w.writer) > 0 {
-		for _, w := range w.writer {
-			err := w.Close()
-			if err == nil || err == io.EOF {
-				continue
-			}
-			return err
-		}
-		w.writer = []io.WriteCloser{}
-		return io.EOF
-	}
-
-	return io.EOF
-}
-
-func (w *Piped) Write(p []byte) (int, error) {
-	for indexWriter, wri := range w.writer {
-		_, err := wri.Write(p[:])
-		if err == nil {
-			continue
-		} else if err == io.EOF {
-			if (indexWriter + 1) == len(w.writer) {
-				w.writer = w.writer[:indexWriter]
-			} else {
-				w.writer = append(w.writer[:indexWriter], w.writer[indexWriter+1:]...)
-			}
-		} else {
-			return 0, err
-		}
-	}
-	return len(p), nil
-}
-
-func ReadPipe() *Piped {
-	return &Piped{[]io.WriteCloser{}}
-}
-
 type ServerOptions struct {
 	Cwd         string            `json:"cwd"`       // Folder to run server
 	Arguments   []string          `json:"arguments"` // Server command and arguments
@@ -82,7 +34,7 @@ type Server struct {
 	ProcessState *os.ProcessState // Process state
 	Process      *os.Process      // Process
 	Stdin        io.WriteCloser   // Write to stdin stream
-	Stdlog       *Piped            // Log stdout and stderr
+	Stdlog       *ioextends.Piped // Log stdout and stderr
 }
 
 func Run(opts ServerOptions) (Server, error) {
@@ -115,7 +67,7 @@ func Run(opts ServerOptions) (Server, error) {
 	}
 
 	// Pipe stderr and stdout
-	piped := ReadPipe()
+	piped := ioextends.ReadPipe()
 	cmd.Stderr = piped
 	cmd.Stdout = piped
 	main.Stdlog = piped

@@ -35,7 +35,6 @@ var DefaultHeader = http.Header{
 
 type RequestOptions struct {
 	HttpError  bool        // Return if status code is equal or then 300
-	EncodePath bool        // encode path to request
 	Method     string      // Request Method
 	Url        string      // Request url
 	Body       io.Reader   // Body Reader
@@ -43,14 +42,14 @@ type RequestOptions struct {
 	Querys     map[string]string
 }
 
-func (w *RequestOptions) String() (string, error) {
+func (w *RequestOptions) ToUrl() (*url.URL, error) {
 	if len(w.Url) == 0 {
-		return "", ErrNoUrl
+		return nil, ErrNoUrl
 	}
 
 	urlParsed, err := url.Parse(w.Url)
 	if err != nil {
-		return"", err
+		return nil, err
 	}
 
 	if len(w.Querys) > 0 {
@@ -61,22 +60,29 @@ func (w *RequestOptions) String() (string, error) {
 		urlParsed.RawQuery = query.Encode()
 	}
 
-	return urlParsed.String(), nil
+	return urlParsed, nil
 }
 
-// Make custom request and return request, response and error if exist
-func Request(opt RequestOptions) (http.Response, error) {
+func (w *RequestOptions) String() (string, error) {
+	s, err := w.ToUrl()
+	if err != nil {
+		return "", err
+	}
+	return s.String(), nil
+}
+
+func (opt *RequestOptions) Request() (http.Response, error) {
 	if len(opt.Method) == 0 {
 		opt.Method = "GET"
 	}
 
-	urlRequest, err := opt.String()
+	urlRequest, err := opt.ToUrl()
 	if err != nil {
 		return http.Response{}, err
 	}
 
 	// Create request
-	req, err := http.NewRequest(opt.Method, urlRequest, opt.Body)
+	req, err := http.NewRequest(opt.Method, urlRequest.String(), opt.Body)
 	if err != nil {
 		return http.Response{}, err
 	}
@@ -92,8 +98,11 @@ func Request(opt RequestOptions) (http.Response, error) {
 	}
 
 	// Create response from request
-	client := &http.Client{}
+	client := http.Client{}
 	res, err := client.Do(req)
+	if err != nil {
+		return *res, err
+	}
 
 	if opt.HttpError && res.StatusCode >= 300 {
 		if res.StatusCode == 404 {
@@ -105,6 +114,11 @@ func Request(opt RequestOptions) (http.Response, error) {
 
 	// User tratement
 	return *res, err
+}
+
+// Make custom request and return request, response and error if exist
+func Request(opt RequestOptions) (http.Response, error) {
+	return opt.Request()
 }
 
 func SaveFile(filePath string, opt RequestOptions) (http.Response, error) {
