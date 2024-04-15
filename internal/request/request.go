@@ -1,6 +1,7 @@
 package request
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -98,8 +99,7 @@ func (opt *RequestOptions) Request() (http.Response, error) {
 	}
 
 	// Create response from request
-	client := http.Client{}
-	res, err := client.Do(req)
+	res, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return *res, err
 	}
@@ -114,6 +114,15 @@ func (opt *RequestOptions) Request() (http.Response, error) {
 
 	// User tratement
 	return *res, err
+}
+
+func (opt *RequestOptions) Do(jsonInterface any) (http.Response, error) {
+	res, err := opt.Request()
+	if err != nil {
+		return res, err
+	}
+	defer res.Body.Close()
+	return res, json.NewDecoder(res.Body).Decode(jsonInterface)
 }
 
 // Make custom request and return request, response and error if exist
