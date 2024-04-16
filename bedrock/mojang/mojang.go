@@ -2,11 +2,13 @@ package mojang
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,9 +41,9 @@ var (
 	}
 	MojangPort = map[string]*regexp.Regexp{
 		// [2023-03-08 13:01:57 INFO] Listening on IPv4 port: 19132
-		`v2`: regexp.MustCompile(`(?m)^\[(?P<TimeAction>([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})):[0-9]{1,3} INFO\] Listening on IPv(?P<Protocol>4|6) port: (?P<Port>[0-9]+)`),
+		`v2`: regexp.MustCompile(`(?m)^\[(?P<TimeAction>([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})):[0-9]{1,3} INFO\] Listening on IPv(?P<Protocol>4|6) port: (?P<Port>[0-9]+)$`),
 		// [INFO] IPv4 supported, port: 19132
-		`v1`: nil,
+		`v1`: regexp.MustCompile(`(?m)^\[INFO\] IPv(?P<Protocol>4|6) supported, port: (?P<Port>[0-9]+)$`),
 	}
 	MojangStarter = map[string]*regexp.Regexp{
 		// [2024-04-10 11:16:29:640 INFO] Server started.
@@ -58,7 +60,8 @@ type PlayerConnections struct {
 type Mojang struct {
 	ServerPath      string                                                `json:"serverPath"`    // Server path to download, run server
 	Version         string                                                `json:"serverVersion"` // Server version
-	Started         time.Time                                             `json:"startedTime"`   //
+	Started         time.Time                                             `json:"startedTime"`   // Server started date
+	Ports           []int                                                 `json:"ports"`         // Server ports
 	Players         map[string][]PlayerConnections                        `json:"players"`       // Player connnections in to server
 	Config          MojangConfig                                          `json:"serverConfig"`  // Config server file
 	playerCallbacks []func(Username string, PlayerInfo PlayerConnections) `json:"-"`             // Callbacks to player
@@ -70,10 +73,11 @@ func (w *Mojang) Download() (VersionTarget, error) {
 		return VersionTarget{}, err
 	}
 
+	goTarget := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
 	for _, ver := range versions {
 		if ver.Version == w.Version {
 			for _, target := range ver.Targets {
-				if runtime.GOOS == target.GOOS && runtime.GOARCH == target.GOARCH {
+				if target.Target == goTarget {
 					return target, target.Download(w.ServerPath)
 				}
 			}
@@ -123,21 +127,61 @@ func (w *Mojang) Start() (exec.Server, error) {
 	go (func() {
 		for lineBreaker.Scan() {
 			line := lineBreaker.Text()
-			go ParseBedrockPlayerAction(line, func(username string, playerInfo PlayerConnections) {
-				if _, ext := w.Players[username]; !ext {
-					w.Players[username] = []PlayerConnections{}
-				}
-				w.Players[username] = append(w.Players[username], playerInfo)
 
-				// Calls
-				for _, f := range w.playerCallbacks {
-					go f(username, playerInfo)
-				}
-			})
+			// Started time
 			go (func() {
 				if MojangStarter["v2"].MatchString(line) {
 					TimedString := internal.FindAllGroups(MojangStarter["v2"], line)["TimeAction"]
 					w.Started, _ = time.Parse(`2006-01-02 15:04:05`, TimedString)
+				}
+			})()
+
+			// Port listen
+			go (func() {
+				var infoPort map[string]string
+				if MojangPort["v1"].MatchString(line) {
+					infoPort = internal.FindAllGroups(MojangPort["v1"], line)
+				} else if MojangPort["v2"].MatchString(line) {
+					infoPort = internal.FindAllGroups(MojangPort["v2"], line)
+				} else {
+					return
+				}
+
+				if infoPort["Protocol"] == "4" || infoPort["Protocol"] == "6" {
+					port, err := strconv.Atoi(infoPort["Port"])
+					if err != nil {
+						return
+					}
+					w.Ports = append(w.Ports, port)
+				}
+			})()
+
+			// Player action
+			go (func () {
+				if MojangPlayerActions["v2"].MatchString(line) {
+					ActionPlayer := internal.FindAllGroups(MojangPlayerActions["v2"], line)
+
+					Username := ActionPlayer["Username"]
+					Action := strings.ToLower(ActionPlayer["Action"])
+					Xuid := strings.TrimSpace(ActionPlayer["Xuid"])
+					timed, err := time.Parse(`2006-01-02 15:04:05`, ActionPlayer["TimeAction"])
+
+					if err != nil {
+						return
+					}
+
+					// Callback
+					if Action == PlayerActionConnect || Action == PlayerActionDisconnect || Action == PlayerActionSpawn {
+						if _, ext := w.Players[Username]; !ext {
+							w.Players[Username] = []PlayerConnections{}
+						}
+
+						act := PlayerConnections{Xuid, Action, timed}
+						w.Players[Username] = append(w.Players[Username], act)
+						for _, callback := range w.playerCallbacks {
+							go callback(Username, act)
+						}
+					}
 				}
 			})()
 		}
@@ -149,26 +193,4 @@ func (w *Mojang) Start() (exec.Server, error) {
 func (w *Mojang) PlayerAction(callback func(Username string, PlayerInfo PlayerConnections)) *Mojang {
 	w.playerCallbacks = append(w.playerCallbacks, callback)
 	return w
-}
-
-func ParseBedrockPlayerAction(line string, callback func(Username string, PlayerInfo PlayerConnections)) error {
-	if MojangPlayerActions["v2"].MatchString(line) {
-		ActionPlayer := internal.FindAllGroups(MojangPlayerActions["v2"], line)
-
-		Username := ActionPlayer["Username"]
-		Action := ActionPlayer["Action"]
-		Xuid := strings.TrimSpace(ActionPlayer["Xuid"])
-		timed, err := time.Parse(`2006-01-02 15:04:05`, ActionPlayer["TimeAction"])
-
-		if err != nil {
-			return err
-		}
-
-		// Callback
-		if PlayerActionConnect == Action || PlayerActionDisconnect == Action || PlayerActionSpawn == Action {
-			callback(Username, PlayerConnections{Xuid, Action, timed})
-			return nil
-		}
-	}
-	return nil
 }

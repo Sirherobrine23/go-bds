@@ -12,6 +12,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html"
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal"
 )
 
 var (
@@ -34,13 +35,23 @@ var DefaultHeader = http.Header{
 	"User-Agent":                {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"},
 }
 
+func arrayHas(arr []int, is int) bool {
+	for _, k := range arr {
+		if k == is {
+			return true
+		}
+	}
+	return false
+}
+
 type RequestOptions struct {
-	HttpError  bool        // Return if status code is equal or then 300
-	Method     string      // Request Method
-	Url        string      // Request url
-	Body       io.Reader   // Body Reader
-	Headers    http.Header // Extra HTTP Headers
-	Querys     map[string]string
+	Url         string            // Request url
+	HttpError   bool              // Return if status code is equal or then 300
+	Method      string            // Request Method
+	Body        io.Reader         // Body Reader
+	Headers     http.Header       // Extra HTTP Headers
+	Querys      map[string]string // Default querys to set in url
+	CodesRetrys []int             // Code to retrys in GET method
 }
 
 func (w *RequestOptions) ToUrl() (*url.URL, error) {
@@ -105,7 +116,9 @@ func (opt *RequestOptions) Request() (http.Response, error) {
 	}
 
 	if opt.HttpError && res.StatusCode >= 300 {
-		if res.StatusCode == 404 {
+		if opt.Method == "GET" && arrayHas(opt.CodesRetrys, res.StatusCode) {
+			return opt.Request()
+		} else if res.StatusCode == 404 {
 			err = ErrPageNotExist
 		} else {
 			err = fmt.Errorf("response non < 299, code %d, url: %q", res.StatusCode, opt.Url)
@@ -123,6 +136,39 @@ func (opt *RequestOptions) Do(jsonInterface any) (http.Response, error) {
 	}
 	defer res.Body.Close()
 	return res, json.NewDecoder(res.Body).Decode(jsonInterface)
+}
+
+func (opt *RequestOptions) SHA1() (string, error) {
+	res, err := opt.Request()
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	return internal.SHA1(res.Body), nil
+}
+
+func (opt *RequestOptions) SHA256() (string, error) {
+	res, err := opt.Request()
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	return internal.SHA256(res.Body), nil
+}
+
+func (opt *RequestOptions) WriteStream(writer io.Writer) error {
+	res, err := opt.Request()
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+	_, err = io.Copy(writer, res.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Make custom request and return request, response and error if exist

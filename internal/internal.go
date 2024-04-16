@@ -1,6 +1,12 @@
 package internal
 
-import "regexp"
+import (
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"regexp"
+)
 
 // FindAllGroups returns a map with each match group. The map key corresponds to the match group name.
 // A nil return value indicates no matches.
@@ -35,4 +41,16 @@ func ArrayStringIncludes(arr []string, names ...string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func SHA1(stream io.Reader) string {
+	sha1New := sha1.New()
+	io.Copy(sha1New, stream)
+	return hex.EncodeToString(sha1New.Sum(nil))
+}
+
+func SHA256(stream io.Reader) string {
+	sha1New := sha256.New()
+	io.Copy(sha1New, stream)
+	return hex.EncodeToString(sha1New.Sum(nil))
 }

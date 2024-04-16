@@ -1,18 +1,19 @@
 package mojang
 
 import (
-	"archive/tar"
-	"compress/gzip"
+	"archive/zip"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
 )
 
@@ -26,36 +27,27 @@ const (
 )
 
 var (
-	ErrInvalidFileVersions error = errors.New("invalid versions file or url") // Versions file invalid url schema
-	ErrNoVersion           error = errors.New("cannot find version")          // Version request not exists
+	ErrInvalidFileVersions error          = errors.New("invalid versions file or url") // Versions file invalid url schema
+	ErrNoVersion           error          = errors.New("cannot find version")          // Version request not exists
+	MatchVersion           *regexp.Regexp = regexp.MustCompile(`bedrock-server-(P<Version>[0-9\.\-_]+).zip$`)
 )
 
-type VersionMinecraft struct {
-	FileUrl, Target string
-	Preview         bool
-}
-
 type VersionTarget struct {
-	NodePlatform string `json:"Platform"` // Nodejs Platform string
-	NodeArch     string `json:"Arch"`     // Nodejs Archs
-	GOOS         string `json:"goos"`
-	GOARCH       string `json:"goarch"`
-	ZipFile      string `json:"zip"`     // Local file and http to remote
-	ZipSHA1      string `json:"zipSHA1"` // File SHA1
-	TarFile      string `json:"tar"`     // Local file and http to remote
-	TarSHA1      string `json:"tarSHA1"` // File SHA1
+	Target  string `json:"goTarget"`
+	ZipFile string `json:"zip"`     // Local file and http to remote
+	ZipSHA1 string `json:"zipSHA1"` // File SHA1
 }
 
 type Version struct {
 	Version     string          `json:"version"`
 	DateRelease time.Time       `json:"releaseDate"`
-	ReleaseType string          `json:"type"`
+	IsPreview   bool            `json:"isPreview"`
 	Targets     []VersionTarget `json:"targets"`
 }
 
 // Get versions from minecraft server page
-func Minecraft() ([]VersionMinecraft, error) {
-	versionsTarget := []VersionMinecraft{}
+func Minecraft() (map[string]Version, error) {
+	versionsTarget := map[string]Version{}
 	doc, _, err := request.HtmlNode(request.RequestOptions{HttpError: true, Method: "GET", Url: MinecraftPage})
 	if err != nil {
 		return versionsTarget, err
@@ -74,6 +66,7 @@ func Minecraft() ([]VersionMinecraft, error) {
 	})
 
 	for _, file := range zipFiles {
+		version := internal.FindAllGroups(MatchVersion, file.Path)["Version"]
 		isPreview := false
 		var goTarget string
 		if strings.HasPrefix(file.Path, "/bin-win-preview") {
@@ -86,15 +79,64 @@ func Minecraft() ([]VersionMinecraft, error) {
 			goTarget = "windows/amd64"
 		} else if strings.HasPrefix(file.Path, "/bin-linux") {
 			goTarget = "linux/amd64"
+		} else {
+			continue
 		}
 
-		if len(goTarget) > 5 {
-			versionsTarget = append(versionsTarget, VersionMinecraft{
-				Preview: isPreview,
-				FileUrl: file.String(),
-				Target:  goTarget,
-			})
+		req := request.RequestOptions{Url: file.String()}
+
+		var ok bool
+		var versionRelease Version
+		if versionRelease, ok = versionsTarget[version]; !ok {
+			versionRelease = Version{
+				Version:     version,
+				IsPreview:   isPreview,
+				DateRelease: time.Time{},
+				Targets:     []VersionTarget{},
+			}
+
+			file, err := os.CreateTemp(os.TempDir(), "bdsserver")
+			if err != nil {
+				return nil, err
+			}
+
+			defer file.Close()
+			if err = req.WriteStream(file); err != nil {
+				return nil, err
+			}
+
+			stats, err := file.Stat()
+			if err != nil {
+				return nil, err
+			}
+
+			zipReader, err := zip.NewReader(file, stats.Size())
+			if err != nil {
+				return nil, err
+			}
+
+			for _, file := range zipReader.File {
+				if strings.HasPrefix(file.Name, "bedrock_server") {
+					versionRelease.DateRelease = file.Modified
+					break
+				}
+			}
+
+			file.Close()
+			os.Remove(file.Name())
 		}
+
+		sha256, err := req.SHA256()
+		if err != nil {
+			return nil, err
+		}
+
+		versionRelease.Targets = append(versionsTarget[version].Targets, VersionTarget{
+			Target:  goTarget,
+			ZipFile: file.String(),
+			ZipSHA1: sha256,
+		})
+		versionsTarget[version] = versionRelease
 	}
 
 	return versionsTarget, nil
@@ -141,49 +183,56 @@ func FromVersions(remoteFileFetch ...string) ([]Version, error) {
 	return versions, nil
 }
 
-func (w *VersionTarget) Download(serverPath string) error {
-	if err := os.MkdirAll(serverPath, os.FileMode(0o666)); !(err == nil || os.IsExist(err)) {
-		return err
-	}
+func (version *VersionTarget) Download(serverPath string) error {
+	req := request.RequestOptions{Url: version.ZipFile}
 
-	res, err := request.Request(request.RequestOptions{HttpError: true, Method: "GET", Url: w.TarFile})
+	file, err := os.CreateTemp(os.TempDir(), "bdsserver")
 	if err != nil {
 		return err
 	}
 
-	defer res.Body.Close()
-	zip, err := gzip.NewReader(res.Body)
+	defer file.Close()
+	if err = req.WriteStream(file); err != nil {
+		return err
+	}
+
+	stats, err := file.Stat()
 	if err != nil {
 		return err
 	}
 
-	defer zip.Close()
-	tarStream := tar.NewReader(zip)
+	zipReader, err := zip.NewReader(file, stats.Size())
+	if err != nil {
+		return err
+	}
 
-	for {
-		head, err := tarStream.Next()
-		if err == io.EOF {
-			break
-		} else if err != nil {
+	for _, file := range zipReader.File {
+		fileInfo := file.FileInfo()
+		filePath := filepath.Join(serverPath, file.Name)
+		if fileInfo.IsDir() {
+			err = os.MkdirAll(filePath, file.Mode())
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		fileOs, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, file.Mode())
+		if err != nil {
 			return err
 		}
+		defer fileOs.Close()
 
-		if head.Typeflag == tar.TypeDir {
-			if err := os.MkdirAll(filepath.Join(serverPath, head.Name), head.FileInfo().Mode()); !(err == nil || os.IsExist(err)) {
-				return err
-			}
-		} else {
-			var file *os.File
-			if file, err = os.OpenFile(filepath.Join(serverPath, head.Name), os.O_CREATE, head.FileInfo().Mode()); err != nil {
-				return err
-			}
+		zipFile, err := file.Open()
+		if err != nil {
+			return err
+		}
+		defer zipFile.Close()
 
-			defer file.Close()
-			if _, err = io.CopyN(file, tarStream, head.Size); err != nil {
-				return err
-			}
+		_, err = io.Copy(fileOs, zipFile)
+		if err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
