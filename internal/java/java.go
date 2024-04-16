@@ -5,13 +5,15 @@ import (
 
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/adoptium"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/host"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/liberica"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/microsoft"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/zulu"
 )
 
 var (
-	ErrInvalidDistro error = errors.New("distro not found")
+	ErrInvalidDistro error  = errors.New("distro not found")
+	HostVersion      string = host.HostVersion()
 )
 
 func Release(distro string) ([]globals.Version, error) {

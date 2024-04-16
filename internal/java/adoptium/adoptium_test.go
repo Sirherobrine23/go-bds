@@ -1,11 +1,10 @@
 package adoptium
 
 import (
-	"encoding/json"
 	"testing"
 )
 
-func TestXxx(t *testing.T) {
+func TestAdoptium(t *testing.T) {
 	rels, err := Releases()
 	if err != nil {
 		t.Error(err)
@@ -16,7 +15,4 @@ func TestXxx(t *testing.T) {
 		t.Errorf("cannot get java releases")
 		return
 	}
-
-	data, _ := json.MarshalIndent(&rels, "", "  ")
-	t.Log(string(data))
 }

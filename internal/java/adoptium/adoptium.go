@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
 )
@@ -71,12 +72,18 @@ type apiVersions []struct {
 }
 
 func Releases() ([]globals.Version, error) {
-	versionsMap := map[string]globals.Version{}
+	if cache.Get("adoptium", "releases") != nil {
+		cached, ok := cache.Get("adoptium", "releases").([]globals.Version)
+		if ok {
+			return cached, nil
+		}
+	}
 
+	versionsMap := map[string]globals.Version{}
 	// %5B1.0%2C100.0%5D == [1.0,100.0]
 	req := request.RequestOptions{
-		HttpError: true,
-		Url: `https://api.adoptium.net/v3/assets/version/%5B1.0%2C100.0%5D`,
+		HttpError:   true,
+		Url:         `https://api.adoptium.net/v3/assets/version/%5B1.0%2C100.0%5D`,
 		CodesRetrys: []int{400},
 		Querys: map[string]string{
 			"project":     "jdk",
@@ -101,7 +108,7 @@ func Releases() ([]globals.Version, error) {
 
 		dones++
 		var err error
-		defer func(){
+		defer func() {
 			dones--
 			if err != nil {
 				isErr = true
@@ -180,7 +187,7 @@ func Releases() ([]globals.Version, error) {
 	go requestMake(req.Url)
 
 	for {
-		err := <- wait
+		err := <-wait
 		if err != nil {
 			isErr = true
 			return nil, err
@@ -208,5 +215,7 @@ func Releases() ([]globals.Version, error) {
 		b = strings.Join(strings.Split(b, ".")[0:3], ".")
 		return semver.Compare(n, b) == 1
 	})
+
+	cache.Set("adoptium", "releases", versionsArr, globals.DefaultTime)
 	return versionsArr, nil
 }

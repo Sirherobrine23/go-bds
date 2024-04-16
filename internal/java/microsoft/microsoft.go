@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
 )
@@ -24,6 +25,13 @@ type msVersion struct {
 }
 
 func Releases() ([]globals.Version, error) {
+	if cache.Get("microsoft", "releases") != nil {
+		value, ok := cache.Get("microsoft", "releases").([]globals.Version)
+		if ok {
+			return value, nil
+		}
+	}
+
 	var versions []msVersion
 	res, err := request.Request(request.RequestOptions{HttpError: true, Url: GithubVersions})
 	if err != nil {
@@ -64,5 +72,6 @@ func Releases() ([]globals.Version, error) {
 		mapVersion = append(mapVersion, relVersion)
 	}
 
+	cache.Set("microsoft", "releases", mapVersion, globals.DefaultTime)
 	return mapVersion, nil
 }

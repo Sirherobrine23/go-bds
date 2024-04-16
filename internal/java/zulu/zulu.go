@@ -2,12 +2,13 @@ package zulu
 
 import (
 	"encoding/json"
-	"sort"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
 	"golang.org/x/mod/semver"
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
 )
@@ -34,33 +35,23 @@ func joinVersion(i []int) string {
 }
 
 var oss [][]string = [][]string{
-	{
-		"linux", "amd64",
-	},
-	{
-		"linux", "arm64",
-	},
-	{
-		"linux", "386",
-	},
-	{
-		"darwin", "amd64",
-	},
-	{
-		"darwin", "arm64",
-	},
-	{
-		"windows", "386",
-	},
-	{
-		"windows", "amd64",
-	},
-	{
-		"windows", "arm64",
-	},
+	{"linux", "amd64"},
+	{"linux", "arm64"},
+	{"linux", "386"},
+	{"darwin", "amd64"},
+	{"darwin", "arm64"},
+	{"windows", "386"},
+	{"windows", "amd64"},
+	{"windows", "arm64"},
 }
 
 func Releases() ([]globals.Version, error) {
+	if cache.Get("zulu", "releases") != nil {
+		values, ok := cache.Get("zulu", "releases").([]globals.Version)
+		if ok {
+			return values, nil
+		}
+	}
 	versionsGlobal := map[string]globals.Version{}
 	for _, goTarget := range oss {
 		goos := goTarget[0]
@@ -94,7 +85,7 @@ func Releases() ([]globals.Version, error) {
 			opts.Querys["hw_bitness"] = "32"
 		}
 
-		res, err := request.Request(opts)
+		res, err := opts.Request()
 		var versions []zuluBundle
 		if err != nil {
 			return []globals.Version{}, err
@@ -121,15 +112,23 @@ func Releases() ([]globals.Version, error) {
 	}
 
 	versionsArr := []globals.Version{}
-	for _, k := range versionsGlobal { versionsArr = append(versionsArr, k) }
+	for _, k := range versionsGlobal {
+		versionsArr = append(versionsArr, k)
+	}
 	sort.Slice(versionsArr, func(i, j int) bool {
 		n := versionsArr[i].Version
 		b := versionsArr[j].Version
-		if !semver.IsValid(n) { n = fmt.Sprintf("v%s", n) }
-		if !semver.IsValid(b) { b = fmt.Sprintf("v%s", b) }
+		if !semver.IsValid(n) {
+			n = fmt.Sprintf("v%s", n)
+		}
+		if !semver.IsValid(b) {
+			b = fmt.Sprintf("v%s", b)
+		}
 		n = strings.Join(strings.Split(n, ".")[0:3], ".")
 		b = strings.Join(strings.Split(b, ".")[0:3], ".")
 		return semver.Compare(n, b) == 1
 	})
+
+	cache.Set("zulu", "releases", versionsArr, globals.DefaultTime)
 	return versionsArr, nil
 }

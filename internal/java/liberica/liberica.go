@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
 )
@@ -43,6 +44,13 @@ type release struct {
 }
 
 func Releases() ([]globals.Version, error) {
+	if cache.Get("liberica", "releases") != nil {
+		value, ok := cache.Get("liberica", "releases").([]globals.Version)
+		if ok {
+			return value, nil
+		}
+	}
+
 	res, err := request.Request(request.RequestOptions{HttpError: true, Url: APIReleases})
 	if err != nil {
 		return []globals.Version{}, err
@@ -90,5 +98,7 @@ func Releases() ([]globals.Version, error) {
 	for _, v := range releases {
 		arrVersions = append(arrVersions, v)
 	}
+
+	cache.Set("liberica", "releases", arrVersions, globals.DefaultTime)
 	return arrVersions, nil
 }
