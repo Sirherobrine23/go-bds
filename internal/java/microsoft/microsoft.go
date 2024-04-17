@@ -1,8 +1,9 @@
 package microsoft
 
 import (
-	"encoding/json"
-	"fmt"
+	"runtime"
+	"strconv"
+	"strings"
 
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
@@ -24,54 +25,78 @@ type msVersion struct {
 	} `json:"files"`
 }
 
-func Releases() ([]globals.Version, error) {
+func reverseReleases(arr []msVersion) {
+	left := 0
+	right := len(arr) - 1
+	for left < right {
+		arr[left], arr[right] = arr[right], arr[left]
+		left++
+		right--
+	}
+}
+
+func Releases() (globals.Version, error) {
 	if cache.Get("microsoft", "releases") != nil {
-		value, ok := cache.Get("microsoft", "releases").([]globals.Version)
+		value, ok := cache.Get("microsoft", "releases").(globals.Version)
 		if ok {
 			return value, nil
 		}
 	}
 
-	var versions []msVersion
-	res, err := request.Request(request.RequestOptions{HttpError: true, Url: GithubVersions})
+	var msVersions []msVersion
+	req := request.RequestOptions{HttpError: true, Url: GithubVersions}
+	_, err := req.Do(&msVersions)
 	if err != nil {
-		return []globals.Version{}, err
-	}
-	defer res.Body.Close()
-	if err = json.NewDecoder(res.Body).Decode(&versions); err != nil {
-		return []globals.Version{}, err
+		return nil, err
 	}
 
-	mapVersion := []globals.Version{}
-	for _, release := range versions {
-		relVersion := globals.Version{
-			Version: release.Version,
-			Targets: map[string]string{},
-		}
-
+	reverseReleases(msVersions)
+	versions := globals.Version{}
+	for _, release := range msVersions {
 		for _, file := range release.Files {
-			goarch := file.NodeArch
-			goos := file.NodeOs
-
-			switch file.NodeOs {
-			case "sunos":
-				goos = "solaris"
-			case "win32":
-				goos = "windows"
-			}
+			var ARCHTOGO, OSTOGO string
 			switch file.NodeArch {
 			case "x64":
-				goarch = "amd64"
-			case "ia32":
-				goarch = "386"
+				ARCHTOGO = "amd64"
+			case "aarch64":
+				ARCHTOGO = "arm64"
+			default:
+				continue
 			}
 
-			relVersion.Targets[fmt.Sprintf("%s/%s", goos, goarch)] = file.FileUrl
-		}
+			switch file.NodeOs {
+			case "darwin":
+				OSTOGO = "darwin"
+			case "linux":
+				OSTOGO = "linux"
+			case "win32":
+				OSTOGO = "windows"
+			default:
+				continue
+			}
 
-		mapVersion = append(mapVersion, relVersion)
+			if ARCHTOGO != runtime.GOARCH {
+				continue
+			} else if OSTOGO != runtime.GOOS {
+				continue
+			}
+
+			versionFamily, err := strconv.Atoi(strings.Split(release.Version, ".")[0])
+			if err != nil {
+				return nil, err
+			}
+
+			versions[versionFamily] = globals.VersionBundle{
+				FileUrl:  file.FileUrl,
+				Checksum: "",
+			}
+		}
 	}
 
-	cache.Set("microsoft", "releases", mapVersion, globals.DefaultTime)
-	return mapVersion, nil
+	if len(versions) == 0 {
+		return nil, globals.ErrNoTargets
+	}
+
+	cache.Set("microsoft", "releases", versions, globals.DefaultTime)
+	return versions, nil
 }

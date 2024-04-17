@@ -1,6 +1,10 @@
 package request
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +16,6 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html"
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal"
 )
 
 var (
@@ -138,24 +141,6 @@ func (opt *RequestOptions) Do(jsonInterface any) (http.Response, error) {
 	return res, json.NewDecoder(res.Body).Decode(jsonInterface)
 }
 
-func (opt *RequestOptions) SHA1() (string, error) {
-	res, err := opt.Request()
-	if err != nil {
-		return "", err
-	}
-	defer res.Body.Close()
-	return internal.SHA1(res.Body), nil
-}
-
-func (opt *RequestOptions) SHA256() (string, error) {
-	res, err := opt.Request()
-	if err != nil {
-		return "", err
-	}
-	defer res.Body.Close()
-	return internal.SHA256(res.Body), nil
-}
-
 func (opt *RequestOptions) WriteStream(writer io.Writer) error {
 	res, err := opt.Request()
 	if err != nil {
@@ -169,6 +154,54 @@ func (opt *RequestOptions) WriteStream(writer io.Writer) error {
 	}
 
 	return nil
+}
+
+// Create request and calculate MD5 for body response
+func (opt *RequestOptions) MD5() (string, error) {
+	res, err := opt.Request()
+	if err != nil {
+		return "", err
+	}
+
+	defer res.Body.Close()
+	sumWriter := md5.New()
+	if _, err = io.Copy(sumWriter, res.Body); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(sumWriter.Sum(nil)), nil
+}
+
+// Create request and calculate SHA1 for body response, recomends use SHA256
+func (opt *RequestOptions) SHA1() (string, error) {
+	res, err := opt.Request()
+	if err != nil {
+		return "", err
+	}
+
+	defer res.Body.Close()
+	sumWriter := sha1.New()
+	if _, err = io.Copy(sumWriter, res.Body); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(sumWriter.Sum(nil)), nil
+}
+
+// Create request and calculate SHA256 for body response
+func (opt *RequestOptions) SHA256() (string, error) {
+	res, err := opt.Request()
+	if err != nil {
+		return "", err
+	}
+
+	defer res.Body.Close()
+	sumWriter := sha256.New()
+	if _, err = io.Copy(sumWriter, res.Body); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(sumWriter.Sum(nil)), nil
 }
 
 // Make custom request and return request, response and error if exist

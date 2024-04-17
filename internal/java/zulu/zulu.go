@@ -1,13 +1,8 @@
 package zulu
 
 import (
-	"encoding/json"
-	"fmt"
-	"sort"
-	"strconv"
-	"strings"
+	"runtime"
 
-	"golang.org/x/mod/semver"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
@@ -26,109 +21,67 @@ type zuluBundle struct {
 	ZuluVersion        []int  `json:"zulu_version"`
 }
 
-func joinVersion(i []int) string {
-	rel := []string{}
-	for _, k := range i {
-		rel = append(rel, strconv.Itoa(k))
+func reverseReleases(arr []zuluBundle) {
+	left := 0
+	right := len(arr) - 1
+	for left < right {
+		arr[left], arr[right] = arr[right], arr[left]
+		left++
+		right--
 	}
-	return strings.Join(rel, ".")
 }
 
-var oss [][]string = [][]string{
-	{"linux", "amd64"},
-	{"linux", "arm64"},
-	{"linux", "386"},
-	{"darwin", "amd64"},
-	{"darwin", "arm64"},
-	{"windows", "386"},
-	{"windows", "amd64"},
-	{"windows", "arm64"},
-}
-
-func Releases() ([]globals.Version, error) {
+func Releases() (globals.Version, error) {
 	if cache.Get("zulu", "releases") != nil {
-		values, ok := cache.Get("zulu", "releases").([]globals.Version)
+		values, ok := cache.Get("zulu", "releases").(globals.Version)
 		if ok {
 			return values, nil
 		}
 	}
-	versionsGlobal := map[string]globals.Version{}
-	for _, goTarget := range oss {
-		goos := goTarget[0]
-		goarch := goTarget[1]
-		opts := request.RequestOptions{
-			HttpError: true,
-			Url:       "https://api.azul.com/zulu/download/community/v1.0/bundles/",
-			Querys: map[string]string{
-				"bundle_type": "jdk",
-			},
-		}
 
-		opts.Querys["os"] = goos
-		if goos == "darwin" {
-			opts.Querys["os"] = "macos"
-		}
-		if goarch == "arm64" {
-			opts.Querys["arch"] = "arm"
-			opts.Querys["hw_bitness"] = "64"
-		} else if goarch == "amd64" {
-			opts.Querys["arch"] = "x86"
-			opts.Querys["hw_bitness"] = "64"
-		} else if goarch == "arm" {
-			opts.Querys["arch"] = "arm"
-			opts.Querys["hw_bitness"] = "32"
-		} else if goarch == "386" {
-			opts.Querys["arch"] = "x86"
-			opts.Querys["hw_bitness"] = "32"
-		} else if goarch == "ppc" {
-			opts.Querys["arch"] = "ppc"
-			opts.Querys["hw_bitness"] = "32"
-		}
+	opts := request.RequestOptions{
+		HttpError: true,
+		Url:       "https://api.azul.com/zulu/download/community/v1.0/bundles/",
+		Querys: map[string]string{
+			"bundle_type": "jdk",
+		},
+	}
 
-		res, err := opts.Request()
-		var versions []zuluBundle
-		if err != nil {
-			return []globals.Version{}, err
-		}
-		defer res.Body.Close()
-		if err = json.NewDecoder(res.Body).Decode(&versions); err != nil {
-			return []globals.Version{}, err
-		}
+	opts.Querys["os"] = runtime.GOOS
+	if opts.Querys["os"] == "darwin" {
+		opts.Querys["os"] = "macos"
+	}
 
-		for _, release := range versions {
-			if !(strings.HasSuffix(release.Name, ".zip") || strings.HasSuffix(release.Name, ".tar.gz")) {
-				continue
-			}
+	opts.Querys["arch"] = runtime.GOARCH
+	if opts.Querys["arch"] == "arm64" {
+		opts.Querys["arch"] = "arm"
+		opts.Querys["hw_bitness"] = "64"
+	} else if opts.Querys["arch"] == "amd64" {
+		opts.Querys["arch"] = "x86"
+		opts.Querys["hw_bitness"] = "64"
+	} else if opts.Querys["arch"] == "arm" {
+		opts.Querys["arch"] = "arm"
+		opts.Querys["hw_bitness"] = "32"
+	} else if opts.Querys["arch"] == "386" {
+		opts.Querys["arch"] = "x86"
+		opts.Querys["hw_bitness"] = "32"
+	} else if opts.Querys["arch"] == "ppc" {
+		opts.Querys["arch"] = "ppc"
+		opts.Querys["hw_bitness"] = "32"
+	}
 
-			version := joinVersion(release.JdkVersion)
-			if _, ok := versionsGlobal[version]; !ok {
-				versionsGlobal[version] = globals.Version{
-					Version: version,
-					Targets: map[string]string{},
-				}
-			}
-			versionsGlobal[version].Targets[fmt.Sprintf("%s/%s", goos, goarch)] = release.URL
+	versions := globals.Version{}
+	var zuluReleases []zuluBundle
+	opts.Do(&zuluReleases)
+
+	reverseReleases(zuluReleases)
+	for _, release := range zuluReleases {
+		versions[release.JavaVersion[0]] = globals.VersionBundle{
+			FileUrl:  release.URL,
+			Checksum: "",
 		}
 	}
 
-	versionsArr := []globals.Version{}
-	for _, k := range versionsGlobal {
-		versionsArr = append(versionsArr, k)
-	}
-	sort.Slice(versionsArr, func(i, j int) bool {
-		n := versionsArr[i].Version
-		b := versionsArr[j].Version
-		if !semver.IsValid(n) {
-			n = fmt.Sprintf("v%s", n)
-		}
-		if !semver.IsValid(b) {
-			b = fmt.Sprintf("v%s", b)
-		}
-		n = strings.Join(strings.Split(n, ".")[0:3], ".")
-		b = strings.Join(strings.Split(b, ".")[0:3], ".")
-		return semver.Compare(n, b) == 1
-	})
-
-	cache.Set("zulu", "releases", versionsArr, globals.DefaultTime)
-	return versionsArr, nil
+	cache.Set("zulu", "releases", versions, globals.DefaultTime)
+	return versions, nil
 }

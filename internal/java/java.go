@@ -16,7 +16,7 @@ var (
 	HostVersion      string = host.HostVersion()
 )
 
-func Release(distro string) ([]globals.Version, error) {
+func Release(distro string) (globals.Version, error) {
 	if distro == "adoptium" {
 		return adoptium.Releases()
 	} else if distro == "liberica" {
@@ -29,8 +29,8 @@ func Release(distro string) ([]globals.Version, error) {
 	return nil, ErrInvalidDistro
 }
 
-func AllReleases() (map[string][]globals.Version, error) {
-	maped := map[string][]globals.Version{}
+func AllReleases() (map[string]globals.Version, error) {
+	maped := map[string]globals.Version{}
 	channelError := make(chan error)
 	dones := 0
 

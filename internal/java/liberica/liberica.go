@@ -1,17 +1,12 @@
 package liberica
 
 import (
-	"encoding/json"
 	"fmt"
+	"runtime"
 
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
-)
-
-const (
-	APIReleases string = "https://api.bell-sw.com/v1/liberica/releases?bundle-type=jre&installation-type=archive"
-	APIFile     string = "https://api.bell-sw.com/v1/liberica/releases/%s"
 )
 
 type release struct {
@@ -43,62 +38,85 @@ type release struct {
 	UpdateType             string `json:"updateType"`
 }
 
-func Releases() ([]globals.Version, error) {
+func reverseReleases(arr []release) {
+	left := 0
+	right := len(arr) - 1
+	for left < right {
+		arr[left], arr[right] = arr[right], arr[left]
+		left++
+		right--
+	}
+}
+
+func Releases() (globals.Version, error) {
 	if cache.Get("liberica", "releases") != nil {
-		value, ok := cache.Get("liberica", "releases").([]globals.Version)
+		value, ok := cache.Get("liberica", "releases").(globals.Version)
 		if ok {
 			return value, nil
 		}
 	}
 
-	res, err := request.Request(request.RequestOptions{HttpError: true, Url: APIReleases})
+	req := request.RequestOptions{
+		HttpError: true,
+		Url:       "https://api.bell-sw.com/v1/liberica/releases",
+		Querys: map[string]string{
+			"installation-type": "archive",
+			"bundle-type":       "jre",
+			"arch":              runtime.GOARCH,
+			"os":                runtime.GOOS,
+		},
+	}
+
+	// 'linux', 'linux-musl', 'macos', 'solaris', 'windows';
+	switch runtime.GOOS {
+	case "darwin":
+		req.Querys["os"] = "macos"
+	case "windows":
+		req.Querys["os"] = "windows"
+	case "android":
+		req.Querys["os"] = "linux-musl"
+	case "linux":
+	case "solaris":
+		req.Querys["os"] = runtime.GOOS
+	default:
+		return nil, globals.ErrNoSupportOs
+	}
+
+	switch runtime.GOARCH {
+	case "arm64":
+		req.Querys["bitness"] = "64"
+		req.Querys["arch"] = "arm"
+	case "arm":
+		req.Querys["bitness"] = "32"
+		req.Querys["arch"] = "arm"
+	case "amd64":
+		req.Querys["bitness"] = "64"
+		req.Querys["arch"] = "x86"
+	case "386":
+		req.Querys["bitness"] = "32"
+		req.Querys["arch"] = "x86"
+	case "ppc64":
+	case "ppc64le":
+		req.Querys["bitness"] = "64"
+		req.Querys["arch"] = "ppc"
+	default:
+		return nil, globals.ErrNoSupportArch
+	}
+
+	var rels []release
+	_, err := req.Do(&rels)
 	if err != nil {
-		return []globals.Version{}, err
+		return nil, err
 	}
 
-	defer res.Body.Close()
-	var versionReleases []release
-	if err = json.NewDecoder(res.Body).Decode(&versionReleases); err != nil {
-		return []globals.Version{}, err
-	}
-
-	releases := map[string]globals.Version{}
-	for _, release := range versionReleases {
-		if release.Os == "linux-musl" || !(release.PackageType == "zip" || release.PackageType == "tar.gz") {
-			continue
+	reverseReleases(rels)
+	version := globals.Version{}
+	for _, release := range rels {
+		version[release.FeatureVersion] = globals.VersionBundle{
+			FileUrl:  release.DownloadURL,
+			Checksum: fmt.Sprintf("sha1:%s", release.Sha1),
 		}
-
-		goos := release.Os
-		goarch := release.Architecture
-		if release.Bitness == 64 {
-			if release.Architecture == "arm" {
-				goarch = "arm64"
-			} else if release.Architecture == "x86" {
-				goarch = "amd64"
-			} else if release.Architecture == "ppc" {
-				goarch = "ppc64"
-			}
-		} else {
-			if release.Architecture == "x86" {
-				goarch = "386"
-			}
-		}
-
-		if _, exist := releases[release.Version]; !exist {
-			releases[release.Version] = globals.Version{
-				Version: release.Version,
-				Targets: map[string]string{},
-			}
-		}
-
-		releases[release.Version].Targets[fmt.Sprintf("%s/%s", goos, goarch)] = fmt.Sprintf(APIFile, release.Filename)
 	}
 
-	arrVersions := []globals.Version{}
-	for _, v := range releases {
-		arrVersions = append(arrVersions, v)
-	}
-
-	cache.Set("liberica", "releases", arrVersions, globals.DefaultTime)
-	return arrVersions, nil
+	return version, nil
 }

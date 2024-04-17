@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
-	"strings"
+	"runtime"
 	"time"
 
-	"golang.org/x/mod/semver"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/cache"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/java/globals"
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
@@ -71,15 +69,24 @@ type apiVersions []struct {
 	} `json:"version_data"`
 }
 
-func Releases() ([]globals.Version, error) {
+func reverseReleases(arr apiVersions) {
+	left := 0
+	right := len(arr) - 1
+	for left < right {
+		arr[left], arr[right] = arr[right], arr[left]
+		left++
+		right--
+	}
+}
+
+func Releases() (globals.Version, error) {
 	if cache.Get("adoptium", "releases") != nil {
-		cached, ok := cache.Get("adoptium", "releases").([]globals.Version)
+		cached, ok := cache.Get("adoptium", "releases").(globals.Version)
 		if ok {
 			return cached, nil
 		}
 	}
 
-	versionsMap := map[string]globals.Version{}
 	// %5B1.0%2C100.0%5D == [1.0,100.0]
 	req := request.RequestOptions{
 		HttpError:   true,
@@ -87,19 +94,38 @@ func Releases() ([]globals.Version, error) {
 		CodesRetrys: []int{400},
 		Querys: map[string]string{
 			"project":     "jdk",
-			"image_type":  "jdk",
-			"semver":      "true",
+			"image_type":  "jre",
 			"page_size":   "20",
-			"heap_size":   "normal",
 			"sort_method": "DEFAULT",
 			"sort_order":  "DESC",
+			"semver":      "true",
 		},
 	}
 
-	isErr := false
-	wait := make(chan error)
+	// architecture: x64, x86, x32, ppc64, ppc64le, s390x, aarch64, arm, sparcv9, riscv64
+	goarch := runtime.GOARCH
+	switch goarch {
+	case "amd64":
+		goarch = "x64"
+	case "386":
+		goarch = "x86"
+	case "arm64":
+		goarch = "aarch64"
+	}
+	req.Querys["architecture"] = goarch
 
-	dones := 0
+	// os: linux, windows, mac, solaris, aix, alpine-linux
+	goos := runtime.GOOS
+	switch goos {
+	case "darwin":
+		goos = "mac"
+	case "sunos":
+		goos = "solaris"
+	}
+	req.Querys["os"] = goos
+
+	dones, isErr, wait := 0, false, make(chan error)
+	var concatedVersions apiVersions
 	var requestMake func(pageUrl string)
 	requestMake = func(pageUrl string) {
 		if isErr {
@@ -145,44 +171,7 @@ func Releases() ([]globals.Version, error) {
 			return
 		}
 
-		for _, rel := range releases {
-			var ok bool
-			var versionStruct globals.Version
-			if versionStruct, ok = versionsMap[versionStruct.Version]; !ok {
-				versionStruct = globals.Version{
-					Version: strings.ReplaceAll(rel.VersionData.Semver, "-beta+", ""),
-					Targets: map[string]string{},
-				}
-			}
-
-			for _, file := range rel.Binaries {
-				if file.Os == "alpine-linux" {
-					continue
-				}
-
-				goarch := file.Architecture
-				goos := file.Os
-				switch goos {
-				case "sunos":
-					goos = "solaris"
-				case "win32":
-					goos = "windows"
-				case "mac":
-				case "macos":
-					goos = "darwin"
-				}
-				switch goarch {
-				case "x64":
-					goarch = "amd64"
-				case "ia32":
-					goarch = "386"
-				}
-
-				versionStruct.Targets[fmt.Sprintf("%s/%s", goos, goarch)] = file.Package.Link
-			}
-
-			versionsMap[versionStruct.Version] = versionStruct
-		}
+		concatedVersions = append(concatedVersions, releases...)
 	}
 	go requestMake(req.Url)
 
@@ -198,24 +187,17 @@ func Releases() ([]globals.Version, error) {
 		}
 	}
 
-	versionsArr := []globals.Version{}
-	for _, v := range versionsMap {
-		versionsArr = append(versionsArr, v)
+	versions := globals.Version{}
+	reverseReleases(concatedVersions)
+	for _, release := range concatedVersions {
+		if len(release.Binaries) == 0 {
+			continue
+		}
+		versions[release.VersionData.Major] = globals.VersionBundle{
+			FileUrl:  release.Binaries[0].Package.Link,
+			Checksum: fmt.Sprintf("sha256:%s", release.Binaries[0].Package.Checksum),
+		}
 	}
-	sort.Slice(versionsArr, func(i, j int) bool {
-		n := versionsArr[i].Version
-		b := versionsArr[j].Version
-		if !semver.IsValid(n) {
-			n = fmt.Sprintf("v%s", n)
-		}
-		if !semver.IsValid(b) {
-			b = fmt.Sprintf("v%s", b)
-		}
-		n = strings.Join(strings.Split(n, ".")[0:3], ".")
-		b = strings.Join(strings.Split(b, ".")[0:3], ".")
-		return semver.Compare(n, b) == 1
-	})
 
-	cache.Set("adoptium", "releases", versionsArr, globals.DefaultTime)
-	return versionsArr, nil
+	return versions, nil
 }
