@@ -157,7 +157,7 @@ func (w *Mojang) Start() (exec.Server, error) {
 			})()
 
 			// Player action
-			go (func () {
+			go (func() {
 				if MojangPlayerActions["v2"].MatchString(line) {
 					ActionPlayer := internal.FindAllGroups(MojangPlayerActions["v2"], line)
 

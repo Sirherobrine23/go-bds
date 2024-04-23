@@ -37,7 +37,7 @@ type Server struct {
 	Stdlog       *ioextends.Piped // Log stdout and stderr
 }
 
-func Run(opts ServerOptions) (Server, error) {
+func (opts *ServerOptions) Run() (Server, error) {
 	var cmd *exec.Cmd
 	var main Server
 	if len(opts.Arguments) == 0 {
@@ -85,7 +85,20 @@ func Run(opts ServerOptions) (Server, error) {
 	return main, nil
 }
 
+func Run(opts ServerOptions) (Server, error) {
+	return opts.Run()
+}
+
 // Write to stdin
 func (w *Server) Writer(p []byte) (n int, err error) {
 	return w.Stdin.Write(p)
+}
+
+func QuickRun(cmd string, arguments... string) (string, error) {
+	ex := exec.Command(cmd, arguments...)
+	run, err := ex.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(run), nil
 }

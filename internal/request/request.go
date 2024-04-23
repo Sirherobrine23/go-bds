@@ -1,6 +1,8 @@
 package request
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -12,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -156,6 +159,29 @@ func (opt *RequestOptions) WriteStream(writer io.Writer) error {
 	return nil
 }
 
+func (opt *RequestOptions) File(filePath string) error {
+	// Create file
+	localFile, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer localFile.Close()
+
+	// Create Request
+	res, err := opt.Request()
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	// Copy data
+	if _, err = io.Copy(localFile, res.Body); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Create request and calculate MD5 for body response
 func (opt *RequestOptions) MD5() (string, error) {
 	res, err := opt.Request()
@@ -271,4 +297,40 @@ func RequestHtmlLinks(opt RequestOptions) ([]string, http.Response, error) {
 	}
 
 	return urls, res, err
+}
+
+func RequestGithub(Repo, Release, Root string) error {
+	os.MkdirAll(Root, os.FileMode(0o666))
+	req := RequestOptions{HttpError: true, Url: fmt.Sprintf("https://github.com/%s/archive/%s.tar.gz", Repo, Release)}
+	res, err := req.Request()
+	if err != nil {
+		return err
+	}
+
+	gz, err := gzip.NewReader(res.Body)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+
+	tar := tar.NewReader(gz)
+	for {
+		head, err := tar.Next()
+		if err != nil {
+			if io.EOF == err {
+				break
+			}
+			return err
+		}
+		fileinfo := head.FileInfo()
+
+		var file *os.File
+		if file, err = os.OpenFile(filepath.Join(Root, filepath.Join(filepath.SplitList(head.Name)[:1]...)), os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileinfo.Mode()); err != nil {
+			return err
+		} else if _, err = io.Copy(file, tar); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -5,7 +5,6 @@ go 1.22.1
 require (
 	github.com/PuerkitoBio/goquery v1.9.1
 	github.com/gookit/properties v0.3.0
-	golang.org/x/mod v0.17.0
 	golang.org/x/net v0.24.0
 )
 

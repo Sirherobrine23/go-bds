@@ -2,7 +2,10 @@ package nukkit
 
 import (
 	"encoding/json"
+	"io"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
@@ -16,6 +19,27 @@ type NukkitBuild struct {
 	CommitID    string    `json:"commit"`
 	BuilderDate time.Time `json:"buildDate"`
 	FileUrl     string    `json:"url"`
+}
+
+func (w *NukkitBuild) Download(folderPath string) error {
+	res, err := (&request.RequestOptions{Url: w.FileUrl}).Request()
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	file, err := os.Create(filepath.Join(folderPath, "server.jar"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, res.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func ListFiles() ([]NukkitBuild, error) {

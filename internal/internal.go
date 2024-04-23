@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"os"
 	"regexp"
 )
 
@@ -53,4 +54,14 @@ func SHA256(stream io.Reader) string {
 	sha1New := sha256.New()
 	io.Copy(sha1New, stream)
 	return hex.EncodeToString(sha1New.Sum(nil))
+}
+
+func ExistPath(path string) bool {
+	_, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
 }

@@ -29,10 +29,11 @@ type versionsAggretor map[string][]aggretor
 type Version struct {
 	ReleaseType string    `json:"releaseType"`
 	Release     time.Time `json:"releaseTime"`
-	Version     string    `json:"version"`
 	Minecraft   string    `json:"minecraftVersion"`
 	File        string    `json:"jarFile"`
 }
+
+type ReleasesVersions map[string]Version
 
 func padStart(source string, size int, text string) string {
 	n := source
@@ -42,17 +43,17 @@ func padStart(source string, size int, text string) string {
 	return n
 }
 
-func MapFiles() ([]Version, error) {
-	newList := []Version{}
+func Releases() (ReleasesVersions, error) {
+	versionsList := ReleasesVersions{}
 	res, err := request.Request(request.RequestOptions{HttpError: true, Url: ProjectVersions})
 	if err != nil {
-		return newList, err
+		return nil, err
 	}
 
 	defer res.Body.Close()
 	var versions versionsAggretor
 	if err = json.NewDecoder(res.Body).Decode(&versions); err != nil {
-		return newList, err
+		return nil, err
 	}
 
 	for ReleaseType, Targets := range versions {
@@ -95,16 +96,15 @@ func MapFiles() ([]Version, error) {
 					fileUrl = fmt.Sprintf("https://search.maven.org/remotecontent?filepath=org/powernukkit/powernukkit/%s/powernukkit-%s%s", release.Version, release.Version, artefactExtension)
 				}
 
-				newList = append(newList, Version{
+				versionsList[release.Version] = Version{
 					ReleaseType,
 					utcTime,
-					release.Version,
 					release.Minecraft,
 					fileUrl,
-				})
+				}
 			}
 		}
 	}
 
-	return newList, nil
+	return versionsList, nil
 }
