@@ -94,7 +94,7 @@ func (w *Server) Writer(p []byte) (n int, err error) {
 	return w.Stdin.Write(p)
 }
 
-func QuickRun(cmd string, arguments... string) (string, error) {
+func QuickRun(cmd string, arguments ...string) (string, error) {
 	ex := exec.Command(cmd, arguments...)
 	run, err := ex.Output()
 	if err != nil {

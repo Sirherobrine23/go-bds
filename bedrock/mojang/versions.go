@@ -17,13 +17,16 @@ import (
 	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
 )
 
+var (
+	VersionsRemote string = "https://sirherobrine23.org/Minecraft-Server/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
+)
+
 const (
-	VersionsRemote    string = "https://sirherobrine23.org/Minecraft-Server/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
-	MinecraftPage     string = "https://www.minecraft.net/en-us/download/server/bedrock"                                // Minecraft page to find versions
-	WindowsUrl        string = "https://minecraft.azureedge.net/bin-win/bedrock-server-%s.zip"                          // Windows x64/amd64 url file
-	LinuxUrl          string = "https://minecraft.azureedge.net/bin-linux/bedrock-server-%s.zip"                        // Linux x64/amd64 url file
-	WindowsPreviewUrl string = "https://minecraft.azureedge.net/bin-win-preview/bedrock-server-%s.zip"                  // Windows x64/amd64 preview url file
-	LinuxPreviewUrl   string = "https://minecraft.azureedge.net/bin-linux-preview/bedrock-server-%s.zip"                // Linux x64/amd64 url file
+	MinecraftPage     string = "https://www.minecraft.net/en-us/download/server/bedrock"                 // Minecraft page to find versions
+	WindowsUrl        string = "https://minecraft.azureedge.net/bin-win/bedrock-server-%s.zip"           // Windows x64/amd64 url file
+	LinuxUrl          string = "https://minecraft.azureedge.net/bin-linux/bedrock-server-%s.zip"         // Linux x64/amd64 url file
+	WindowsPreviewUrl string = "https://minecraft.azureedge.net/bin-win-preview/bedrock-server-%s.zip"   // Windows x64/amd64 preview url file
+	LinuxPreviewUrl   string = "https://minecraft.azureedge.net/bin-linux-preview/bedrock-server-%s.zip" // Linux x64/amd64 url file
 )
 
 var (

@@ -16,7 +16,7 @@ const (
 )
 
 type aggretor struct {
-	Release   int64  `json:"releaseTime"`
+	Release   int64    `json:"releaseTime"`
 	Minecraft string   `json:"minecraftVersion"`
 	Version   string   `json:"version"`
 	Commit    string   `json:"commitId"`

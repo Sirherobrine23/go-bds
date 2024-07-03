@@ -106,7 +106,7 @@ type MojangConfig struct {
 	// Internal Use Only
 	DisablePersona bool `json:"disablePersona" properties:"disable-persona"`
 	// If true, disable players customized skins that were customized outside of the Minecraft store assets or in game assets.  This is used to disable possibly offensive custom skins players make.
-	DisableCustomSkins     bool   `json:"disableCustomSkins" properties:"disable-custom-skins"`
+	DisableCustomSkins bool `json:"disableCustomSkins" properties:"disable-custom-skins"`
 	// Allowed values: "Disabled" or any value in range [0.0, 1.0]
 	// If "Disabled" the server will dynamically calculate how much of the player's view it will generate, assigning the rest to the client to build.
 	// Otherwise from the overridden ratio tell the server how much of the player's view to generate, disregarding client hardware capability.

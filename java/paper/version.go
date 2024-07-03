@@ -14,7 +14,7 @@ type Version struct {
 }
 
 type Versions struct {
-	Project  string             `json:"project"`
+	Project  string                        `json:"project"`
 	Versions map[string]map[string]Version `json:"versions"`
 }
 
@@ -36,7 +36,7 @@ func (paper *Versions) Releases() error {
 	for _, version := range projectVersions.Versions {
 		var builds struct {
 			Builds []struct {
-				Build int64 `json:"build"`
+				Build     int64     `json:"build"`
 				BuildTime time.Time `json:"time"`
 				Downloads map[string]struct {
 					Name   string `json:"name"`
@@ -56,7 +56,7 @@ func (paper *Versions) Releases() error {
 		for k, v := range buildInfo.Downloads {
 			paper.Versions[version][k] = Version{
 				BuildDate: buildInfo.BuildTime,
-				FileURL: fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s/builds/%d/downloads/%s", paper.Project, version, buildInfo.Build, v.Name),
+				FileURL:   fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s/builds/%d/downloads/%s", paper.Project, version, buildInfo.Build, v.Name),
 			}
 		}
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	APIPlugins    string = "%s/plugins.json"
+	APIPlugins string = "%s/plugins.json"
 )
 
 type plugin struct {

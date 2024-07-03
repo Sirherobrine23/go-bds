@@ -19,7 +19,7 @@ func (w *Link) HasKey(key string) bool {
 	return ok
 }
 
-func (w *Link) HasKeyValue(key string, values... string) (string, bool) {
+func (w *Link) HasKeyValue(key string, values ...string) (string, bool) {
 	if value, ok := w.Params[key]; ok {
 		for _, inputValue := range values {
 			if value == inputValue {

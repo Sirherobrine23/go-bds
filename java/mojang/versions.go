@@ -54,7 +54,7 @@ func Releases() (Versions, error) {
 			versions[release.ID] = Version{
 				ReleaseType: release.ReleaseType,
 				ReleaseDate: release.ReleaseDate,
-				UrlServer: info.FileUrl,
+				UrlServer:   info.FileUrl,
 			}
 		}
 	}
