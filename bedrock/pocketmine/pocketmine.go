@@ -18,12 +18,13 @@ func (w *Pocketmine) Download() error {
 }
 
 func (server *Pocketmine) Start() (exec.Server, error) {
-	opts := exec.ServerOptions{}
-	opts.Arguments = []string{
-		"php",
-		"pocketmine.php",
-		"--no-wizard",
-		"--enable-ansi",
+	opts := exec.ServerOptions{
+  	Arguments: []string{
+  		"php",
+  		"pocketmine.php",
+  		"--no-wizard",
+  		"--enable-ansi",
+  	},
 	}
-	return exec.Server{}, nil
+	return exec.Run(opts)
 }
