@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	PlayerActionDisconnect string = "disconnect" //
-	PlayerActionConnect    string = "connect"    //
-	PlayerActionSpawn      string = "spawn"      //
+	PlayerActionDisconnect string = "disconnect" // Player disconnected from server
+	PlayerActionConnect    string = "connect"    // Player connect in to server
+	PlayerActionSpawn      string = "spawn"      // Player spawned in server and connected correct to server, only new server (1.16+)
 )
 
 var (

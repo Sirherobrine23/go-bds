@@ -1,5 +1,19 @@
 package mojang
 
+type Permission struct {
+	Permission string `json:"permission"`
+	XUID       string `json:"xuid"`
+}
+
+type PlayerAllowList struct {
+	Name         string `json:"name"`               // Player name
+	IgnoreLimits bool   `json:"ignoresPlayerLimit"` // True if this user should not count towards the maximum player limit. Currently there's another soft limit of 30 (or 1 higher than the specified number of max players) connected players, even if players use this option. The intention for this is to have some players be able to join even if the server is full.
+	XUID         string `json:"xuid,omitempty"`     // Optional. The XUID of the user. If it's not set then it will be populated when someone with a matching name connects.
+}
+
+type AllowList []PlayerAllowList
+type Permissions []Permission
+
 type MojangConfig struct {
 	// Used as the server name
 	//
@@ -33,9 +47,9 @@ type MojangConfig struct {
 	// If true then all connected players must be listed in the separate allowlist.json file.
 	AllowList bool `json:"allowList" properties:"allow-list"`
 	// Which IPv4 port the server should listen to.
-	Port int `json:"port" properties:"server-port"`
+	Port int16 `json:"port" properties:"server-port"`
 	// Which IPv6 port the server should listen to.
-	Portv6 int `json:"portv6" properties:"server-portv6"`
+	Portv6 int16 `json:"portv6" properties:"server-portv6"`
 	// Listen and respond to clients that are looking for servers on the LAN. This will cause the server
 	// to bind to the default ports (19132, 19133) even when `server-port` and `server-portv6`
 	// have non-default values. Consider turning this off if LAN discovery is not desirable, or when
@@ -46,11 +60,11 @@ type MojangConfig struct {
 	// The world will be ticked this many chunks away from any player.
 	//
 	// Allowed values: Integers in the range [4, 12]
-	TickDistance int64 `json:"tickDistance" properties:"tick-distance"`
+	TickDistance int `json:"tickDistance" properties:"tick-distance"`
 	// After a player has idled for this many minutes they will be kicked. If set to 0 then players can idle indefinitely.
-	PlayerTimeout int64 `json:"playerTimeout" properties:"player-idle-timeout"`
+	PlayerTimeout uint64 `json:"playerTimeout" properties:"player-idle-timeout"`
 	// Maximum number of threads the server will try to use. If set to 0 or removed then it will use as many as possible.
-	Threads int64 `json:"threads" properties:"max-threads"`
+	Threads uint64 `json:"threads" properties:"max-threads"`
 	// Allowed values: Any string without semicolon symbol or symbols illegal for file name: /\n\r\t\f`?*\\<>|\":
 	LevelName string `json:"levelName" properties:"level-name"`
 	// Use to randomize the world
@@ -112,4 +126,6 @@ type MojangConfig struct {
 	// Otherwise from the overridden ratio tell the server how much of the player's view to generate, disregarding client hardware capability.
 	// Only valid if client-side-chunk-generation-enabled is enabled
 	ServerBuildRadiusRatio string `json:"serverBuildRadiusRatio" properties:"server-build-radius-ratio"`
+	// Microsoft/Mojang telemetry
+	Telemetry bool `json:"telemetry" properties:"emit-server-telemetry"`
 }
