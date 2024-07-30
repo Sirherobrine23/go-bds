@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
+	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
 type projectVersions struct {

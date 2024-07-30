@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"code.gitea.io/sdk/gitea"
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
+	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
 type Version struct {
@@ -47,7 +47,7 @@ func GetReleases() ([]Version, error) {
 		res, teaRes, err := tea.ListReleases("go-bds", "Spigot", gitea.ListReleasesOptions{
 			ListOptions: gitea.ListOptions{
 				PageSize: 100000,
-				Page: page,
+				Page:     page,
 			},
 		})
 		page = teaRes.NextPage

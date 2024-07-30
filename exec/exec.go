@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal/ioextends"
+	"sirherobrine23.org/go-bds/go-bds/ioextends"
 )
 
 var (
@@ -37,11 +37,10 @@ type Server struct {
 	Stdlog       *ioextends.Piped // Log stdout and stderr
 }
 
-func (opts *ServerOptions) Run() (Server, error) {
+func (opts *ServerOptions) Run() (*Server, error) {
 	var cmd *exec.Cmd
-	var main Server
 	if len(opts.Arguments) == 0 {
-		return main, ErrNoCommand
+		return nil, ErrNoCommand
 	} else if len(opts.Arguments) == 1 {
 		cmd = exec.Command(opts.Arguments[0])
 	} else {
@@ -49,7 +48,7 @@ func (opts *ServerOptions) Run() (Server, error) {
 	}
 
 	// make Server struct
-	main = Server{}
+	main := &Server{}
 
 	// Process cwd
 	if len(opts.Cwd) > 0 {
@@ -68,9 +67,9 @@ func (opts *ServerOptions) Run() (Server, error) {
 
 	// Pipe stderr and stdout
 	piped := ioextends.ReadPipe()
+	main.Stdlog = piped
 	cmd.Stderr = piped
 	cmd.Stdout = piped
-	main.Stdlog = piped
 
 	// Start server
 	if err = cmd.Start(); err != nil {
@@ -85,20 +84,7 @@ func (opts *ServerOptions) Run() (Server, error) {
 	return main, nil
 }
 
-func Run(opts ServerOptions) (Server, error) {
-	return opts.Run()
-}
-
 // Write to stdin
-func (w *Server) Writer(p []byte) (n int, err error) {
+func (w *Server) Write(p []byte) (n int, err error) {
 	return w.Stdin.Write(p)
-}
-
-func QuickRun(cmd string, arguments ...string) (string, error) {
-	ex := exec.Command(cmd, arguments...)
-	run, err := ex.Output()
-	if err != nil {
-		return "", err
-	}
-	return string(run), nil
 }

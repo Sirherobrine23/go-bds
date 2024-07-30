@@ -5,12 +5,12 @@ import (
 	"errors"
 	"time"
 
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
+	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
 var (
-  ErrInvalidFileVersions error = errors.New("invalid versions file or url") // Versions file invalid url schema
-	VersionsRemote string = "https://sirherobrine23.org/Minecraft-Server/Pocketmine-Cache/raw/branch/main/versions.json" // Version cache
+	ErrInvalidFileVersions error  = errors.New("invalid versions file or url")                                                   // Versions file invalid url schema
+	VersionsRemote         string = "https://sirherobrine23.org/Minecraft-Server/Pocketmine-Cache/raw/branch/main/versions.json" // Version cache
 )
 
 type Version struct {

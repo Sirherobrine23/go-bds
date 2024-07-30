@@ -5,20 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal"
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
+	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
 var (
-	VersionsRemote string = "https://sirherobrine23.org/Minecraft-Server/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
+	VersionsRemote string = "https://sirherobrine23.org/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
 )
 
 const (
@@ -30,170 +26,50 @@ const (
 )
 
 var (
-	ErrInvalidFileVersions error          = errors.New("invalid versions file or url") // Versions file invalid url schema
-	ErrNoVersion           error          = errors.New("cannot find version")          // Version request not exists
+	ErrInvalidFileVersions error          = errors.New("invalid versions file or url")            // Versions file invalid url schema
+	ErrNoVersion           error          = errors.New("cannot find version")                     // Version request not exists
+	ErrNoPlatform          error          = errors.New("platform not supported for this version") // Version request not exists
 	MatchVersion           *regexp.Regexp = regexp.MustCompile(`bedrock-server-(P<Version>[0-9\.\-_]+).zip$`)
 )
 
-type VersionTarget struct {
-	Target  string `json:"goTarget"`
-	ZipFile string `json:"zip"`     // Local file and http to remote
-	ZipSHA1 string `json:"zipSHA1"` // File SHA1
+type VersionPlatform struct {
+	ZipFile     string    `json:"zipFile"`     // Minecraft server url server
+	ZipSHA1     string    `json:"zipSHA1"`     // SHA1 to verify integrety to zip file
+	TarFile     string    `json:"tarFile"`     // Minecraft server url in tar type
+	TarSHA1     string    `json:"tarSHA1"`     // SHA1 to verify integrety to tar file
+	ReleaseDate time.Time `json:"releaseDate"` // Platform release/build day
 }
 
 type Version struct {
-	Version     string          `json:"version"`
-	DateRelease time.Time       `json:"releaseDate"`
-	IsPreview   bool            `json:"isPreview"`
-	Targets     []VersionTarget `json:"targets"`
+	IsPreview   bool                       `json:"preview"`          // Preview server
+	DockerImage map[string]string          `json:"images,omitempty"` // Docker images
+	Platforms   map[string]VersionPlatform `json:"platforms"`        // Golang platforms target
 }
-
-// Get versions from minecraft server page
-func Minecraft() (map[string]Version, error) {
-	versionsTarget := map[string]Version{}
-	doc, _, err := request.HtmlNode(request.RequestOptions{HttpError: true, Method: "GET", Url: MinecraftPage})
-	if err != nil {
-		return versionsTarget, err
-	}
-
-	zipFiles := []url.URL{}
-	targets := doc.Find("#main-content > div > div > div > div > div > div > div.server-card.aem-GridColumn.aem-GridColumn--default--12 > div > div > div > div")
-	targets.Each(func(i int, s *goquery.Selection) {
-		// div.card-footer > div > a
-		href := s.Find("div.card-footer > div > a").AttrOr("href", "")
-		if len(href) > 5 {
-			if parsedFile, err := url.Parse(href); err == nil {
-				zipFiles = append(zipFiles, *parsedFile)
-			}
-		}
-	})
-
-	for _, file := range zipFiles {
-		version := internal.FindAllGroups(MatchVersion, file.Path)["Version"]
-		isPreview := false
-		var goTarget string
-		if strings.HasPrefix(file.Path, "/bin-win-preview") {
-			isPreview = true
-			goTarget = "windows/amd64"
-		} else if strings.HasPrefix(file.Path, "/bin-linux-preview") {
-			isPreview = true
-			goTarget = "linux/amd64"
-		} else if strings.HasPrefix(file.Path, "/bin-win") {
-			goTarget = "windows/amd64"
-		} else if strings.HasPrefix(file.Path, "/bin-linux") {
-			goTarget = "linux/amd64"
-		} else {
-			continue
-		}
-
-		req := request.RequestOptions{Url: file.String()}
-
-		var ok bool
-		var versionRelease Version
-		if versionRelease, ok = versionsTarget[version]; !ok {
-			versionRelease = Version{
-				Version:     version,
-				IsPreview:   isPreview,
-				DateRelease: time.Time{},
-				Targets:     []VersionTarget{},
-			}
-
-			file, err := os.CreateTemp(os.TempDir(), "bdsserver")
-			if err != nil {
-				return nil, err
-			}
-
-			defer file.Close()
-			if err = req.WriteStream(file); err != nil {
-				return nil, err
-			}
-
-			stats, err := file.Stat()
-			if err != nil {
-				return nil, err
-			}
-
-			zipReader, err := zip.NewReader(file, stats.Size())
-			if err != nil {
-				return nil, err
-			}
-
-			for _, file := range zipReader.File {
-				if strings.HasPrefix(file.Name, "bedrock_server") {
-					versionRelease.DateRelease = file.Modified
-					break
-				}
-			}
-
-			file.Close()
-			os.Remove(file.Name())
-		}
-
-		sha256, err := req.SHA256()
-		if err != nil {
-			return nil, err
-		}
-
-		versionRelease.Targets = append(versionsTarget[version].Targets, VersionTarget{
-			Target:  goTarget,
-			ZipFile: file.String(),
-			ZipSHA1: sha256,
-		})
-		versionsTarget[version] = versionRelease
-	}
-
-	return versionsTarget, nil
-}
+type Versions map[string]Version
 
 // Get versions from cached versions
-// remoteFileFetch set custom cache versions for load versions
-func FromVersions(remoteFileFetch ...string) ([]Version, error) {
-	fileFatch := VersionsRemote
-	if len(remoteFileFetch) == 1 && len(remoteFileFetch[0]) > 2 {
-		fileFatch = remoteFileFetch[0]
-	}
-
-	file, err := url.Parse(fileFatch)
+func FromVersions() (Versions, error) {
+	var versions Versions
+	res, err := request.Request(request.RequestOptions{Method: "GET", HttpError: true, Url: VersionsRemote})
 	if err != nil {
-		return []Version{}, err
+		return versions, err
 	}
 
-	versions := []Version{}
-	if file.Scheme == "http" || file.Scheme == "https" {
-		res, err := request.Request(request.RequestOptions{Method: "GET", HttpError: true, Url: fileFatch})
-		if err != nil {
-			return versions, err
-		}
-
-		defer res.Body.Close()
-		if err = json.NewDecoder(res.Body).Decode(&versions); err != nil {
-			return versions, err
-		}
-	} else if file.Scheme == "file" {
-		osFile, err := os.Open(file.Path)
-		if err != nil {
-			return versions, err
-		}
-
-		defer osFile.Close()
-		if err = json.NewDecoder(osFile).Decode(&versions); err != nil {
-			return versions, err
-		}
-	} else {
-		return versions, ErrInvalidFileVersions
+	defer res.Body.Close()
+	if err = json.NewDecoder(res.Body).Decode(&versions); err != nil {
+		return versions, err
 	}
 
 	return versions, nil
 }
 
-func (version *VersionTarget) Download(serverPath string) error {
+func (version *VersionPlatform) Download(serverPath string) error {
 	req := request.RequestOptions{Url: version.ZipFile}
 
 	file, err := os.CreateTemp(os.TempDir(), "bdsserver")
 	if err != nil {
 		return err
 	}
-
 	defer file.Close()
 	if err = req.WriteStream(file); err != nil {
 		return err

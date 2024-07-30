@@ -3,7 +3,7 @@ package pocketmine
 import (
 	"time"
 
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal/exec"
+	"sirherobrine23.org/go-bds/go-bds/exec"
 )
 
 type Pocketmine struct {
@@ -17,14 +17,14 @@ func (w *Pocketmine) Download() error {
 	return nil
 }
 
-func (server *Pocketmine) Start() (exec.Server, error) {
+func (server *Pocketmine) Start() (*exec.Server, error) {
 	opts := exec.ServerOptions{
-  	Arguments: []string{
-  		"php",
-  		"pocketmine.php",
-  		"--no-wizard",
-  		"--enable-ansi",
-  	},
+		Arguments: []string{
+			"php",
+			"pocketmine.php",
+			"--no-wizard",
+			"--enable-ansi",
+		},
 	}
-	return exec.Run(opts)
+	return opts.Run()
 }

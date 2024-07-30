@@ -1,5 +1,13 @@
 package mojang
 
+import (
+	"io/fs"
+	"os"
+	"path/filepath"
+
+	"github.com/gookit/properties"
+)
+
 type Permission struct {
 	Permission string `json:"permission"`
 	XUID       string `json:"xuid"`
@@ -128,4 +136,22 @@ type MojangConfig struct {
 	ServerBuildRadiusRatio string `json:"serverBuildRadiusRatio" properties:"server-build-radius-ratio"`
 	// Microsoft/Mojang telemetry
 	Telemetry bool `json:"telemetry" properties:"emit-server-telemetry"`
+}
+
+// Load server config and Write to Struct
+func (Config *MojangConfig) Load(ServerPath string) error {
+	f, err := os.ReadFile(filepath.Join(ServerPath, "server.properties"))
+	if err != nil {
+		return err
+	}
+	return properties.Unmarshal(f, Config)
+}
+
+// Save server config from struct
+func (Config *MojangConfig) Save(ServerPath string) error {
+	data, err := properties.Marshal(Config)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(ServerPath, "server.properties"), data, fs.FileMode(0700))
 }

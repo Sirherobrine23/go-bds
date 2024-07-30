@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"sirherobrine23.org/Minecraft-Server/go-bds/internal/request"
+	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
 type Version struct {
