@@ -89,20 +89,20 @@ func (w *RequestOptions) String() (string, error) {
 	return s.String(), nil
 }
 
-func (opt *RequestOptions) Request() (http.Response, error) {
+func (opt *RequestOptions) Request() (*http.Response, error) {
 	if len(opt.Method) == 0 {
 		opt.Method = "GET"
 	}
 
 	urlRequest, err := opt.ToUrl()
 	if err != nil {
-		return http.Response{}, err
+		return nil, err
 	}
 
 	// Create request
 	req, err := http.NewRequest(opt.Method, urlRequest.String(), opt.Body)
 	if err != nil {
-		return http.Response{}, err
+		return nil, err
 	}
 
 	// Project headers
@@ -118,7 +118,7 @@ func (opt *RequestOptions) Request() (http.Response, error) {
 	// Create response from request
 	res, err := (&http.Client{}).Do(req)
 	if err != nil {
-		return *res, err
+		return res, err
 	}
 
 	if opt.HttpError && res.StatusCode >= 300 {
@@ -132,10 +132,10 @@ func (opt *RequestOptions) Request() (http.Response, error) {
 	}
 
 	// User tratement
-	return *res, err
+	return res, err
 }
 
-func (opt *RequestOptions) Do(jsonInterface any) (http.Response, error) {
+func (opt *RequestOptions) Do(jsonInterface any) (*http.Response, error) {
 	res, err := opt.Request()
 	if err != nil {
 		return res, err
@@ -231,11 +231,11 @@ func (opt *RequestOptions) SHA256() (string, error) {
 }
 
 // Make custom request and return request, response and error if exist
-func Request(opt RequestOptions) (http.Response, error) {
+func Request(opt RequestOptions) (*http.Response, error) {
 	return opt.Request()
 }
 
-func SaveFile(filePath string, opt RequestOptions) (http.Response, error) {
+func SaveFile(filePath string, opt RequestOptions) (*http.Response, error) {
 	res, err := Request(opt)
 	if err != nil {
 		return res, err
@@ -252,7 +252,7 @@ func SaveFile(filePath string, opt RequestOptions) (http.Response, error) {
 	return res, err
 }
 
-func HtmlNode(opt RequestOptions) (*goquery.Document, http.Response, error) {
+func HtmlNode(opt RequestOptions) (*goquery.Document, *http.Response, error) {
 	res, err := Request(opt)
 	if err != nil {
 		return &goquery.Document{}, res, err
@@ -263,7 +263,7 @@ func HtmlNode(opt RequestOptions) (*goquery.Document, http.Response, error) {
 	return doc, res, err
 }
 
-func RequestHtmlLinks(opt RequestOptions) ([]string, http.Response, error) {
+func RequestHtmlLinks(opt RequestOptions) ([]string, *http.Response, error) {
 	res, err := Request(opt)
 	if err != nil {
 		return []string{}, res, err

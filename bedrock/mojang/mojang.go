@@ -1,14 +1,9 @@
-//go:build !linux || (!bdsexperimental && linux)
-
 package mojang
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 
-	"github.com/gookit/properties"
 	"sirherobrine23.org/go-bds/go-bds/exec"
 )
 
@@ -38,12 +33,8 @@ func (w *Mojang) Download() (*VersionPlatform, error) {
 }
 
 func (w *Mojang) Start() (*exec.Server, error) {
-	data, err := os.ReadFile(filepath.Join(w.ServerPath, "server.properties"))
-	if err != nil {
-		return nil, err
-	} else if err = properties.Unmarshal(data, &w.Config); err != nil {
-		return nil, err
-	}
+	w.Config = MojangConfig{}
+	w.Config.Load(w.ServerPath)
 
 	filename := "./bedrock_server"
 	if runtime.GOOS == "windows" {

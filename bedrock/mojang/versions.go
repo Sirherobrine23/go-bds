@@ -1,15 +1,20 @@
 package mojang
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"time"
 
+	"sirherobrine23.org/go-bds/go-bds/internal"
+	"sirherobrine23.org/go-bds/go-bds/internal/gohtml"
 	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
@@ -31,6 +36,16 @@ var (
 	ErrNoPlatform          error          = errors.New("platform not supported for this version") // Version request not exists
 	MatchVersion           *regexp.Regexp = regexp.MustCompile(`bedrock-server-(P<Version>[0-9\.\-_]+).zip$`)
 )
+
+// Versions extracted from Minecraft website
+type MojangHTML struct {
+	Versions []struct {
+		Version  string `json:"version"`                                                   // Server Version
+		Preview  bool   `json:"isPreview"`                                                 // Server is preview
+		Platform string `json:"platform" html:"div.card-footer > div > a = data-platform"` // golang target
+		URL      string `json:"url" html:"div.card-footer > div > a = href"`               // File url
+	} `json:"versions" html:"#main-content > div > div > div > div > div > div > div.server-card.aem-GridColumn.aem-GridColumn--default--12 > div > div > div > div"`
+}
 
 type VersionPlatform struct {
 	ZipFile     string    `json:"zipFile"`     // Minecraft server url server
@@ -63,14 +78,72 @@ func FromVersions() (Versions, error) {
 	return versions, nil
 }
 
+// Extract server to folder
 func (version *VersionPlatform) Download(serverPath string) error {
-	req := request.RequestOptions{Url: version.ZipFile}
+	var req request.RequestOptions
+	if version.TarSHA1 != "" && version.TarFile != "" {
+		req.Url = version.TarFile
+		res, err := req.Request()
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		gz, err := gzip.NewReader(res.Body)
+		if err != nil {
+			return err
+		}
+		defer gz.Close()
+		tarball := tar.NewReader(gz)
+
+		for {
+			head, err := tarball.Next()
+			if err != nil {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					break
+				}
+				return err
+			}
+			fileinfo := head.FileInfo()
+			fullPath := filepath.Join(serverPath, head.Name)
+			fmt.Printf("%s => %s\n", head.Name, fullPath)
+			if fileinfo.IsDir() {
+				if err := os.MkdirAll(fullPath, fileinfo.Mode()); err != nil {
+					return err
+				} else if err := os.Chtimes(fullPath, head.AccessTime, head.ModTime); err != nil {
+					return err
+				}
+				continue
+			}
+
+			// Create folder if not exist to create file
+			os.MkdirAll(filepath.Dir(fullPath), 0666)
+			file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileinfo.Mode())
+			if err != nil {
+				return err
+			} else if err := os.Chtimes(fullPath, head.AccessTime, head.ModTime); err != nil {
+				return err
+			}
+
+			// Copy file
+			if _, err := io.CopyN(file, tarball, fileinfo.Size()); err != nil {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					continue
+				}
+				return err
+			}
+		}
+
+		return nil
+	}
 
 	file, err := os.CreateTemp(os.TempDir(), "bdsserver")
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+	defer os.Remove(file.Name())
+
+	req.Url = version.ZipFile
 	if err = req.WriteStream(file); err != nil {
 		return err
 	}
@@ -114,4 +187,40 @@ func (version *VersionPlatform) Download(serverPath string) error {
 		}
 	}
 	return nil
+}
+
+// Get new versions from minecraft.net/en-us/download/server/bedrock
+func FetchFromWebsite() (*MojangHTML, error) {
+	var req = request.RequestOptions{
+		Url:       "https://minecraft.net/en-us/download/server/bedrock",
+		HttpError: true,
+	}
+	res, err := req.Request()
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var body MojangHTML
+	if err := gohtml.NewParse(res.Body, &body); err != nil {
+		return nil, err
+	}
+
+	var fileMatch = regexp.MustCompile(`(?m)(\-|_)(?P<Version>[0-9\.]+)\.zip$`)
+	for index, value := range body.Versions {
+		body.Versions[index].Version = internal.FindAllGroups(fileMatch, value.URL)["Version"]
+		switch value.Platform {
+		case "serverBedrockLinux":
+			body.Versions[index].Platform = "linux/amd64"
+		case "serverBedrockWindows":
+			body.Versions[index].Platform = "windows/amd64"
+		case "serverBedrockPreviewLinux":
+			body.Versions[index].Platform = "linux/amd64"
+			body.Versions[index].Preview = true
+		case "serverBedrockPreviewWindows":
+			body.Versions[index].Platform = "windows/amd64"
+			body.Versions[index].Preview = true
+		}
+	}
+	return &body, nil
 }

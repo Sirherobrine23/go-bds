@@ -1,4 +1,4 @@
-//go:build bdsexperimental && linux
+//go:build linux
 
 package mojang
 
@@ -16,7 +16,7 @@ import (
 	"sirherobrine23.org/go-bds/go-bds/overleyfs"
 )
 
-type Mojang struct {
+type MojangOverlayfs struct {
 	VersionsFolder string        // Folder with versions
 	Version        string        // Version to run server
 	Path           string        // Run server at folder
@@ -35,21 +35,21 @@ func checkExist(path string) bool {
 }
 
 // Create backup in tar format
-func (server *Mojang) TarBackup(w io.Writer) error {
+func (server *MojangOverlayfs) TarBackup(w io.Writer) error {
 	t := tar.NewWriter(w)
 	defer t.Close()
 	return t.AddFS(os.DirFS(server.SavePath))
 }
 
 // Create backup in zip format
-func (server *Mojang) ZipBackup(w io.Writer) error {
+func (server *MojangOverlayfs) ZipBackup(w io.Writer) error {
 	z := zip.NewWriter(w)
 	defer z.Close()
 	return z.AddFS(os.DirFS(server.SavePath))
 }
 
 // Stop server if running and umount overlayfs
-func (server *Mojang) Close() error {
+func (server *MojangOverlayfs) Close() error {
 	if server.ServerProc != nil {
 		stoped := false
 		server.ServerProc.Write([]byte("stop\n")) // Stop Server if running
@@ -73,8 +73,20 @@ func (server *Mojang) Close() error {
 }
 
 // Start server and mount overlayfs if version not exists localy download
-func (server *Mojang) Start() error {
+func (server *MojangOverlayfs) Start() error {
 	versionRoot := filepath.Join(server.VersionsFolder, server.Version)
+	if checkExist(versionRoot) {
+		n, err := os.ReadDir(versionRoot)
+		if err != nil {
+			return err
+		}
+		if len(n) == 0 {
+			if err := os.RemoveAll(versionRoot); err != nil {
+				return err
+			}
+		}
+	}
+
 	if !checkExist(versionRoot) {
 		versions, err := FromVersions()
 		if err != nil {
@@ -117,7 +129,12 @@ func (server *Mojang) Start() error {
 
 	// Start server
 	var err error
-	if server.ServerProc, err = (&exec.ServerOptions{Arguments: []string{"./bedrock_server"}, Environment: map[string]string{"LD_LIBRARY_PATH": "."}, Cwd: server.Path}).Run(); err != nil {
+	opt := exec.ServerOptions{
+		Cwd: server.Path,
+		Arguments: []string{"./bedrock_server"},
+		Environment: map[string]string{"LD_LIBRARY_PATH": "."},
+	}
+	if server.ServerProc, err = opt.Run(); err != nil {
 		return err
 	}
 

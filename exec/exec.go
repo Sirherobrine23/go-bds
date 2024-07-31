@@ -25,9 +25,11 @@ func ProgrammExist(Programm string) bool {
 }
 
 type ServerOptions struct {
-	Cwd         string            `json:"cwd"`       // Folder to run server
-	Arguments   []string          `json:"arguments"` // Server command and arguments
-	Environment map[string]string `json:"env"`       // Process env
+	Cwd          string            `json:"cwd"`       // Folder to run server
+	Arguments    []string          `json:"arguments"` // Server command and arguments
+	Environment  map[string]string `json:"env"`       // Process env
+	NoPipeStderr bool              `json:"nostderr"`
+	NoPipeStdout bool              `json:"nostdout"`
 }
 
 type Server struct {
@@ -68,8 +70,12 @@ func (opts *ServerOptions) Run() (*Server, error) {
 	// Pipe stderr and stdout
 	piped := ioextends.ReadPipe()
 	main.Stdlog = piped
-	cmd.Stderr = piped
-	cmd.Stdout = piped
+	if !opts.NoPipeStdout {
+		cmd.Stdout = piped
+	}
+	if !opts.NoPipeStderr {
+		cmd.Stderr = piped
+	}
 
 	// Start server
 	if err = cmd.Start(); err != nil {

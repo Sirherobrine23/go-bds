@@ -19,7 +19,7 @@ func start() error {
 		return err
 	}
 
-	var server mojang.Mojang
+	var server mojang.MojangOverlayfs
 	flag.StringVar(&server.VersionsFolder, "versionsroot", filepath.Join(homePath, ".bds/bedrock/versions"), "versions to save root")
 	flag.StringVar(&server.Path, "path", filepath.Join(homePath, ".bds/bedrock/bdsserver"), "Path to run server")
 	flag.StringVar(&server.SavePath, "save", filepath.Join(dir, "bdsdata"), "data save on")
@@ -30,7 +30,7 @@ func start() error {
 
 	server.Handler = &mojang.Handlers{
 		Ports:   make([]uint16, 0),
-		Players: make(map[string][]mojang.PlayerConnection),
+		Players: make([]mojang.PlayerConnection, 0),
 	}
 
 	if err := server.Start(); err != nil {
