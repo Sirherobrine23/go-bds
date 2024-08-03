@@ -32,7 +32,7 @@ func (w *Mojang) Download() (*VersionPlatform, error) {
 	return nil, ErrNoVersion
 }
 
-func (w *Mojang) Start() (*exec.Server, error) {
+func (w *Mojang) Start() (exec.Proc, error) {
 	w.Config = MojangConfig{}
 	w.Config.Load(w.ServerPath)
 
@@ -41,15 +41,15 @@ func (w *Mojang) Start() (*exec.Server, error) {
 		filename += ".exe"
 	}
 
-	progStr := &exec.ServerOptions{
+	progStr := exec.ProcExec{
 		Cwd:       w.ServerPath,
 		Arguments: []string{filename},
 	}
-	exeProcess, err := progStr.Run()
 
-	if err != nil {
-		return exeProcess, err
+	var exeProcess exec.Os
+	if err := exeProcess.Start(progStr); err != nil {
+		return nil, err
 	}
 
-	return exeProcess, err
+	return &exeProcess, nil
 }

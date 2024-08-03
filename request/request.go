@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -39,15 +40,6 @@ var DefaultHeader = http.Header{
 	"Sec-Fetch-User":            {"?1"},
 	"Upgrade-Insecure-Requests": {"1"},
 	"User-Agent":                {"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"},
-}
-
-func arrayHas(arr []int, is int) bool {
-	for _, k := range arr {
-		if k == is {
-			return true
-		}
-	}
-	return false
 }
 
 type RequestOptions struct {
@@ -122,7 +114,7 @@ func (opt *RequestOptions) Request() (*http.Response, error) {
 	}
 
 	if opt.HttpError && res.StatusCode >= 300 {
-		if opt.Method == "GET" && arrayHas(opt.CodesRetrys, res.StatusCode) {
+		if opt.Method == "GET" && slices.Contains(opt.CodesRetrys, res.StatusCode) {
 			return opt.Request()
 		} else if res.StatusCode == 404 {
 			err = ErrPageNotExist
@@ -133,6 +125,30 @@ func (opt *RequestOptions) Request() (*http.Response, error) {
 
 	// User tratement
 	return res, err
+}
+
+func (opt *RequestOptions) GetRedirect() (string, error) {
+	urlRequest, err := opt.ToUrl()
+	if err != nil {
+		return "", err
+	}
+
+	// Create request
+	req, err := http.NewRequest("GET", urlRequest.String(), opt.Body)
+	if err != nil {
+		return "", err
+	}
+	res, err := (&http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}).Do(req)
+	if err != nil {
+		return "", err
+	}
+	if loc := res.Header.Get("Location"); loc != "" {
+		return loc, nil
+	} else if loc := res.Header.Get("location"); loc != "" {
+		return loc, nil
+	}
+
+	return "", nil
 }
 
 func (opt *RequestOptions) Do(jsonInterface any) (*http.Response, error) {

@@ -17,8 +17,8 @@ func (w *Pocketmine) Download() error {
 	return nil
 }
 
-func (server *Pocketmine) Start() (*exec.Server, error) {
-	opts := exec.ServerOptions{
+func (server *Pocketmine) Start() (exec.Proc, error) {
+	opts := exec.ProcExec{
 		Arguments: []string{
 			"php",
 			"pocketmine.php",
@@ -26,5 +26,7 @@ func (server *Pocketmine) Start() (*exec.Server, error) {
 			"--enable-ansi",
 		},
 	}
-	return opts.Run()
+	var os exec.Os
+	os.Start(opts)
+	return &os, nil
 }

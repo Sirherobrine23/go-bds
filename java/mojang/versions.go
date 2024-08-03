@@ -23,7 +23,7 @@ type mojangPistonPackage struct {
 		Sha1     string `json:"sha1"`
 	} `json:"downloads"`
 	Java struct {
-		VersionMajor int32  `json:"majorVersion"`
+		VersionMajor uint   `json:"majorVersion"`
 		Component    string `json:"component"`
 	} `json:"javaVersion"`
 }

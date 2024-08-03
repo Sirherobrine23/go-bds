@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrInvalidFileVersions error  = errors.New("invalid versions file or url")                                                   // Versions file invalid url schema
-	VersionsRemote         string = "https://sirherobrine23.org/Minecraft-Server/Pocketmine-Cache/raw/branch/main/versions.json" // Version cache
+	VersionsRemote         string = "https://sirherobrine23.org/go-bds/Pocketmine-Cache/raw/branch/main/versions.json" // Version cache
 )
 
 type Version struct {

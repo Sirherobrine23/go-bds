@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"sirherobrine23.org/go-bds/go-bds/exec"
 	"sirherobrine23.org/go-bds/go-bds/overleyfs"
@@ -24,7 +23,7 @@ type MojangOverlayfs struct {
 	WorkdirPath    string        // Workdir folder to overlayfs
 	Config         *MojangConfig // Server config
 	Handler        *Handlers     // Server handlers
-	ServerProc     *exec.Server  // Server process
+	ServerProc     exec.Proc     // Server process
 
 	overlayfs *overleyfs.Overlayfs // Overlayfs
 }
@@ -51,18 +50,7 @@ func (server *MojangOverlayfs) ZipBackup(w io.Writer) error {
 // Stop server if running and umount overlayfs
 func (server *MojangOverlayfs) Close() error {
 	if server.ServerProc != nil {
-		stoped := false
 		server.ServerProc.Write([]byte("stop\n")) // Stop Server if running
-		// Kill process if not responding
-		go func() {
-			<-time.After(time.Second * 25) // Wait 25 Seconds to check stoped to kill
-			if stoped {
-				return
-			}
-			server.ServerProc.Process.Kill()
-		}()
-		server.ServerProc.Process.Wait() // Wait process end
-		stoped = true
 	}
 
 	if server.overlayfs != nil {
@@ -129,18 +117,20 @@ func (server *MojangOverlayfs) Start() error {
 
 	// Start server
 	var err error
-	opt := exec.ServerOptions{
-		Cwd: server.Path,
-		Arguments: []string{"./bedrock_server"},
+	opt := exec.ProcExec{
+		Cwd:         server.Path,
+		Arguments:   []string{"./bedrock_server"},
 		Environment: map[string]string{"LD_LIBRARY_PATH": "."},
 	}
-	if server.ServerProc, err = opt.Run(); err != nil {
+
+	server.ServerProc = &exec.Os{}
+	if err = server.ServerProc.Start(opt); err != nil {
 		return err
 	}
 
 	// Handler parse
 	if server.Handler != nil {
-		log, err := server.ServerProc.Stdlog.NewPipe()
+		log, err := server.ServerProc.StdoutFork()
 		if err == nil {
 			go server.Handler.RegisterScan(log)
 		}

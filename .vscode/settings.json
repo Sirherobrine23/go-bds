@@ -1,5 +1,14 @@
 {
   "go.toolsEnvVars": {
     "GOFLAGS": "-tags=bdsexperimental"
+  },
+  "terminal.integrated.defaultProfile.linux": "unshare",
+  "terminal.integrated.profiles.linux": {
+    "unshare": {
+      "path": "unshare",
+      "args": [
+        "-rm"
+      ]
+    }
   }
 }

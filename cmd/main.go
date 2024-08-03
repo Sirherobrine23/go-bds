@@ -38,10 +38,17 @@ func start() error {
 	}
 
 	go io.Copy(server.ServerProc, os.Stdin)
-	server.ServerProc.Stdlog.AddWriter(os.Stdout)
-
-	server.ServerProc.Process.Wait()
-	return nil
+	stdout, err := server.ServerProc.StdoutFork()
+	if err != nil {
+		return err
+	}
+	stderr, err := server.ServerProc.StderrFork()
+	if err != nil {
+		return err
+	}
+	go io.Copy(os.Stdout, stdout)
+	go io.Copy(os.Stderr, stderr)
+	return server.ServerProc.Wait()
 }
 
 func main() {
