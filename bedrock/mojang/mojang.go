@@ -2,57 +2,94 @@ package mojang
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 
 	"sirherobrine23.org/go-bds/go-bds/exec"
 )
 
 type Mojang struct {
-	ServerPath string       // Server path to download, run server
-	Version    string       // Server version
-	Config     MojangConfig // Config server file
+	VersionsFolder string        // Folder with versions
+	Version        string        // Version to run server
+	Path           string        // Run server at folder
+	Config         *MojangConfig // Server config
 
-	Process exec.Proc
+	ServerProc exec.Proc
 }
 
-func (w *Mojang) Download() (*VersionPlatform, error) {
-	versions, err := FromVersions()
-	if err != nil {
-		return nil, err
+// Start server and mount overlayfs if version not exists localy download
+func (server *Mojang) Start() error {
+	if server.Version == "latest" || server.Version == "" {
+		versions, err := FromVersions()
+		if err != nil {
+			return fmt.Errorf("cannot get versions: %s", err.Error())
+		}
+		server.Version = GetLatest(versions)
 	}
 
-	goTarget := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
-	for version, ver := range versions {
-		if version == w.Version {
-			if target, ok := ver.Platforms[goTarget]; ok {
-				return &target, target.Download(w.ServerPath)
+	versionRoot := filepath.Join(server.VersionsFolder, server.Version)
+	if checkExist(versionRoot) {
+		n, err := os.ReadDir(versionRoot)
+		if err != nil {
+			return err
+		}
+		if len(n) == 0 {
+			if err := os.RemoveAll(versionRoot); err != nil {
+				return err
 			}
-			return nil, ErrNoPlatform
 		}
 	}
 
-	return nil, ErrNoVersion
-}
+	if !checkExist(versionRoot) {
+		versions, err := FromVersions()
+		if err != nil {
+			return fmt.Errorf("cannot get versions: %s", err.Error())
+		}
+		os.MkdirAll(versionRoot, os.FileMode(0700))
 
-func (w *Mojang) Start() error {
-	w.Config = MojangConfig{}
-	w.Config.Load(w.ServerPath)
-
-	filename := "./bedrock_server"
-	if runtime.GOOS == "windows" {
-		filename += ".exe"
+		var ok bool
+		var version Version
+		var target VersionPlatform
+		if version, ok = versions[server.Version]; !ok {
+			return fmt.Errorf("version not found in database")
+		} else if target, ok = version.Platforms[fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)]; !ok {
+			return fmt.Errorf("platform not supported")
+		} else if err := target.Download(versionRoot); err != nil {
+			return err
+		}
 	}
 
-	progStr := exec.ProcExec{
-		Cwd:       w.ServerPath,
-		Arguments: []string{filename},
+	if server.Path == "" {
+		return fmt.Errorf("set Path to run minecraft server")
 	}
+	os.MkdirAll(server.Path, 0700)
 
-	var exeProcess exec.Os
-	if err := exeProcess.Start(progStr); err != nil {
+	// Load config
+	server.Config = &MojangConfig{}
+	if err := server.Config.Load(server.Path); err != nil {
 		return err
 	}
-	w.Process = &exeProcess
+
+	// Start server
+	server.ServerProc = &exec.Os{}
+	opt := exec.ProcExec{
+		Cwd:         server.Path,
+		Arguments:   []string{"./bedrock_server"},
+		Environment: map[string]string{"LD_LIBRARY_PATH": "."},
+	}
+
+	if runtime.GOOS == "windows" {
+		if runtime.GOARCH != "amd64" {
+			return fmt.Errorf("run minecraft server in Windows with x64/amd64")
+		}
+		opt.Environment = make(map[string]string)
+		opt.Arguments = []string{"bedrock_server.exe"}
+	}
+
+	if err := server.ServerProc.Start(opt); err != nil {
+		return err
+	}
 
 	return nil
 }

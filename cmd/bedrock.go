@@ -27,9 +27,10 @@ var mojangCommand = cli.Command{
 		},
 	},
 	Action: func(ctx *cli.Context) error {
-		bedrockRoot := filepath.Join(ctx.String("rootdir"), "bedrock")
 		var mcServer mojang.Mojang
-		mcServer.ServerPath = bedrockRoot
+		mcServer.VersionsFolder = filepath.Join(ctx.String("rootdir"), "bedrock/versions")
+		mcServer.Version = ctx.String("verison")
+		mcServer.Path = ctx.String("data")
 
 		return mcServer.Start()
 	},

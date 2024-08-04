@@ -21,10 +21,10 @@ type MojangOverlayfs struct {
 	Path           string        // Run server at folder
 	SavePath       string        // Folder path to save server run data
 	WorkdirPath    string        // Workdir folder to overlayfs
-	Config         *MojangConfig // Server config
 	Handler        *Handlers     // Server handlers
 	ServerProc     exec.Proc     // Server process
 
+	Config         *MojangConfig // Server config
 	overlayfs *overleyfs.Overlayfs // Overlayfs
 }
 

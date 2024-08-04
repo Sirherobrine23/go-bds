@@ -211,11 +211,11 @@ func FetchFromWebsite() (*MojangHTML, error) {
 		switch value.Platform {
 		case "serverBedrockLinux":
 			body.Versions[index].Platform = "linux/amd64"
-		case "serverBedrockWindows":
-			body.Versions[index].Platform = "windows/amd64"
 		case "serverBedrockPreviewLinux":
 			body.Versions[index].Platform = "linux/amd64"
 			body.Versions[index].Preview = true
+		case "serverBedrockWindows":
+			body.Versions[index].Platform = "windows/amd64"
 		case "serverBedrockPreviewWindows":
 			body.Versions[index].Platform = "windows/amd64"
 			body.Versions[index].Preview = true
