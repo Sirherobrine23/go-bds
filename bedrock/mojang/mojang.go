@@ -11,6 +11,8 @@ type Mojang struct {
 	ServerPath string       // Server path to download, run server
 	Version    string       // Server version
 	Config     MojangConfig // Config server file
+
+	Process exec.Proc
 }
 
 func (w *Mojang) Download() (*VersionPlatform, error) {
@@ -32,7 +34,7 @@ func (w *Mojang) Download() (*VersionPlatform, error) {
 	return nil, ErrNoVersion
 }
 
-func (w *Mojang) Start() (exec.Proc, error) {
+func (w *Mojang) Start() error {
 	w.Config = MojangConfig{}
 	w.Config.Load(w.ServerPath)
 
@@ -48,8 +50,9 @@ func (w *Mojang) Start() (exec.Proc, error) {
 
 	var exeProcess exec.Os
 	if err := exeProcess.Start(progStr); err != nil {
-		return nil, err
+		return err
 	}
+	w.Process = &exeProcess
 
-	return &exeProcess, nil
+	return nil
 }

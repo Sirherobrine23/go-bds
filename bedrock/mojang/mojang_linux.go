@@ -62,6 +62,13 @@ func (server *MojangOverlayfs) Close() error {
 
 // Start server and mount overlayfs if version not exists localy download
 func (server *MojangOverlayfs) Start() error {
+	if server.Version == "latest" || server.Version == "" {
+		versions, err := FromVersions()
+		if err != nil {
+			return fmt.Errorf("cannot get versions: %s", err.Error())
+		}
+		server.Version = GetLatest(versions)
+	}
 	versionRoot := filepath.Join(server.VersionsFolder, server.Version)
 	if checkExist(versionRoot) {
 		n, err := os.ReadDir(versionRoot)
@@ -94,6 +101,16 @@ func (server *MojangOverlayfs) Start() error {
 		}
 	}
 
+	if server.Path == "" {
+		return fmt.Errorf("set Path to run minecraft server")
+	}
+	if server.SavePath == "" {
+		return fmt.Errorf("set SavePath to save server data")
+	}
+	if server.WorkdirPath == "" {
+		return fmt.Errorf("set WorkdirPath to make overlayfs temp files on change")
+	}
+
 	os.MkdirAll(server.Path, 0700)
 	os.MkdirAll(server.SavePath, 0700)
 	os.MkdirAll(server.WorkdirPath, 0700)
@@ -116,15 +133,14 @@ func (server *MojangOverlayfs) Start() error {
 	}
 
 	// Start server
-	var err error
+	server.ServerProc = &exec.Os{}
 	opt := exec.ProcExec{
 		Cwd:         server.Path,
 		Arguments:   []string{"./bedrock_server"},
 		Environment: map[string]string{"LD_LIBRARY_PATH": "."},
 	}
 
-	server.ServerProc = &exec.Os{}
-	if err = server.ServerProc.Start(opt); err != nil {
+	if err := server.ServerProc.Start(opt); err != nil {
 		return err
 	}
 

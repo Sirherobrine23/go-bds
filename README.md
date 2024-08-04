@@ -7,18 +7,3 @@ Go BDS will be a complete migration and rewrite of the Bds Maneger core, which w
 ## Implementatition
 
 install module: `go get -u sirherobrine23.org/go-bds/go-bds`
-
-import platform and subplatform: `import "sirherobrine23.org/go-bds/go-bds/<platform>/<subplatform>"`
-
-- bedrock
-  - `mojang`
-  - `pocketmine`
-  - `nukkit`
-  - `powernukkitx`
-  - `powernukkit` - (Deprecated)
-
-- java
-  - `mojang`
-  - `spigot`
-  - `purpur`
-  - Paper project server (PaperMC, Folia, Velocity)

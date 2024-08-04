@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 
 	"sirherobrine23.org/go-bds/go-bds/internal"
 	"sirherobrine23.org/go-bds/go-bds/internal/gohtml"
+	"sirherobrine23.org/go-bds/go-bds/internal/semver"
 	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
@@ -105,7 +105,6 @@ func (version *VersionPlatform) Download(serverPath string) error {
 			}
 			fileinfo := head.FileInfo()
 			fullPath := filepath.Join(serverPath, head.Name)
-			fmt.Printf("%s => %s\n", head.Name, fullPath)
 			if fileinfo.IsDir() {
 				if err := os.MkdirAll(fullPath, fileinfo.Mode()); err != nil {
 					return err
@@ -223,4 +222,28 @@ func FetchFromWebsite() (*MojangHTML, error) {
 		}
 	}
 	return &body, nil
+}
+
+func GetLatest(a Versions) string {
+	var k []*semver.Version
+	for key, v := range a {
+		if v.IsPreview {
+			continue
+		}
+		k = append(k, semver.New(key))
+	}
+	semver.Sort(k)
+	return k[len(k)-1].String()
+}
+
+func GetLatestPreview(a Versions) string {
+	var k []*semver.Version
+	for key, v := range a {
+		if !v.IsPreview {
+			continue
+		}
+		k = append(k, semver.New(key))
+	}
+	semver.Sort(k)
+	return k[len(k)-1].String()
 }

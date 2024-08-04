@@ -49,6 +49,7 @@ func init() {
 		defer fs.FuseUnmount()
 		if err := fs.FuseMount(); err != nil {
 			fuseOverlay = false
+			return
 		}
 	}
 
@@ -71,16 +72,51 @@ func Avaible() bool {
 }
 
 func (w *Overlayfs) Mount() error {
-	if len(w.Lower) == 0 {
-		return fmt.Errorf("set one lower dir")
-	} else if w.Workdir == "" && w.Upper != "" {
-		return fmt.Errorf("set workdir to user Upperdir")
-	} else if kernelOverlay {
+	if kernelOverlay {
 		return w.UnixMount()
 	} else if fuseOverlay {
 		return w.FuseMount()
 	}
 	return ErrNotOverlayAvaible
+}
+
+func (w *Overlayfs) MakeFlags() (_ string, err error) {
+	// rw,relatime,seclabel,
+	// overlay on /var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/merged type overlay
+	// lowerdir=/var/lib/docker/overlay2/l/4UKYKDRRHSYV7T6FMWQV7XGOJU:/var/lib/docker/overlay2/l/X4HBSZ4R5V7LFSZYXQ5T7V3Q2Q
+	// upperdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/diff
+	// workdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/work
+
+	if len(w.Lower) == 0 {
+		return "", fmt.Errorf("set one lower dir")
+	} else if w.Workdir == "" && w.Upper != "" {
+		return "", fmt.Errorf("set workdir to user Upperdir")
+	}
+
+	if w.Upper != "" {
+		if w.Upper, err = filepath.Abs(w.Upper); err != nil {
+			return "", err
+		}
+	}
+	if w.Workdir != "" {
+		if w.Workdir, err = filepath.Abs(w.Workdir); err != nil {
+			return "", err
+		}
+	}
+	for workIndex := range w.Lower {
+		if w.Lower[workIndex], err = filepath.Abs(w.Lower[workIndex]); err != nil {
+			return "", err
+		}
+	}
+
+	var flags string // Flags to mount overlay
+	if w.Workdir != "" && w.Upper != "" {
+		flags = fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(w.Lower, ":"), w.Upper, w.Workdir)
+	} else {
+		flags = "lowerdir=" + strings.Join(w.Lower, ":")
+	}
+
+	return flags, nil
 }
 
 func (w *Overlayfs) Unmount() error {
@@ -94,11 +130,9 @@ func (w *Overlayfs) Unmount() error {
 
 // Mount overlayfs same `mount -t overlay overlay`
 func (w *Overlayfs) UnixMount() error {
-	var flags string // Flags to mount overlay
-	if w.Workdir != "" && w.Upper != "" {
-		flags = fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(w.Lower, ":"), w.Upper, w.Workdir)
-	} else {
-		flags = "lowerdir=" + strings.Join(w.Lower, ":")
+	flags, err := w.MakeFlags()
+	if err != nil {
+		return err
 	}
 	return unix.Mount("overlay", w.Target, "overlay", 0, flags)
 }
@@ -109,11 +143,9 @@ func (w Overlayfs) UnixUnmount() error {
 }
 
 func (w *Overlayfs) FuseMount() error {
-	var flags string // Flags to mount overlay
-	if w.Workdir != "" && w.Upper != "" {
-		flags = fmt.Sprintf("userxattr,lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(w.Lower, ":"), w.Upper, w.Workdir)
-	} else {
-		flags = "userxattr,lowerdir=" + strings.Join(w.Lower, ":")
+	flags, err := w.MakeFlags()
+	if err != nil {
+		return err
 	}
 	return exec.Command("fuse-overlayfs", "-o", flags, w.Target).Run()
 }

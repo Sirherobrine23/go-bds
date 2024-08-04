@@ -1,58 +1,49 @@
 package main
 
 import (
-	"flag"
-	"io"
+	"fmt"
 	"os"
 	"path/filepath"
 
-	"sirherobrine23.org/go-bds/go-bds/bedrock/mojang"
+	"github.com/urfave/cli/v2"
 )
 
-func start() error {
-	homePath, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	dir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	var server mojang.MojangOverlayfs
-	flag.StringVar(&server.VersionsFolder, "versionsroot", filepath.Join(homePath, ".bds/bedrock/versions"), "versions to save root")
-	flag.StringVar(&server.Path, "path", filepath.Join(homePath, ".bds/bedrock/bdsserver"), "Path to run server")
-	flag.StringVar(&server.SavePath, "save", filepath.Join(dir, "bdsdata"), "data save on")
-	flag.StringVar(&server.WorkdirPath, "workdir", filepath.Join(dir, "workdir"), "overlayfs workdir")
-	flag.StringVar(&server.Version, "version", "", "Server version")
-	flag.Parse()
-	defer server.Close()
-
-	server.Handler = &mojang.Handlers{
-		Ports:   make([]uint16, 0),
-		Players: make([]mojang.PlayerConnection, 0),
-	}
-
-	if err := server.Start(); err != nil {
-		return err
-	}
-
-	go io.Copy(server.ServerProc, os.Stdin)
-	stdout, err := server.ServerProc.StdoutFork()
-	if err != nil {
-		return err
-	}
-	stderr, err := server.ServerProc.StderrFork()
-	if err != nil {
-		return err
-	}
-	go io.Copy(os.Stdout, stdout)
-	go io.Copy(os.Stderr, stderr)
-	return server.ServerProc.Wait()
-}
+var (
+	Version string = "devel"
+)
 
 func main() {
-	if err := start(); err != nil {
+	app := cli.NewApp()
+	app.Name = "go-bds"
+	app.Usage = "making minecraft servers easy and powerfull from one command"
+	app.EnableBashCompletion = true
+	app.HideHelpCommand = true
+	app.HideVersion = true
+	app.Version = Version
+	app.AllowExtFlags = true
+
+	userDir, err := os.UserHomeDir()
+	if err != nil {
 		panic(err)
+	}
+
+	app.Flags = []cli.Flag{
+		&cli.StringFlag{
+			Name: "rootdir",
+			Value: filepath.Join(userDir, ".bds"),
+			Aliases: []string{
+				"root",
+				"R",
+			},
+		},
+	}
+
+	app.Commands = []*cli.Command{
+		&CommandBedrock,
+	}
+
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintln(app.ErrWriter, err.Error())
+		os.Exit(1)
 	}
 }
