@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,22 +20,12 @@ import (
 )
 
 var (
-	VersionsRemote string = "https://sirherobrine23.org/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
-)
+	VersionsRemote string         = "https://sirherobrine23.org/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
+	MatchVersion   *regexp.Regexp = regexp.MustCompile(`bedrock-server-(P<Version>[0-9\.\-_]+).zip$`)
 
-const (
-	MinecraftPage     string = "https://www.minecraft.net/en-us/download/server/bedrock"                 // Minecraft page to find versions
-	WindowsUrl        string = "https://minecraft.azureedge.net/bin-win/bedrock-server-%s.zip"           // Windows x64/amd64 url file
-	LinuxUrl          string = "https://minecraft.azureedge.net/bin-linux/bedrock-server-%s.zip"         // Linux x64/amd64 url file
-	WindowsPreviewUrl string = "https://minecraft.azureedge.net/bin-win-preview/bedrock-server-%s.zip"   // Windows x64/amd64 preview url file
-	LinuxPreviewUrl   string = "https://minecraft.azureedge.net/bin-linux-preview/bedrock-server-%s.zip" // Linux x64/amd64 url file
-)
-
-var (
-	ErrInvalidFileVersions error          = errors.New("invalid versions file or url")            // Versions file invalid url schema
-	ErrNoVersion           error          = errors.New("cannot find version")                     // Version request not exists
-	ErrNoPlatform          error          = errors.New("platform not supported for this version") // Version request not exists
-	MatchVersion           *regexp.Regexp = regexp.MustCompile(`bedrock-server-(P<Version>[0-9\.\-_]+).zip$`)
+	ErrInvalidFileVersions error = errors.New("invalid versions file or url")            // Versions file invalid url schema
+	ErrNoVersion           error = errors.New("cannot find version")                     // Version request not exists
+	ErrNoPlatform          error = errors.New("platform not supported for this version") // Version request not exists
 )
 
 // Versions extracted from Minecraft website
@@ -219,6 +210,8 @@ func FetchFromWebsite() (*MojangHTML, error) {
 		case "serverBedrockPreviewWindows":
 			body.Versions[index].Platform = "windows/amd64"
 			body.Versions[index].Preview = true
+		default:
+			return nil, fmt.Errorf("cannot go target from %q", value.Platform)
 		}
 	}
 	return &body, nil

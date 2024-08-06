@@ -3,10 +3,16 @@
 package exec
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"runtime"
 	"path/filepath"
+
+	"sirherobrine23.org/go-bds/go-bds/request"
 )
 
 // Mount rootfs and run command insider in proot
@@ -59,4 +65,60 @@ func (pr *Proot) Start(options ProcExec) error {
 
 	exec.Arguments = append(exec.Arguments, options.Arguments...)
 	return pr.Os.Start(exec)
+}
+
+func (proc *Proot) DownloadUbuntuRootfs() error {
+	UbuntuBase := fmt.Sprintf("https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04-base-%s.tar.gz", runtime.GOARCH)
+	if runtime.GOARCH == "arm" {
+		UbuntuBase = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04-base-armhf.tar.gz"
+	}
+	os.MkdirAll(proc.Rootfs, 0700)
+	res, err := (&request.RequestOptions{HttpError: true, Url: UbuntuBase}).Request()
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	gz, err := gzip.NewReader(res.Body)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+	tarball := tar.NewReader(gz)
+	for {
+		head, err := tarball.Next()
+		if err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				break
+			}
+			return err
+		}
+		fileinfo := head.FileInfo()
+		fullPath := filepath.Join(proc.Rootfs, head.Name)
+		if fileinfo.IsDir() {
+			if err := os.MkdirAll(fullPath, fileinfo.Mode()); err != nil {
+				return err
+			} else if err := os.Chtimes(fullPath, head.AccessTime, head.ModTime); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Create folder if not exist to create file
+		os.MkdirAll(filepath.Dir(fullPath), 0666)
+		file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileinfo.Mode())
+		if err != nil {
+			return err
+		} else if err := os.Chtimes(fullPath, head.AccessTime, head.ModTime); err != nil {
+			return err
+		}
+
+		// Copy file
+		if _, err := io.CopyN(file, tarball, fileinfo.Size()); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }

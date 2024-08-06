@@ -46,7 +46,7 @@ func (server *Mojang) Start() error {
 		if err != nil {
 			return fmt.Errorf("cannot get versions: %s", err.Error())
 		}
-		os.MkdirAll(versionRoot, os.FileMode(0700))
+		os.MkdirAll(versionRoot, 0700)
 
 		var ok bool
 		var version Version
@@ -80,8 +80,8 @@ func (server *Mojang) Start() error {
 	}
 
 	if runtime.GOOS == "windows" {
-		if runtime.GOARCH != "amd64" {
-			return fmt.Errorf("run minecraft server in Windows with x64/amd64")
+		if !(runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
+			return fmt.Errorf("run minecraft server in Windows with x64/amd64 or arm64 emulation")
 		}
 		opt.Environment = make(map[string]string)
 		opt.Arguments = []string{"bedrock_server.exe"}
