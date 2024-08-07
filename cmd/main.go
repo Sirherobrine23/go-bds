@@ -29,7 +29,7 @@ func main() {
 
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
-			Name: "rootdir",
+			Name:  "rootdir",
 			Value: filepath.Join(userDir, ".bds"),
 			Aliases: []string{
 				"root",

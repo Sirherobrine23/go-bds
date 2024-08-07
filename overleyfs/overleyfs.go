@@ -71,7 +71,7 @@ func (w *Overlayfs) makeFlags() (_ string, err error) {
 }
 
 // Get fs.FS from merged Lowers folders
-func (w *Overlayfs) GoMerge() (*mergefs.MergedFS, error) {
+func (w *Overlayfs) GoMerge() (fs.FS, error) {
 	var fss []fs.FS
 	for _, folderPath := range w.Lower {
 		fpath, err := filepath.Abs(folderPath)

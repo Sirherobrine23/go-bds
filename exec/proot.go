@@ -9,8 +9,8 @@ import (
 	"io"
 	"net"
 	"os"
-	"runtime"
 	"path/filepath"
+	"runtime"
 
 	"sirherobrine23.org/go-bds/go-bds/request"
 )
@@ -31,8 +31,9 @@ func (pr *Proot) AddNameservers(aadrs ...net.IP) error {
 		return err
 	}
 	defer file.Close()
+	fmt.Fprint(file, "\n")
 	for _, addr := range aadrs {
-		if _, err := file.Write([]byte(fmt.Sprintf("nameserver %s\n", addr.String()))); err != nil {
+		if _, err := fmt.Fprintf(file, "nameserver %s\n", addr.String()); err != nil {
 			return err
 		}
 	}
@@ -67,22 +68,26 @@ func (pr *Proot) Start(options ProcExec) error {
 	return pr.Os.Start(exec)
 }
 
-func (proc *Proot) DownloadUbuntuRootfs() error {
-	UbuntuBase := fmt.Sprintf("https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04-base-%s.tar.gz", runtime.GOARCH)
+// Download ubuntu base to host arch if avaible
+func (proc *Proot) DownloadUbuntuRootfs(Version string) error {
+	UbuntuBase := fmt.Sprintf("https://cdimage.ubuntu.com/ubuntu-base/releases/%s/release/ubuntu-base-%s-base-%s.tar.gz", Version, Version, runtime.GOARCH)
 	if runtime.GOARCH == "arm" {
-		UbuntuBase = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04-base-armhf.tar.gz"
+		UbuntuBase = fmt.Sprintf("https://cdimage.ubuntu.com/ubuntu-base/releases/%s/release/ubuntu-base-%s-base-armhf.tar.gz", Version, Version)
 	}
-	os.MkdirAll(proc.Rootfs, 0700)
+
 	res, err := (&request.RequestOptions{HttpError: true, Url: UbuntuBase}).Request()
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
+
 	gz, err := gzip.NewReader(res.Body)
 	if err != nil {
 		return err
 	}
 	defer gz.Close()
+
+	os.MkdirAll(proc.Rootfs, 0700)
 	tarball := tar.NewReader(gz)
 	for {
 		head, err := tarball.Next()
@@ -92,8 +97,9 @@ func (proc *Proot) DownloadUbuntuRootfs() error {
 			}
 			return err
 		}
-		fileinfo := head.FileInfo()
 		fullPath := filepath.Join(proc.Rootfs, head.Name)
+		fileinfo := head.FileInfo()
+
 		if fileinfo.IsDir() {
 			if err := os.MkdirAll(fullPath, fileinfo.Mode()); err != nil {
 				return err

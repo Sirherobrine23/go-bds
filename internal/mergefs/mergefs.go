@@ -11,7 +11,7 @@ import (
 )
 
 // Merge merges the given filesystems together,
-func Merge(filesystems ...fs.FS) *MergedFS {
+func Merge(filesystems ...fs.FS) fs.FS {
 	return &MergedFS{filesystems: filesystems}
 }
 
