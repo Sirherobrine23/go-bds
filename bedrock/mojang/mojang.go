@@ -2,20 +2,34 @@ package mojang
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 
 	"sirherobrine23.org/go-bds/go-bds/exec"
+	ccopy "sirherobrine23.org/go-bds/go-bds/internal/copy"
+	"sirherobrine23.org/go-bds/go-bds/overleyfs"
 )
 
 type Mojang struct {
-	VersionsFolder string        // Folder with versions
-	Version        string        // Version to run server
-	Path           string        // Run server at folder
-	Config         *MojangConfig // Server config
+	VersionsFolder string // Folder with versions
+	Version        string // Version to run server
+	Path           string // Run server at folder
+
+	Handler *Handlers     // Server handlers
+	Config  *MojangConfig // Server config
 
 	ServerProc exec.Proc
+}
+
+func (server *Mojang) Close() error {
+	if server.ServerProc != nil {
+		server.ServerProc.Write([]byte("stop\n"))
+		return server.ServerProc.Close()
+	}
+	return nil
 }
 
 // Start server and mount overlayfs if version not exists localy download
@@ -63,12 +77,44 @@ func (server *Mojang) Start() error {
 	if server.Path == "" {
 		return fmt.Errorf("set Path to run minecraft server")
 	}
-	os.MkdirAll(server.Path, 0700)
 
-	// Load config
-	server.Config = &MojangConfig{}
-	if err := server.Config.Load(server.Path); err != nil {
-		return err
+	// Merge new version
+	if !checkExist(server.Path) {
+		os.MkdirAll(server.Path, 0700)
+		if err := ccopy.CopyDirectory(versionRoot, server.Path); err != nil {
+			return err
+		}
+	} else {
+		os.RemoveAll(server.Path + "old")
+		if err := os.Rename(server.Path, server.Path+"old"); err != nil {
+			return err
+		}
+		fs, err := (&overleyfs.Overlayfs{Lower: []string{versionRoot, server.Path + "old"}}).GoMerge()
+		if err != nil {
+			return err
+		}
+		os.MkdirAll(server.Path, 0600)
+		if err := copyToDisk(fs, ".", server.Path); err != nil {
+			return err
+		}
+
+		recopy := []string{"server.properties", "allowlist.json", "permissions.json"}
+		for _, file := range recopy {
+			oldPath, newPath := filepath.Join(server.Path+"old", file), filepath.Join(server.Path, file)
+			oldFile, err := os.Open(oldPath)
+			if err != nil {
+				return err
+			}
+			defer oldFile.Close()
+			newFile, err := os.Create(newPath)
+			if err != nil {
+				return err
+			}
+			defer newFile.Close()
+			if _, err := io.Copy(newFile, oldFile); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Start server
@@ -87,9 +133,52 @@ func (server *Mojang) Start() error {
 		opt.Arguments = []string{"bedrock_server.exe"}
 	}
 
+	// Load config
+	server.Config = &MojangConfig{}
+	if err := server.Config.Load(server.Path); err != nil {
+		return err
+	}
+
 	if err := server.ServerProc.Start(opt); err != nil {
 		return err
 	}
 
+	// Handler parse
+	if server.Handler != nil {
+		log, err := server.ServerProc.StdoutFork()
+		if err == nil {
+			go server.Handler.RegisterScan(log)
+		}
+	}
+
 	return nil
+}
+
+func copyToDisk(fsys fs.FS, root, target string) error {
+	return fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+		fmt.Printf("%q ==> %q\n", path, filepath.Join(target, path))
+		if err != nil {
+			return err
+		} else if d.IsDir() {
+			return os.MkdirAll(filepath.Join(target, path), d.Type())
+		}
+		fullPath := filepath.Join(target, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0600)
+
+		fsFile, err := fsys.Open(path)
+		if err != nil {
+			return err
+		}
+		defer fsFile.Close()
+
+		file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, d.Type())
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		// Copy data
+		_, err = io.Copy(file, fsFile)
+		return err
+	})
 }

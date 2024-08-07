@@ -16,15 +16,16 @@ import (
 )
 
 type MojangOverlayfs struct {
-	VersionsFolder string        // Folder with versions
-	Version        string        // Version to run server
-	Path           string        // Run server at folder
-	SavePath       string        // Folder path to save server run data
-	WorkdirPath    string        // Workdir folder to overlayfs
-	Handler        *Handlers     // Server handlers
-	ServerProc     exec.Proc     // Server process
+	VersionsFolder string    // Folder with versions
+	Version        string    // Version to run server
+	Path           string    // Run server at folder
+	SavePath       string    // Folder path to save server run data
+	WorkdirPath    string    // Workdir folder to overlayfs
+	ServerProc     exec.Proc // Server process
 
-	Config         *MojangConfig // Server config
+	Handler *Handlers     // Server handlers
+	Config  *MojangConfig // Server config
+
 	overlayfs *overleyfs.Overlayfs // Overlayfs
 }
 

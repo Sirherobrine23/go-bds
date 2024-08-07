@@ -5,7 +5,6 @@ package mojang
 import (
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"os"
 	osExec "os/exec"
@@ -21,11 +20,13 @@ var UbuntuVersion string = "24.04" // Ubuntu base version, default is latest lts
 
 // Run minecraft bedrock insider proot to run with rootfs
 type MojangProot struct {
-	VersionsFolder string        // Folder with versions
-	Rootfs         string        // Rootfs to run in proot
-	Version        string        // Version to run server
-	Path           string        // Run server at folder
-	Config         *MojangConfig // Server config
+	VersionsFolder string // Folder with versions
+	Rootfs         string // Rootfs to run in proot
+	Version        string // Version to run server
+	Path           string // Run server at folder
+
+	Handler *Handlers     // Server handlers
+	Config  *MojangConfig // Server config
 
 	ServerProc exec.Proc
 }
@@ -102,11 +103,11 @@ func (server *MojangProot) Start() error {
 
 	// Merge new version
 	rootfsServer := filepath.Join(server.Rootfs, server.Path)
-	os.RemoveAll(rootfsServer+"old")
+	os.RemoveAll(rootfsServer + "old")
 	if err := os.Rename(rootfsServer, rootfsServer+"old"); err != nil {
 		return err
 	}
-	fs, err := (&overleyfs.Overlayfs{Lower: []string{rootfsServer+"old", versionRoot}}).GoMerge()
+	fs, err := (&overleyfs.Overlayfs{Lower: []string{versionRoot, rootfsServer + "old"}}).GoMerge()
 	if err != nil {
 		return err
 	}
@@ -115,38 +116,35 @@ func (server *MojangProot) Start() error {
 		return err
 	}
 
+	recopy := []string{"server.properties", "allowlist.json", "permissions.json"}
+	for _, file := range recopy {
+		oldPath, newPath := filepath.Join(rootfsServer+"old", file), filepath.Join(rootfsServer, file)
+		oldFile, err := os.Open(oldPath)
+		if err != nil {
+			return err
+		}
+		defer oldFile.Close()
+		newFile, err := os.Create(newPath)
+		if err != nil {
+			return err
+		}
+		defer newFile.Close()
+		if _, err := io.Copy(newFile, oldFile); err != nil {
+			return err
+		}
+	}
+
 	if err := server.ServerProc.Start(exec.ProcExec{Cwd: server.Path, Arguments: []string{"./bedrock_server"}, Environment: map[string]string{"LD_LIBRARY_PATH": "."}}); err != nil {
 		return err
 	}
 
+	// Handler parse
+	if server.Handler != nil {
+		log, err := server.ServerProc.StdoutFork()
+		if err == nil {
+			go server.Handler.RegisterScan(log)
+		}
+	}
+
 	return nil
-}
-
-func copyToDisk(fsys fs.FS, root, target string) error {
-	return fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
-		fmt.Printf("%q ==> %q\n", path, filepath.Join(target, path))
-		if err != nil {
-			return err
-		} else if d.IsDir() {
-			return os.MkdirAll(filepath.Join(target, path), d.Type())
-		}
-		fullPath := filepath.Join(target, path)
-		os.MkdirAll(filepath.Dir(fullPath), 0600)
-
-		fsFile, err := fsys.Open(path)
-		if err != nil {
-			return err
-		}
-		defer fsFile.Close()
-
-		file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, d.Type())
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		// Copy data
-		_, err = io.Copy(file, fsFile)
-		return err
-	})
 }

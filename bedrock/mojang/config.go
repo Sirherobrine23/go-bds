@@ -1,9 +1,12 @@
 package mojang
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 
 	"github.com/gookit/properties"
 )
@@ -106,10 +109,10 @@ type MojangConfig struct {
 	// direction of the players view and the direction the player is attacking
 	// must match exactly and a value of 0 means that the two directions can
 	// differ by up to and including 90 degrees.
-	PlayerMovementActionDirectionThreshold string `properties:"player-movement-action-direction-threshold"`
-	ServerAuthoritativeBlockBreaking       string `properties:"server-authoritative-block-breaking"`
+	PlayerMovementActionDirectionThreshold string `json:"playerMovementActionDirectionThreshold" properties:"player-movement-action-direction-threshold"`
+	ServerAuthoritativeBlockBreaking       string `json:"serverAuthoritativeBlockBreaking" properties:"server-authoritative-block-breaking"`
 	// If true, the server will compute block mining operations in sync with the client so it can verify that the client should be able to break blocks when it thinks it can.
-	ServerAuthoritativeBlockBreakingPickRangeScalar string `properties:"server-authoritative-block-breaking-pick-range-scalar"`
+	ServerAuthoritativeBlockBreakingPickRangeScalar string `json:"serverAuthoritativeBlockBreakingPickRangeScalar" properties:"server-authoritative-block-breaking-pick-range-scalar"`
 	// Allowed values: "None", "Dropped", "Disabled"
 	// This represents the level of restriction applied to the chat for each player that joins the server.
 	//
@@ -149,9 +152,33 @@ func (Config *MojangConfig) Load(ServerPath string) error {
 
 // Save server config from struct
 func (Config *MojangConfig) Save(ServerPath string) error {
+	if err := Config.Check(); err != nil {
+		return err
+	}
 	data, err := properties.Marshal(Config)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(ServerPath, "server.properties"), data, fs.FileMode(0700))
+}
+
+func (config *MojangConfig) Check() error {
+	typed := reflect.TypeOf(config).Elem()
+	for i := 0; i < typed.NumField(); i++ {
+		switch typed.Field(i).Name {
+		case "Gamemode":
+			if !slices.Contains([]string{"survival", "creative", "adventure"}, config.Gamemode) {
+				return fmt.Errorf("set valid gamemode in config")
+			}
+		case "Difficulty":
+			if !slices.Contains([]string{"peaceful", "easy", "normal", "hard"}, config.Difficulty) {
+				return fmt.Errorf("set valid difficulty in config")
+			}
+		case "TickDistance":
+			if config.TickDistance < 4 || config.TickDistance > 12 {
+				return fmt.Errorf("set tick distance equal or more then 4 and less or equal at 12")
+			}
+		}
+	}
+	return nil
 }
