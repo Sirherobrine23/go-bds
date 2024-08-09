@@ -74,7 +74,7 @@ func (w *JavaServer) Start() error {
 				w.JavaVersionsPath = w.JavaVersionsPath[7:] + fmt.Sprintf("docker.io/eclipse-temurin:%d-jre", w.JavaVersion)
 			}
 			opts.Cwd = "/data/mcjava"
-			w.SeverProc = &exec.DockerOptions{
+			w.SeverProc = &exec.Docker{
 				DockerClient:      cli,
 				DockerImage:       w.JavaVersionsPath[7:],
 				Network:           "host",
@@ -122,7 +122,7 @@ func (w *JavaServer) Start() error {
 					return err
 				}
 			} else {
-				if err := javadown.GetLatest(w.JavaVersion, javaRootFolder); err != nil {
+				if err := javadown.InstallLatest(w.JavaVersion, javaRootFolder); err != nil {
 					return err
 				}
 			}

@@ -20,7 +20,7 @@ var (
 	ErrNoDockerClient = errors.New("set docker client")
 )
 
-type DockerOptions struct {
+type Docker struct {
 	DockerClient      *client.Client    `json:"-"`                 // Docker client
 	DockerImage       string            `json:"dockerImage"`       // Docker image, default is docker.io/ubuntu:latest
 	Network           string            `json:"network"`           // Network host to container run
@@ -33,43 +33,54 @@ type DockerOptions struct {
 	codeExit *int64 // Container exit code
 }
 
-func (w DockerOptions) ExitCode() (int64, error) {
+func (w Docker) ExitCode() (int64, error) {
 	if w.codeExit == nil {
 		return 0, ErrRunning
 	}
 	return *w.codeExit, nil
 }
 
-func (w DockerOptions) Kill() error {
+func (w Docker) Kill() error {
 	if w.ContainerID == "" {
 		return ErrNoContainerId
 	}
 	return w.DockerClient.ContainerStop(context.Background(), w.ContainerID, container.StopOptions{Signal: "SIGKILL"})
 }
 
-func (w DockerOptions) Close() error {
+func (w Docker) Close() error {
 	if w.ContainerID == "" {
 		return ErrNoContainerId
 	}
 	return w.DockerClient.ContainerStop(context.Background(), w.ContainerID, container.StopOptions{Signal: "SIGTERM"})
 }
 
-func (w DockerOptions) Wait() error {
-	statusCh, errCh := w.DockerClient.ContainerWait(context.Background(), w.ContainerID, container.WaitConditionNextExit)
+func (w Docker) Wait() error {
+	notChannel, errNotChannel := w.DockerClient.ContainerWait(context.Background(), w.ContainerID, container.WaitConditionNotRunning)
+	exitChannel, errExitChannel := w.DockerClient.ContainerWait(context.Background(), w.ContainerID, container.WaitConditionNextExit)
+	deletedChannel, errDeletedChannel := w.DockerClient.ContainerWait(context.Background(), w.ContainerID, container.WaitConditionRemoved)
+
+	var status container.WaitResponse
+	var err error
 	select {
-	case err := <-errCh:
-		if err != nil {
-			return err
-		}
-	case s := <-statusCh:
-		if s.StatusCode > 0 {
-			return fmt.Errorf("exit code %d", s.StatusCode)
-		}
+	case err = <- errDeletedChannel:
+	case err = <- errExitChannel:
+	case err = <- errNotChannel:
+	case status = <- deletedChannel:
+	case status = <- exitChannel:
+	case status = <- notChannel:
+	}
+	
+	if err != nil {
+		return err
+	} else if status.Error != nil {
+		return errors.New(status.Error.Message)
+	} else if status.StatusCode != 0 {
+		return fmt.Errorf("exit code %d", status.StatusCode)
 	}
 	return nil
 }
 
-func (w DockerOptions) Write(p []byte) (int, error) {
+func (w Docker) Write(p []byte) (int, error) {
 	stdin, err := w.StdinFork()
 	if err != nil {
 		return 0, err
@@ -78,7 +89,7 @@ func (w DockerOptions) Write(p []byte) (int, error) {
 	return stdin.Write(p)
 }
 
-func (w DockerOptions) StdinFork() (io.WriteCloser, error) {
+func (w Docker) StdinFork() (io.WriteCloser, error) {
 	if w.ContainerID == "" {
 		return nil, ErrNoContainerId
 	}
@@ -89,7 +100,7 @@ func (w DockerOptions) StdinFork() (io.WriteCloser, error) {
 	return res.Conn, nil
 }
 
-func (w *DockerOptions) forkLog(stdout, stderr io.Writer) error {
+func (w *Docker) forkLog(stdout, stderr io.Writer) error {
 	res, err := w.DockerClient.ContainerAttach(context.Background(), w.ContainerID, container.AttachOptions{Stdout: true, Stream: true})
 	if err != nil {
 		return err
@@ -107,7 +118,7 @@ func (w *DockerOptions) forkLog(stdout, stderr io.Writer) error {
 	return nil
 }
 
-func (cli DockerOptions) StdoutFork() (io.ReadCloser, error) {
+func (cli Docker) StdoutFork() (io.ReadCloser, error) {
 	if cli.ContainerID == "" {
 		return nil, ErrNoContainerId
 	}
@@ -119,7 +130,7 @@ func (cli DockerOptions) StdoutFork() (io.ReadCloser, error) {
 	return r, nil
 }
 
-func (cli DockerOptions) StderrFork() (io.ReadCloser, error) {
+func (cli Docker) StderrFork() (io.ReadCloser, error) {
 	if cli.ContainerID == "" {
 		return nil, ErrNoContainerId
 	}
@@ -131,7 +142,7 @@ func (cli DockerOptions) StderrFork() (io.ReadCloser, error) {
 	return r, nil
 }
 
-func (w *DockerOptions) Start(options ProcExec) error {
+func (w *Docker) Start(options ProcExec) error {
 	if w.DockerClient == nil {
 		return ErrNoDockerClient
 	} else if w.DockerImage == "" {
