@@ -1,4 +1,4 @@
-//go:build (linux || windows || darwin || solaris || aix) && (amd64 || 386 || ppc64 || ppc64le || s390x || arm64 || arm || sparcv9 || riscv64)
+//go:build (aix && ppc64) || darwin || (windows && amd64) || (linux && (amd64 || arm64 || riscv64 || ppc64le || s390x)) || (solaris && (amd64 || sparcv9))
 
 // Pre build openjdk
 package adoptium
@@ -7,7 +7,6 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,8 +16,6 @@ import (
 
 	"sirherobrine23.org/go-bds/go-bds/request"
 )
-
-var ErrNoAvaible = errors.New("host not avaible prebuild version")
 
 func download(path, url string) error {
 	ext := filepath.Ext(filepath.Base(url))
@@ -114,10 +111,10 @@ func download(path, url string) error {
 		}
 		return nil
 	}
-	return ErrNoAvaible
+	return ErrSystem
 }
 
-func InstallLatest(featVersion uint, path string) error {
+func InstallLatest(featVersion uint, installPath string) error {
 	var reqOpt request.RequestOptions
 	// architecture: x64, x86, x32, ppc64, ppc64le, s390x, aarch64, arm, sparcv9, riscv64
 	var arch = runtime.GOARCH
@@ -144,5 +141,5 @@ func InstallLatest(featVersion uint, path string) error {
 	if err != nil {
 		return err
 	}
-	return download(path, fileUrl)
+	return download(installPath, fileUrl)
 }

@@ -9,7 +9,7 @@ import (
 	"runtime"
 
 	"sirherobrine23.org/go-bds/go-bds/exec"
-	ccopy "sirherobrine23.org/go-bds/go-bds/internal/copy"
+	"sirherobrine23.org/go-bds/go-bds/internal/ccopy"
 	"sirherobrine23.org/go-bds/go-bds/overleyfs"
 )
 

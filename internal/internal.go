@@ -9,6 +9,14 @@ import (
 	"regexp"
 )
 
+func Maping[A any, B any](input []A, fn func(imput A) B) []B {
+	var cat []B
+	for _, kk := range input {
+		cat = append(cat, fn(kk))
+	}
+	return cat
+}
+
 // FindAllGroups returns a map with each match group. The map key corresponds to the match group name.
 // A nil return value indicates no matches.
 func FindAllGroups(re *regexp.Regexp, s string) map[string]string {
