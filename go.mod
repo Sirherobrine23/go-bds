@@ -1,6 +1,6 @@
-module sirherobrine23.org/go-bds/go-bds
+module sirherobrine23.com.br/go-bds/go-bds
 
-go 1.22.1
+go 1.23
 
 require (
 	code.gitea.io/sdk/gitea v0.19.0

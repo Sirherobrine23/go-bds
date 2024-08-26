@@ -73,3 +73,16 @@ func ExistPath(path string) bool {
 	}
 	return true
 }
+
+func EmptyFolder(fpath string) (bool, error) {
+	if _, err := os.Stat(fpath); os.IsNotExist(err) {
+		return true, nil
+	} else if err != nil {
+		return false, err
+	}
+	entrys, err := os.ReadDir(fpath)
+	if err != nil {
+		return false, err
+	}
+	return len(entrys) == 0, nil
+}

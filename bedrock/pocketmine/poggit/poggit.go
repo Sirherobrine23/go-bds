@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/url"
 
-	"sirherobrine23.org/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/request"
 )
 
 const (

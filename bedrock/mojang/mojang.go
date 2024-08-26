@@ -1,75 +1,99 @@
 package mojang
 
 import (
+	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
-	"sirherobrine23.org/go-bds/go-bds/exec"
-	"sirherobrine23.org/go-bds/go-bds/internal/ccopy"
-	"sirherobrine23.org/go-bds/go-bds/overleyfs"
+	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
+	"sirherobrine23.com.br/go-bds/go-bds/exec"
+	"sirherobrine23.com.br/go-bds/go-bds/internal"
+	"sirherobrine23.com.br/go-bds/go-bds/overleyfs"
 )
+
+var ErrPlatform error = errors.New("current platform no supported or cannot emulate arch") // Cannot run server in platform or cannot emulate arch
 
 type Mojang struct {
 	VersionsFolder string // Folder with versions
 	Version        string // Version to run server
-	Path           string // Run server at folder
+	Path           string // Server folder to run
 
-	Handler *Handlers     // Server handlers
-	Config  *MojangConfig // Server config
+	RunInOverlayfs bool // Run server with overlayfs, require set Path and Workdir (RunInConfig) to run server
+	RunInRootfs    bool // Run server with proot (chroot), recomends run if running in android or non root/sudo users
+	RunInConfig    any  // Extra configs to run Overlayfs or proot
 
-	ServerProc exec.Proc
+	Handler    *Handlers     // Server handlers
+	Config     *MojangConfig // Server config
+	ServerProc exec.Proc     // Server process
+
+	overlayfs *overleyfs.Overlayfs
 }
 
 func (server *Mojang) Close() error {
 	if server.ServerProc != nil {
 		server.ServerProc.Write([]byte("stop\n"))
-		return server.ServerProc.Close()
+		if err := server.ServerProc.Close(); err != nil {
+			return err
+		}
 	}
+
+	if server.overlayfs != nil {
+		if err := server.overlayfs.Unmount(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 // Start server and mount overlayfs if version not exists localy download
 func (server *Mojang) Start() error {
-	if server.Version == "latest" || server.Version == "" {
+	// Get latest version if empty or `latest`
+	if server.Version == "" || strings.ToLower(server.Version) == "latest" {
 		versions, err := FromVersions()
 		if err != nil {
-			return fmt.Errorf("cannot get versions: %s", err.Error())
+			return err
 		}
 		server.Version = GetLatest(versions)
 	}
 
+	// Version folder
 	versionRoot := filepath.Join(server.VersionsFolder, server.Version)
-	if checkExist(versionRoot) {
-		n, err := os.ReadDir(versionRoot)
-		if err != nil {
+
+	// Clear version folder if empty
+	if versionEmpty, err := internal.EmptyFolder(versionRoot); err != nil {
+		return err
+	} else if !versionEmpty {
+		if err := os.RemoveAll(versionRoot); err != nil {
 			return err
-		}
-		if len(n) == 0 {
-			if err := os.RemoveAll(versionRoot); err != nil {
-				return err
-			}
 		}
 	}
 
-	if !checkExist(versionRoot) {
+	if !internal.ExistPath(versionRoot) {
 		versions, err := FromVersions()
 		if err != nil {
-			return fmt.Errorf("cannot get versions: %s", err.Error())
+			return err
+		} else if err := os.MkdirAll(versionRoot, 0700); err != nil {
+			return err
 		}
-		os.MkdirAll(versionRoot, 0700)
 
-		var ok bool
-		var version Version
 		var target VersionPlatform
-		if version, ok = versions[server.Version]; !ok {
+		if version, ok := versions[server.Version]; !ok {
 			return fmt.Errorf("version not found in database")
 		} else if target, ok = version.Platforms[fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)]; !ok {
-			return fmt.Errorf("platform not supported")
-		} else if err := target.Download(versionRoot); err != nil {
+			if ok, err = binfmt.FindByPlatform("linux/amd64"); err != nil {
+				return err
+			} else if ok {
+				target, ok = version.Platforms["linux/amd64"]
+			}
+			if !ok {
+				return ErrPlatform
+			}
+		}
+		if err := target.Download(versionRoot); err != nil {
 			return err
 		}
 	}
@@ -78,59 +102,62 @@ func (server *Mojang) Start() error {
 		return fmt.Errorf("set Path to run minecraft server")
 	}
 
-	// Merge new version
-	if !checkExist(server.Path) {
-		os.MkdirAll(server.Path, 0700)
-		if err := ccopy.CopyDirectory(versionRoot, server.Path); err != nil {
-			return err
-		}
-	} else {
-		os.RemoveAll(server.Path + "old")
-		if err := os.Rename(server.Path, server.Path+"old"); err != nil {
-			return err
-		}
-		fs, err := (&overleyfs.Overlayfs{Lower: []string{versionRoot, server.Path + "old"}}).GoMerge()
-		if err != nil {
-			return err
-		}
-		os.MkdirAll(server.Path, 0600)
-		if err := copyToDisk(fs, ".", server.Path); err != nil {
-			return err
-		}
-
-		recopy := []string{"server.properties", "allowlist.json", "permissions.json"}
-		for _, file := range recopy {
-			oldPath, newPath := filepath.Join(server.Path+"old", file), filepath.Join(server.Path, file)
-			oldFile, err := os.Open(oldPath)
-			if err != nil {
-				return err
-			}
-			defer oldFile.Close()
-			newFile, err := os.Create(newPath)
-			if err != nil {
-				return err
-			}
-			defer newFile.Close()
-			if _, err := io.Copy(newFile, oldFile); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Start server
-	server.ServerProc = &exec.Os{}
-	opt := exec.ProcExec{
-		Cwd:         server.Path,
-		Arguments:   []string{"./bedrock_server"},
-		Environment: map[string]string{"LD_LIBRARY_PATH": "."},
-	}
-
+	var serverExecOptions exec.ProcExec
+	serverExecOptions.Cwd = server.Path
 	if runtime.GOOS == "windows" {
 		if !(runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
 			return fmt.Errorf("run minecraft server in Windows with x64/amd64 or arm64 emulation")
 		}
-		opt.Environment = make(map[string]string)
-		opt.Arguments = []string{"bedrock_server.exe"}
+		serverExecOptions.Arguments = []string{"bedrock_server.exe"}
+		server.ServerProc = &exec.Os{}
+	} else if runtime.GOOS == "linux" {
+		if server.RunInOverlayfs {
+			if _, ok := server.RunInConfig.(string); !ok {
+				return fmt.Errorf("require workdir seted in RunInConfig to mount overlayfs")
+			}
+			runDir, err := os.MkdirTemp(os.TempDir(), "bdsserver_*")
+			if err != nil {
+				return err
+			}
+
+			server.overlayfs = &overleyfs.Overlayfs{}
+			server.overlayfs.Upper = server.Path
+			server.overlayfs.Workdir = server.RunInConfig.(string)
+
+			server.overlayfs.Target = filepath.Join(runDir, "merged")
+			server.overlayfs.Lower = []string{versionRoot}
+			if err := server.overlayfs.Mount(); err != nil {
+				return err
+			}
+			serverExecOptions.Cwd = server.overlayfs.Target
+		}
+
+		if server.RunInRootfs {
+			if _, ok := server.RunInConfig.(string); !ok {
+				return fmt.Errorf("require rootfs seted in RunInConfig to run proot")
+			}
+			server.ServerProc = &exec.Proot{Rootfs: server.RunInConfig.(string)}
+		}
+
+		requireQemu, err := binfmt.CheckEmulate(filepath.Join(versionRoot, "bedrock_server"))
+		if err != nil {
+			return err
+		} else if requireQemu {
+			binfmt, err := binfmt.GetBinfmtEmulater(filepath.Join(versionRoot, "bedrock_server"))
+			if err != nil {
+				return err
+			}
+			if proot, ok := server.ServerProc.(*exec.Proot); ok {
+				proot.Qemu = binfmt.Interpreter
+			} else {
+				server.ServerProc = &exec.Os{}
+				serverExecOptions.Arguments = []string{binfmt.Interpreter}
+			}
+		}
+		serverExecOptions.Arguments = append(serverExecOptions.Arguments, "./bedrock_server")
+		serverExecOptions.Environment = map[string]string{"LD_LIBRARY_PATH": versionRoot}
+	} else {
+		return ErrPlatform
 	}
 
 	// Load config
@@ -139,7 +166,7 @@ func (server *Mojang) Start() error {
 		return err
 	}
 
-	if err := server.ServerProc.Start(opt); err != nil {
+	if err := server.ServerProc.Start(serverExecOptions); err != nil {
 		return err
 	}
 
@@ -152,33 +179,4 @@ func (server *Mojang) Start() error {
 	}
 
 	return nil
-}
-
-func copyToDisk(fsys fs.FS, root, target string) error {
-	return fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
-		fmt.Printf("%q ==> %q\n", path, filepath.Join(target, path))
-		if err != nil {
-			return err
-		} else if d.IsDir() {
-			return os.MkdirAll(filepath.Join(target, path), d.Type())
-		}
-		fullPath := filepath.Join(target, path)
-		os.MkdirAll(filepath.Dir(fullPath), 0600)
-
-		fsFile, err := fsys.Open(path)
-		if err != nil {
-			return err
-		}
-		defer fsFile.Close()
-
-		file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_EXCL|os.O_RDWR, d.Type())
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		// Copy data
-		_, err = io.Copy(file, fsFile)
-		return err
-	})
 }

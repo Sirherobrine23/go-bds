@@ -1,6 +1,6 @@
 //go:build linux
 
-// For non root user mount in namespace (unshare -rm) or with fuse module
+// For non root user mount in namespace (unshare -rm)
 package overleyfs
 
 import (
@@ -9,6 +9,8 @@ import (
 
 	"golang.org/x/sys/unix"
 )
+
+var kernelOverlay bool = false
 
 func init() {
 	root, err := os.MkdirTemp(os.TempDir(), "overlay_test_*")
@@ -30,9 +32,9 @@ func init() {
 	os.WriteFile(filepath.Join(fs.Lower[0], "test1.txt"), []byte(textExample), 0600)
 	os.WriteFile(filepath.Join(fs.Upper, "test2.txt"), []byte(textExample), 0600)
 
-	defer fs.UnixUnmount()
+	defer fs.Unmount()
 	kernelOverlay = true
-	if err := fs.UnixMount(); err != nil {
+	if err := fs.Mount(); err != nil {
 		kernelOverlay = false
 		return
 	}
@@ -42,42 +44,30 @@ func init() {
 	for _, k := range [][]byte{d1, d2} {
 		if string(k) != textExample {
 			kernelOverlay = false
-			fuseOverlay = false
 			break
 		}
 	}
-	fs.UnixUnmount()
-
+	fs.Unmount()
 }
 
+// Mount overlayfs same `mount -t overlay overlay`:
+//
+//   - The working directory (Workdir) needs to be an empty directory on the same filesystem as the Upper directory.
 func (w *Overlayfs) Mount() error {
 	if kernelOverlay {
-		return w.UnixMount()
-	} else if fuseOverlay {
-		return w.FuseMount()
+		flags, err := w.makeFlags()
+		if err != nil {
+			return err
+		}
+		return unix.Mount("overlay", w.Target, "overlay", 0, flags)
 	}
 	return ErrNotOverlayAvaible
-}
-
-func (w *Overlayfs) Unmount() error {
-	if kernelOverlay {
-		return w.UnixUnmount()
-	} else if fuseOverlay {
-		return w.FuseUnmount()
-	}
-	return ErrNotOverlayAvaible
-}
-
-// Mount overlayfs same `mount -t overlay overlay`
-func (w *Overlayfs) UnixMount() error {
-	flags, err := w.makeFlags()
-	if err != nil {
-		return err
-	}
-	return unix.Mount("overlay", w.Target, "overlay", 0, flags)
 }
 
 // Unmount overlayfs same `unmount`
-func (w Overlayfs) UnixUnmount() error {
-	return unix.Unmount(w.Target, unix.MNT_DETACH)
+func (w *Overlayfs) Unmount() error {
+	if kernelOverlay {
+		return unix.Unmount(w.Target, unix.MNT_DETACH)
+	}
+	return ErrNotOverlayAvaible
 }

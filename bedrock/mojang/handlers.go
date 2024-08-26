@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"sirherobrine23.org/go-bds/go-bds/internal"
+	"sirherobrine23.com.br/go-bds/go-bds/internal"
 )
 
 const (

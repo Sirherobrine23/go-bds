@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"code.gitea.io/sdk/gitea"
-	"sirherobrine23.org/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/request"
 )
 
 type Version struct {
@@ -37,7 +37,7 @@ func (ver *Version) Download(InstallPath string) error {
 }
 
 func GetReleases() ([]Version, error) {
-	tea, err := gitea.NewClient("https://sirherobrine23.org")
+	tea, err := gitea.NewClient("https://sirherobrine23.com.br")
 	if err != nil {
 		return nil, err
 	}

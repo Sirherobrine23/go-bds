@@ -1,5 +1,3 @@
-//go:build android || linux
-
 package exec
 
 import (
@@ -10,9 +8,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
 
-	"sirherobrine23.org/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/request"
 )
 
 // Mount rootfs and run command insider in proot
@@ -69,13 +66,8 @@ func (pr *Proot) Start(options ProcExec) error {
 }
 
 // Download ubuntu base to host arch if avaible
-func (proc *Proot) DownloadUbuntuRootfs(Version string) error {
-	UbuntuBase := fmt.Sprintf("https://cdimage.ubuntu.com/ubuntu-base/releases/%s/release/ubuntu-base-%s-base-%s.tar.gz", Version, Version, runtime.GOARCH)
-	if runtime.GOARCH == "arm" {
-		UbuntuBase = fmt.Sprintf("https://cdimage.ubuntu.com/ubuntu-base/releases/%s/release/ubuntu-base-%s-base-armhf.tar.gz", Version, Version)
-	}
-
-	res, err := (&request.RequestOptions{HttpError: true, Url: UbuntuBase}).Request()
+func (proc *Proot) DownloadUbuntuRootfs(Version, Arch string) error {
+	res, err := (&request.RequestOptions{HttpError: true, Url: fmt.Sprintf("https://cdimage.ubuntu.com/ubuntu-base/releases/%s/release/ubuntu-base-%s-base-%s.tar.gz", Version, Version, Arch)}).Request()
 	if err != nil {
 		return err
 	}

@@ -9,20 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"sirherobrine23.org/go-bds/go-bds/internal/mergefs"
+	"sirherobrine23.com.br/go-bds/go-bds/internal/mergefs"
 )
 
-var (
-	ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")
-
-	fuseOverlay   bool = false
-	kernelOverlay bool = false
-)
-
-type MountUnmount interface {
-	Mount() error   // Mount volumes in target
-	UnMount() error // Unmount target
-}
+var ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")
 
 type Overlayfs struct {
 	Target  string   // Folder with merged another folder
@@ -33,10 +23,10 @@ type Overlayfs struct {
 
 func (w *Overlayfs) makeFlags() (_ string, err error) {
 	// overlay on /var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/merged
-	// workdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/work
-	// upperdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/diff
-	// lowerdir=/var/lib/docker/overlay2/l/4UKYKDRRHSYV7T6FMWQV7XGOJU
-	//          /var/lib/docker/overlay2/l/X4HBSZ4R5V7LFSZYXQ5T7V3Q2Q
+	//    workdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/work
+	//   upperdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/diff
+	//  lowerdir=/var/lib/docker/overlay2/l/4UKYKDRRHSYV7T6FMWQV7XGOJU
+	//           /var/lib/docker/overlay2/l/X4HBSZ4R5V7LFSZYXQ5T7V3Q2Q
 
 	if len(w.Lower) == 0 {
 		return "", fmt.Errorf("set one lower dir")

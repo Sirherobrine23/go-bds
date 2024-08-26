@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/docker/docker/client"
-	"sirherobrine23.org/go-bds/go-bds/exec"
-	"sirherobrine23.org/go-bds/go-bds/internal/ccopy"
-	javadown "sirherobrine23.org/go-bds/go-bds/java/adoptium"
+	"sirherobrine23.com.br/go-bds/go-bds/exec"
+	"sirherobrine23.com.br/go-bds/go-bds/internal/ccopy"
+	javadown "sirherobrine23.com.br/go-bds/go-bds/java/adoptium"
 )
 
 //go:embed javac/*
@@ -20,8 +20,8 @@ var javac embed.FS
 // Global struct to Minecraft java server to run .jar
 type JavaServer struct {
 	JavaFolders string `json:"javaFolders"` // Java bins, if blank use local java or `docker:` to run insider container
-	JavaVersion uint   `json:"javaVersion"`        // Java version to run
-	SavePath    string `json:"savePath"`           // Folder path to save server run data
+	JavaVersion uint   `json:"javaVersion"` // Java version to run
+	SavePath    string `json:"savePath"`    // Folder path to save server run data
 
 	SeverProc exec.Proc // Interface to process running
 }

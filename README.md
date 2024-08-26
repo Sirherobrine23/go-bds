@@ -6,4 +6,4 @@ Go BDS will be a complete migration and rewrite of the Bds Maneger core, which w
 
 ## Implementatition
 
-install module: `go get -u sirherobrine23.org/go-bds/go-bds`
+install module: `go get -u sirherobrine23.com.br/go-bds/go-bds`

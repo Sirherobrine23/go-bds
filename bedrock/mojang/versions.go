@@ -13,14 +13,14 @@ import (
 	"regexp"
 	"time"
 
-	"sirherobrine23.org/go-bds/go-bds/internal"
-	"sirherobrine23.org/go-bds/go-bds/internal/gohtml"
-	"sirherobrine23.org/go-bds/go-bds/internal/semver"
-	"sirherobrine23.org/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/internal"
+	"sirherobrine23.com.br/go-bds/go-bds/internal/gohtml"
+	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
+	"sirherobrine23.com.br/go-bds/go-bds/request"
 )
 
 var (
-	VersionsRemote string         = "https://sirherobrine23.org/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
+	VersionsRemote string         = "https://sirherobrine23.com.br/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
 	MatchVersion   *regexp.Regexp = regexp.MustCompile(`bedrock-server-(P<Version>[0-9\.\-_]+).zip$`)
 
 	ErrInvalidFileVersions error = errors.New("invalid versions file or url")            // Versions file invalid url schema

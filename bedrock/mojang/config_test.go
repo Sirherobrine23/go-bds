@@ -3,7 +3,7 @@ package mojang_test
 import (
 	"testing"
 
-	"sirherobrine23.org/go-bds/go-bds/bedrock/mojang"
+	"sirherobrine23.com.br/go-bds/go-bds/bedrock/mojang"
 )
 
 func TestConfig(t *testing.T) {

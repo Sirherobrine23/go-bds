@@ -3,7 +3,7 @@ package request_test
 import (
 	"testing"
 
-	"sirherobrine23.org/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/request"
 )
 
 func TestLink(t *testing.T) {
