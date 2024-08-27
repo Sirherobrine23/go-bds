@@ -9,15 +9,13 @@ import (
 	"os"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/request"
-)
-
-const (
-	MclogsApi  string = "https://api.mclo.gs"
-	MclogsBase string = "https://mclo.gs"
+	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
 var (
+	MclogsApi  string = "https://api.mclo.gs"
+	MclogsBase string = "https://mclo.gs"
+
 	ErrNoId     error = errors.New("require mclo.gs id") // Require uploaded log to view
 	ErrNoExists error = errors.New("log no exists")      // id request not exists
 )
@@ -62,12 +60,7 @@ func (Log *Mclog) Upload(fileLogPath string) error {
 		return err
 	}
 
-	res, err := request.Request(request.RequestOptions{
-		Url:    fmt.Sprintf("%s/1/log", Log.MclogApi),
-		Method: "POST",
-		Body:   logFile,
-	})
-
+	res, err := request.Request(fmt.Sprintf("%s/1/log", Log.MclogApi), &request.Options{Method: "POST", Body: logFile})
 	if err != nil {
 		return err
 	}
@@ -103,11 +96,7 @@ func (Log *Mclog) Insights() (Insights, error) {
 		return logInsight, err
 	}
 
-	res, err := request.Request(request.RequestOptions{
-		Method: "GET",
-		Url:    fmt.Sprintf("%s/1/insights/%s", Log.MclogApi, Log.FileID),
-	})
-
+	res, err := request.Request(fmt.Sprintf("%s/1/insights/%s", Log.MclogApi, Log.FileID), nil)
 	if err != nil {
 		return logInsight, err
 	}
@@ -132,11 +121,7 @@ func (Log *Mclog) Raw() (io.ReadCloser, error) {
 		return nil, ErrNoId
 	}
 
-	res, err := request.Request(request.RequestOptions{
-		Method: "GET",
-		Url:    fmt.Sprintf("%s/1/raw/%s", Log.MclogApi, Log.FileID),
-	})
-
+	res, err := request.Request(fmt.Sprintf("%s/1/raw/%s", Log.MclogApi, Log.FileID), nil)
 	if err != nil {
 		return nil, err
 	} else if res.StatusCode == 404 {

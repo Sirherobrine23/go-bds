@@ -3,7 +3,6 @@ package request
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -13,14 +12,17 @@ import (
 	"strings"
 )
 
-var (
-	Err400 error = errors.New("bad request")
-	Err404 error = errors.New("page not found")
-	Err409 error = errors.New("request conflict")
-	Err502 error = errors.New("bad gateway")
-)
+var ErrCode error = new(ErrResponseCode)
 
 type CodeCallback func(res *http.Response) (*http.Response, error)
+
+type ErrResponseCode struct {
+	Response *http.Response
+}
+
+func (err ErrResponseCode) Error() string {
+	return fmt.Sprintf("cannot process request, response code %d", err.Response.StatusCode)
+}
 
 // Request options
 type Options struct {
@@ -69,21 +71,33 @@ func (req RequestRoot) MakeRequest() (*http.Response, error) {
 	}
 
 	var err error
-	if _, ok := req.Options.Body.(io.Reader); !ok {
-		if data, ok := req.Options.Body.([]byte); ok {
-			req.Options.Body = bytes.NewReader(data)
-		} else if req.Options.Body != nil {
-			var data []byte
-			if data, err = json.Marshal(req.Options.Body); err != nil {
-				return nil, err
+	var body io.Reader
+	if req.Options.Body != nil {
+		if dbody, ok := req.Options.Body.(io.Reader); ok {
+			body = dbody
+		} else {
+			if data, ok := req.Options.Body.([]byte); ok {
+				req.Options.Body = bytes.NewReader(data)
+			} else if req.Options.Body != nil {
+				var data []byte
+				if data, err = json.Marshal(req.Options.Body); err != nil {
+					return nil, err
+				}
+				req.Options.Body = bytes.NewReader(data)
+
+				if req.Options.Header == nil {
+					req.Options.Header = make(map[string]string)
+				}
+				if (&http.Header{"Content-Type": {req.Options.Header["Content-Type"]}, "content-type": {req.Options.Header["content-type"]}}).Get("Content-Type") == "" {
+					req.Options.Header["Content-Type"] = "application/json"
+				}
 			}
-			req.Options.Body = bytes.NewReader(data)
 		}
 	}
 
 	// Create request
 	var request *http.Request
-	if request, err = http.NewRequest(methodRequest, req.Url.String(), req.Options.Body.(io.Reader)); err != nil {
+	if request, err = http.NewRequest(methodRequest, req.Url.String(), body); err != nil {
 		return nil, err
 	}
 
@@ -104,37 +118,18 @@ func (req RequestRoot) MakeRequestWithStatus() (*http.Response, error) {
 	request, err := req.MakeRequest()
 	if err != nil {
 		return request, err
-	} else if len(req.Options.CodeProcess) > 0 {
-		if codeProcess, ok := req.Options.CodeProcess[request.StatusCode]; ok {
-			return codeProcess(request)
-		} else if slices.Contains(slices.Collect(maps.Keys(req.Options.CodeProcess)), -1) {
-			return req.Options.CodeProcess[-1](request)
+	} else if req.Options != nil {
+		if req.Options.CodeProcess != nil {
+			if codeProcess, ok := req.Options.CodeProcess[request.StatusCode]; ok {
+				return codeProcess(request)
+			} else if slices.Contains(slices.Collect(maps.Keys(req.Options.CodeProcess)), -1) {
+				return req.Options.CodeProcess[-1](request)
+			}
 		}
 	}
-	switch request.StatusCode {
-	case
-		http.StatusContinue,
-		http.StatusSwitchingProtocols,
-		http.StatusProcessing,
-		http.StatusEarlyHints,
-		http.StatusOK,
-		http.StatusCreated,
-		http.StatusAccepted,
-		http.StatusNonAuthoritativeInfo,
-		http.StatusNoContent,
-		http.StatusResetContent,
-		http.StatusPartialContent,
-		http.StatusMultiStatus,
-		http.StatusAlreadyReported,
-		http.StatusIMUsed:
+
+	if code := request.StatusCode; code >= 100 && code <= 399 {
 		return request, nil
-	case http.StatusConflict:
-		return request, Err409
-	case http.StatusBadRequest:
-		return request, Err400
-	case http.StatusBadGateway:
-		return request, Err502
-	default:
-		return request, fmt.Errorf("request code %d (%s)", request.StatusCode, request.Status)
 	}
+	return request, ErrResponseCode{request}
 }
