@@ -1,8 +1,10 @@
 package mojang
 
 import (
+	"archive/tar"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +13,7 @@ import (
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/internal"
+	"sirherobrine23.com.br/go-bds/go-bds/internal/difffs"
 	"sirherobrine23.com.br/go-bds/go-bds/overleyfs"
 )
 
@@ -21,15 +24,10 @@ type Mojang struct {
 	Version        string // Version to run server
 	Path           string // Server folder to run
 
-	RunInOverlayfs bool // Run server with overlayfs, require set Path and Workdir (RunInConfig) to run server
-	RunInRootfs    bool // Run server with proot (chroot), recomends run if running in android or non root/sudo users
-	RunInConfig    any  // Extra configs to run Overlayfs or proot
+	OverlayConfig *overleyfs.Overlayfs // Config to overlayfs, go-bds replace necesarys configs
+	RootfsConfig  *exec.Proot          // Config to run in proot
 
-	Handler    *Handlers     // Server handlers
-	Config     *MojangConfig // Server config
-	ServerProc exec.Proc     // Server process
-
-	overlayfs *overleyfs.Overlayfs
+	ServerProc exec.Proc // Server process
 }
 
 func (server *Mojang) Close() error {
@@ -40,8 +38,8 @@ func (server *Mojang) Close() error {
 		}
 	}
 
-	if server.overlayfs != nil {
-		if err := server.overlayfs.Unmount(); err != nil {
+	if server.OverlayConfig != nil {
+		if err := server.OverlayConfig.Unmount(); err != nil {
 			return err
 		}
 	}
@@ -106,37 +104,25 @@ func (server *Mojang) Start() error {
 	serverExecOptions.Cwd = server.Path
 	if runtime.GOOS == "windows" {
 		if !(runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
-			return fmt.Errorf("run minecraft server in Windows with x64/amd64 or arm64 emulation")
+			return fmt.Errorf("run minecraft server in Windows with x64/amd64 or arm64")
 		}
 		serverExecOptions.Arguments = []string{"bedrock_server.exe"}
 		server.ServerProc = &exec.Os{}
 	} else if runtime.GOOS == "linux" {
-		if server.RunInOverlayfs {
-			if _, ok := server.RunInConfig.(string); !ok {
-				return fmt.Errorf("require workdir seted in RunInConfig to mount overlayfs")
-			}
-			runDir, err := os.MkdirTemp(os.TempDir(), "bdsserver_*")
-			if err != nil {
-				return err
+		if server.OverlayConfig != nil {
+			if server.OverlayConfig.Upper == "" || server.OverlayConfig.Workdir == "" {
+				return fmt.Errorf("bedrock,overlayfs: require Upper and Workdir to run with overlayfs")
 			}
 
-			server.overlayfs = &overleyfs.Overlayfs{}
-			server.overlayfs.Upper = server.Path
-			server.overlayfs.Workdir = server.RunInConfig.(string)
-
-			server.overlayfs.Target = filepath.Join(runDir, "merged")
-			server.overlayfs.Lower = []string{versionRoot}
-			if err := server.overlayfs.Mount(); err != nil {
+			server.OverlayConfig.Lower = append(server.OverlayConfig.Lower, versionRoot)
+			if err := server.OverlayConfig.Mount(); err != nil {
 				return err
 			}
-			serverExecOptions.Cwd = server.overlayfs.Target
+			serverExecOptions.Cwd = server.OverlayConfig.Target
 		}
 
-		if server.RunInRootfs {
-			if _, ok := server.RunInConfig.(string); !ok {
-				return fmt.Errorf("require rootfs seted in RunInConfig to run proot")
-			}
-			server.ServerProc = &exec.Proot{Rootfs: server.RunInConfig.(string)}
+		if server.RootfsConfig != nil {
+			server.ServerProc = server.RootfsConfig
 		}
 
 		requireQemu, err := binfmt.CheckEmulate(filepath.Join(versionRoot, "bedrock_server"))
@@ -160,23 +146,23 @@ func (server *Mojang) Start() error {
 		return ErrPlatform
 	}
 
-	// Load config
-	server.Config = &MojangConfig{}
-	if err := server.Config.Load(server.Path); err != nil {
-		return err
-	}
+	// Start server
+	return server.ServerProc.Start(serverExecOptions)
+}
 
-	if err := server.ServerProc.Start(serverExecOptions); err != nil {
-		return err
+// Create backup from server
+//
+// if running in overlafs backup only Upper folder, else backup full server
+func (server Mojang) Tar(w io.Writer) error {
+	tarball := tar.NewWriter(w)
+	defer tarball.Close()
+	if server.OverlayConfig != nil {
+		return tarball.AddFS(os.DirFS(server.OverlayConfig.Upper))
 	}
-
-	// Handler parse
-	if server.Handler != nil {
-		log, err := server.ServerProc.StdoutFork()
-		if err == nil {
-			go server.Handler.RegisterScan(log)
-		}
-	}
-
-	return nil
+	return tarball.AddFS(&difffs.Diff{
+		Lowers: []string{
+			filepath.Join(server.VersionsFolder, server.Version),
+			server.Path,
+		},
+	})
 }

@@ -1,31 +1,40 @@
 package mojang
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"regexp"
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/internal"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/gohtml"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
-	"sirherobrine23.com.br/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
 var (
-	VersionsRemote string         = "https://sirherobrine23.com.br/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
-	MatchVersion   *regexp.Regexp = regexp.MustCompile(`bedrock-server-(P<Version>[0-9\.\-_]+).zip$`)
+	VersionsRemote string = "https://sirherobrine23.com.br/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
+	VersionMatch          = regexp.MustCompile(`(?m)(\-|_)(?P<Version>[0-9\.]+)\.zip$`)
 
 	ErrInvalidFileVersions error = errors.New("invalid versions file or url")            // Versions file invalid url schema
 	ErrNoVersion           error = errors.New("cannot find version")                     // Version request not exists
 	ErrNoPlatform          error = errors.New("platform not supported for this version") // Version request not exists
+
+	MojangHeaders = map[string]string{
+		// "Accept-Encoding":           "gzip, deflate",
+		"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+		"Accept-Language":           "en-US;q=0.9,en;q=0.8",
+		"Sec-Ch-Ua":                 `"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123\"`,
+		"Sec-Ch-Ua-Mobile":          "?0",
+		"Sec-Ch-Ua-Platform":        `"Windows"`,
+		"Sec-Fetch-Dest":            "document",
+		"Sec-Fetch-Mode":            "navigate",
+		"Sec-Fetch-Site":            "none",
+		"Sec-Fetch-User":            "?1",
+		"Upgrade-Insecure-Requests": "1",
+		"User-Agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+	}
 )
 
 // Versions extracted from Minecraft website
@@ -56,7 +65,7 @@ type Versions map[string]Version
 // Get versions from cached versions
 func FromVersions() (Versions, error) {
 	var versions Versions
-	res, err := request.Request(request.RequestOptions{Method: "GET", HttpError: true, Url: VersionsRemote})
+	res, err := request.Request(VersionsRemote, nil)
 	if err != nil {
 		return versions, err
 	}
@@ -71,121 +80,15 @@ func FromVersions() (Versions, error) {
 
 // Extract server to folder
 func (version *VersionPlatform) Download(serverPath string) error {
-	var req request.RequestOptions
 	if version.TarSHA1 != "" && version.TarFile != "" {
-		req.Url = version.TarFile
-		res, err := req.Request()
-		if err != nil {
-			return err
-		}
-		defer res.Body.Close()
-		gz, err := gzip.NewReader(res.Body)
-		if err != nil {
-			return err
-		}
-		defer gz.Close()
-		tarball := tar.NewReader(gz)
-
-		for {
-			head, err := tarball.Next()
-			if err != nil {
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					break
-				}
-				return err
-			}
-			fileinfo := head.FileInfo()
-			fullPath := filepath.Join(serverPath, head.Name)
-			if fileinfo.IsDir() {
-				if err := os.MkdirAll(fullPath, fileinfo.Mode()); err != nil {
-					return err
-				} else if err := os.Chtimes(fullPath, head.AccessTime, head.ModTime); err != nil {
-					return err
-				}
-				continue
-			}
-
-			// Create folder if not exist to create file
-			os.MkdirAll(filepath.Dir(fullPath), 0666)
-			file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileinfo.Mode())
-			if err != nil {
-				return err
-			} else if err := os.Chtimes(fullPath, head.AccessTime, head.ModTime); err != nil {
-				return err
-			}
-
-			// Copy file
-			if _, err := io.CopyN(file, tarball, fileinfo.Size()); err != nil {
-				if err == io.EOF || err == io.ErrUnexpectedEOF {
-					continue
-				}
-				return err
-			}
-		}
-
-		return nil
+		return request.Tar(version.TarFile, request.TarOptions{Cwd: serverPath}, nil)
 	}
-
-	file, err := os.CreateTemp(os.TempDir(), "bdsserver")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	defer os.Remove(file.Name())
-
-	req.Url = version.ZipFile
-	if err = req.WriteStream(file); err != nil {
-		return err
-	}
-
-	stats, err := file.Stat()
-	if err != nil {
-		return err
-	}
-
-	zipReader, err := zip.NewReader(file, stats.Size())
-	if err != nil {
-		return err
-	}
-
-	for _, file := range zipReader.File {
-		fileInfo := file.FileInfo()
-		filePath := filepath.Join(serverPath, file.Name)
-		if fileInfo.IsDir() {
-			err = os.MkdirAll(filePath, file.Mode())
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		fileOs, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, file.Mode())
-		if err != nil {
-			return err
-		}
-		defer fileOs.Close()
-
-		zipFile, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer zipFile.Close()
-
-		_, err = io.Copy(fileOs, zipFile)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return request.Zip(version.ZipFile, request.TarOptions{Cwd: serverPath}, nil)
 }
 
 // Get new versions from minecraft.net/en-us/download/server/bedrock
 func FetchFromWebsite() (*MojangHTML, error) {
-	var req = request.RequestOptions{
-		Url:       "https://minecraft.net/en-us/download/server/bedrock",
-		HttpError: true,
-	}
-	res, err := req.Request()
+	res, err := request.Request("https://minecraft.net/en-us/download/server/bedrock", &request.Options{Header: MojangHeaders})
 	if err != nil {
 		return nil, err
 	}
@@ -196,22 +99,23 @@ func FetchFromWebsite() (*MojangHTML, error) {
 		return nil, err
 	}
 
-	var fileMatch = regexp.MustCompile(`(?m)(\-|_)(?P<Version>[0-9\.]+)\.zip$`)
 	for index, value := range body.Versions {
-		body.Versions[index].Version = internal.FindAllGroups(fileMatch, value.URL)["Version"]
+		body.Versions[index].Version = internal.FindAllGroups(VersionMatch, value.URL)["Version"]
+
+		// Set go platform
 		switch value.Platform {
-		case "serverBedrockLinux":
+		case "serverBedrockLinux", "serverBedrockPreviewLinux":
 			body.Versions[index].Platform = "linux/amd64"
-		case "serverBedrockPreviewLinux":
-			body.Versions[index].Platform = "linux/amd64"
-			body.Versions[index].Preview = true
-		case "serverBedrockWindows":
+		case "serverBedrockWindows", "serverBedrockPreviewWindows":
 			body.Versions[index].Platform = "windows/amd64"
-		case "serverBedrockPreviewWindows":
-			body.Versions[index].Platform = "windows/amd64"
-			body.Versions[index].Preview = true
 		default:
 			return nil, fmt.Errorf("cannot go target from %q", value.Platform)
+		}
+
+		// Check if is beta version
+		switch value.Platform {
+		case "serverBedrockPreviewWindows", "serverBedrockPreviewLinux":
+			body.Versions[index].Preview = true
 		}
 	}
 	return &body, nil

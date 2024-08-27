@@ -79,7 +79,7 @@ type MojangConfig struct {
 	// Allowed values: Any string without semicolon symbol or symbols illegal for file name: /\n\r\t\f`?*\\<>|\":
 	LevelName string `json:"levelName" properties:"level-name"`
 	// Use to randomize the world
-	LevelSeed int64 `json:"levelSeed" properties:"level-seed"`
+	LevelSeed string `json:"levelSeed" properties:"level-seed"`
 	// Permission level for new players joining for the first time.
 	// Allowed values: "visitor", "member", "operator"
 	DefaultPlayerPermission string `json:"defaultPlayerPermission" properties:"default-player-permission-level"`
@@ -142,16 +142,17 @@ type MojangConfig struct {
 }
 
 // Load server config and Write to Struct
-func (Config *MojangConfig) Load(ServerPath string) error {
+func GetConfig(ServerPath string) (*MojangConfig, error) {
+	var Config MojangConfig
 	f, err := os.ReadFile(filepath.Join(ServerPath, "server.properties"))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return properties.Unmarshal(f, Config)
+	return &Config, properties.Unmarshal(f, Config)
 }
 
 // Save server config from struct
-func (Config *MojangConfig) Save(ServerPath string) error {
+func SaveConfig(ServerPath string, Config *MojangConfig) error {
 	if err := Config.Check(); err != nil {
 		return err
 	}
@@ -177,6 +178,10 @@ func (config *MojangConfig) Check() error {
 		case "TickDistance":
 			if config.TickDistance < 4 || config.TickDistance > 12 {
 				return fmt.Errorf("set tick distance equal or more then 4 and less or equal at 12")
+			}
+		case "DefaultPlayerPermission":
+			if !slices.Contains([]string{"visitor", "member", "operator"}, config.DefaultPlayerPermission) {
+				return fmt.Errorf("set valid player permission (visitor, member, operator)")
 			}
 		}
 	}
