@@ -1,13 +1,11 @@
-package mojang_test
+package mojang
 
 import (
 	"testing"
-
-	"sirherobrine23.com.br/go-bds/go-bds/bedrock/mojang"
 )
 
 func TestConfig(t *testing.T) {
-	var conf = new(mojang.MojangConfig)
+	var conf = new(MojangConfig)
 	conf.Gamemode = "survival"
 	conf.Difficulty = "normal"
 	conf.DefaultPlayerPermission = "member"

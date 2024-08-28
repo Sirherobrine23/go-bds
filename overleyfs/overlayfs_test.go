@@ -29,6 +29,8 @@ func TestOverlayMount(t *testing.T) {
 	for _, k := range []string{fs.Workdir, fs.Target, fs.Upper, fs.Lower[0]} {
 		os.MkdirAll(k, 0600)
 	}
+	flag, _ := fs.makeFlags()
+	t.Logf("Mount flags: %q\n", flag)
 
 	textExample := []byte("google is best\n")
 	os.WriteFile(filepath.Join(fs.Lower[0], "test1.txt"), textExample, 0600)

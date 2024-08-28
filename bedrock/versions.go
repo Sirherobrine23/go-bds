@@ -1,7 +1,6 @@
 package mojang
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -64,18 +63,8 @@ type Versions map[string]Version
 
 // Get versions from cached versions
 func FromVersions() (Versions, error) {
-	var versions Versions
-	res, err := request.Request(VersionsRemote, nil)
-	if err != nil {
-		return versions, err
-	}
-
-	defer res.Body.Close()
-	if err = json.NewDecoder(res.Body).Decode(&versions); err != nil {
-		return versions, err
-	}
-
-	return versions, nil
+	versions, _, err := request.JSON[Versions](VersionsRemote, nil)
+	return versions, err
 }
 
 // Extract server to folder

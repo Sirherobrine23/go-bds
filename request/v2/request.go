@@ -12,15 +12,15 @@ import (
 	"strings"
 )
 
-var ErrCode error = new(ErrResponseCode)
+var ErrCode error = new(errResponseCode)
 
 type CodeCallback func(res *http.Response) (*http.Response, error)
 
-type ErrResponseCode struct {
+type errResponseCode struct {
 	Response *http.Response
 }
 
-func (err ErrResponseCode) Error() string {
+func (err errResponseCode) Error() string {
 	return fmt.Sprintf("cannot process request, response code %d", err.Response.StatusCode)
 }
 
@@ -131,5 +131,5 @@ func (req RequestRoot) MakeRequestWithStatus() (*http.Response, error) {
 	if code := request.StatusCode; code >= 100 && code <= 399 {
 		return request, nil
 	}
-	return request, ErrResponseCode{request}
+	return request, &errResponseCode{request}
 }

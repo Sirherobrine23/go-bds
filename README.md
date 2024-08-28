@@ -1,9 +1,20 @@
-Manage your Minecraft server faster, more efficiently and cross-platform
+# Go Bds Maneger
 
-## Information about the old project
+Maneger Minecraft server easy and more eficient
 
-Go BDS will be a complete migration and rewrite of the Bds Maneger core, which was previously built on Typescript and is now written in GO for better efficiency and portability of the program, as previously the Bds core was not easily portable in a single file.
+This is just a base package, without cli or even http api, for this you must create a go project and import this module, if not use one of our ready-made projects here on the server
 
-## Implementatition
+## Server suports
 
-install module: `go get -u sirherobrine23.com.br/go-bds/go-bds`
+- Bedrock
+  1. [Mojang](https://minecraft.net/en-us/download/server/bedrock)
+  1. [PocketMine-PMMP](https://github.com/pmmp/PocketMine-MP) (Partial)
+
+- Java
+  1. [Mojang](https://www.minecraft.net/en-us/download/server)
+  1. [Spigot](https://www.spigotmc.org/) (Experimental)
+  1. [Purpur server](https://purpurmc.org/)
+  1. [Paper project](https://papermc.io/)
+      - `paper`
+      - `folia`
+      - `velocity`

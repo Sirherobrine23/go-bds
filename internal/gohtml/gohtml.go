@@ -1,6 +1,6 @@
-// Thanks for Tan Nguyen (@tanqhnguyen) for module
-// Module from: gitlab.com/tanqhnguyen/gohtml
 // MIT License
+//
+// Thanks for Tan Nguyen (@tanqhnguyen) for module, from: https://gitlab.com/tanqhnguyen/gohtml
 package gohtml
 
 import (

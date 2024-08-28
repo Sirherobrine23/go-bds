@@ -40,7 +40,7 @@ func TestRequest(t *testing.T) {
 		t.Run(fmt.Sprintf("%s %d", method, codeInt), func(t *testing.T) {
 			res, err := Request(fmt.Sprintf("http://%s/%d", ln.Addr().String(), codeInt), &Options{Method: method})
 			if err != nil {
-				if nerr, ok := err.(ErrResponseCode); ok {
+				if nerr, ok := err.(errResponseCode); ok {
 					if nerr.Response.StatusCode == codeInt {
 						return
 					}
