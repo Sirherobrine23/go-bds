@@ -9,8 +9,8 @@ import (
 )
 
 func TestOverlayMount(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("Test run only linux")
+	if !(runtime.GOOS == "linux" || runtime.GOOS == "windows") {
+		t.Skip("Test not supported")
 		return
 	}
 
@@ -19,18 +19,20 @@ func TestOverlayMount(t *testing.T) {
 		return
 	}
 	defer os.RemoveAll(root)
+	t.Logf("Folder test %q", root)
 
 	var fs Overlayfs
 
 	fs.Workdir = filepath.Join(root, "workdir")
 	fs.Target = filepath.Join(root, "merged")
 	fs.Upper = filepath.Join(root, "upper")
-	fs.Lower = []string{filepath.Join(root, "down")}
-	for _, k := range []string{fs.Workdir, fs.Target, fs.Upper, fs.Lower[0]} {
+	fs.Lower = []string{
+		filepath.Join(root, "low1"),
+		filepath.Join(root, "low2"),
+	}
+	for _, k := range append(fs.Lower, fs.Workdir, fs.Target, fs.Upper) {
 		os.MkdirAll(k, 0600)
 	}
-	flag, _ := fs.makeFlags()
-	t.Logf("Mount flags: %q\n", flag)
 
 	textExample := []byte("google is best\n")
 	os.WriteFile(filepath.Join(fs.Lower[0], "test1.txt"), textExample, 0600)

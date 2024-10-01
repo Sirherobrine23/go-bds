@@ -1,9 +1,4 @@
 {
-  "go.toolsEnvVars": {
-    "GOFLAGS": "-tags=bdsexperimental",
-    "CGO_ENABLED": "1",
-    "CGO": "1"
-  },
   "terminal.integrated.profiles.linux": {
     "unshare": {
       "path": "unshare",
@@ -11,5 +6,13 @@
         "-rm"
       ]
     }
+  },
+  "go.toolsEnvVars": {
+    "CGO_ENABLED": "1"
+  },
+  "files.associations": {
+    "*.dsc": "ini",
+    "*.gyp": "python",
+    "projectedfslib.h": "c"
   }
 }

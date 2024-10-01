@@ -1,24 +1,30 @@
-// Mount overlayfs in compatible system
+//go:build linux
+
+// For non root user mount in namespace (unshare -rm)
 package overleyfs
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal/mergefs"
+	"golang.org/x/sys/unix"
 )
 
-var ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")
+// Mount overlayfs same `mount -t overlay overlay`:
+//
+//   - The working directory (Workdir) needs to be an empty directory on the same filesystem as the Upper directory.
+func (w *Overlayfs) Mount() error {
+	flags, err := w.makeFlags()
+	if err != nil {
+		return err
+	}
+	return unix.Mount("overlay", w.Target, "overlay", 0, flags)
+}
 
-type Overlayfs struct {
-	Target  string   // Folder with merged another folder
-	Workdir string   // Folder to write temporary files
-	Upper   string   // Folder to write modifications, blank to read-only
-	Lower   []string // Folders layers, read-only
+// Unmount overlayfs same `unmount`
+func (w *Overlayfs) Unmount() error {
+	return unix.Unmount(w.Target, unix.MNT_DETACH)
 }
 
 func (w *Overlayfs) makeFlags() (_ string, err error) {
@@ -58,23 +64,4 @@ func (w *Overlayfs) makeFlags() (_ string, err error) {
 	}
 
 	return flags, nil
-}
-
-// Get fs.FS from merged Lowers folders
-func (w *Overlayfs) GoMerge() (fs.FS, error) {
-	var fss []fs.FS
-	for _, folderPath := range w.Lower {
-		fpath, err := filepath.Abs(folderPath)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = os.Stat(folderPath)
-		if err != nil {
-			return nil, fmt.Errorf("mergefs: %s", err.Error())
-		}
-
-		fss = append(fss, os.DirFS(fpath))
-	}
-	return mergefs.Merge(fss...), nil
 }

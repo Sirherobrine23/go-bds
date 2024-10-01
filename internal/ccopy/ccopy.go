@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"syscall"
 )
 
 var ErrStatt error = errors.New("failed to get raw syscall.Stat_t data")
@@ -45,21 +44,15 @@ func FSCopyDirectory(fsys fs.FS, srcDir, DestDir string) error {
 			}
 		}
 
-		if stat, ok := fileInfo.Sys().(*syscall.Stat_t); ok {
-			if err := os.Lchown(destPath, int(stat.Uid), int(stat.Gid)); err != nil {
-				return err
-			}
+		fInfo, err := entry.Info()
+		if err != nil {
+			return err
+		}
 
-			fInfo, err := entry.Info()
-			if err != nil {
+		isSymlink := fInfo.Mode()&os.ModeSymlink != 0
+		if !isSymlink {
+			if err := os.Chmod(destPath, fInfo.Mode()); err != nil {
 				return err
-			}
-
-			isSymlink := fInfo.Mode()&os.ModeSymlink != 0
-			if !isSymlink {
-				if err := os.Chmod(destPath, fInfo.Mode()); err != nil {
-					return err
-				}
 			}
 		}
 	}
@@ -80,11 +73,6 @@ func CopyDirectory(scrDir, dest string) error {
 			return err
 		}
 
-		stat, ok := fileInfo.Sys().(*syscall.Stat_t)
-		if !ok {
-			return ErrStatt
-		}
-
 		switch fileInfo.Mode() & os.ModeType {
 		case os.ModeDir:
 			if err := CreateIfNotExists(destPath, 0755); err != nil {
@@ -101,10 +89,6 @@ func CopyDirectory(scrDir, dest string) error {
 			if err := Copy(sourcePath, destPath); err != nil {
 				return err
 			}
-		}
-
-		if err := os.Lchown(destPath, int(stat.Uid), int(stat.Gid)); err != nil {
-			return err
 		}
 
 		fInfo, err := entry.Info()
