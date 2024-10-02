@@ -8,7 +8,7 @@ import (
 )
 
 // Create request save to temporary file and extract to Cwd folder
-func Zip(Url string, TarOption TarOptions, RequestOption *Options) error {
+func Zip(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 	request, err := MountRequest(Url, RequestOption)
 	if err != nil {
 		return err

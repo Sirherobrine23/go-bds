@@ -15,19 +15,6 @@ import (
 //
 //   - The working directory (Workdir) needs to be an empty directory on the same filesystem as the Upper directory.
 func (w *Overlayfs) Mount() error {
-	flags, err := w.makeFlags()
-	if err != nil {
-		return err
-	}
-	return unix.Mount("overlay", w.Target, "overlay", 0, flags)
-}
-
-// Unmount overlayfs same `unmount`
-func (w *Overlayfs) Unmount() error {
-	return unix.Unmount(w.Target, unix.MNT_DETACH)
-}
-
-func (w *Overlayfs) makeFlags() (_ string, err error) {
 	// overlay on /var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/merged
 	//    workdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/work
 	//   upperdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/diff
@@ -35,24 +22,25 @@ func (w *Overlayfs) makeFlags() (_ string, err error) {
 	//           /var/lib/docker/overlay2/l/X4HBSZ4R5V7LFSZYXQ5T7V3Q2Q
 
 	if len(w.Lower) == 0 {
-		return "", fmt.Errorf("set one lower dir")
+		return fmt.Errorf("set one lower dir")
 	} else if w.Workdir == "" && w.Upper != "" {
-		return "", fmt.Errorf("set workdir to user Upperdir")
+		return fmt.Errorf("set workdir to user Upperdir")
 	}
 
+	var err error
 	if w.Upper != "" {
 		if w.Upper, err = filepath.Abs(w.Upper); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if w.Workdir != "" {
 		if w.Workdir, err = filepath.Abs(w.Workdir); err != nil {
-			return "", err
+			return err
 		}
 	}
 	for workIndex := range w.Lower {
 		if w.Lower[workIndex], err = filepath.Abs(w.Lower[workIndex]); err != nil {
-			return "", err
+			return err
 		}
 	}
 
@@ -62,6 +50,10 @@ func (w *Overlayfs) makeFlags() (_ string, err error) {
 	} else {
 		flags = "lowerdir=" + strings.Join(w.Lower, ":")
 	}
+	return unix.Mount("overlay", w.Target, "overlay", 0, flags)
+}
 
-	return flags, nil
+// Unmount overlayfs same `unmount`
+func (w *Overlayfs) Unmount() error {
+	return unix.Unmount(w.Target, unix.MNT_DETACH)
 }

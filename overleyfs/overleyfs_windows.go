@@ -70,7 +70,7 @@ func (w *Overlayfs) Mount() error {
 			return err
 		}
 	}
-	w.fs = mergefs.NewMergefsWithTopLayer(w.Upper, w.Lower...)
+	w.FS = mergefs.NewMergefsWithTopLayer(w.Upper, w.Lower...)
 
 	var virtualizationGUID syscall.GUID
 	if _, err := os.Stat(filepath.Join(w.Target, "_obgmgrproj.guid")); !os.IsNotExist(err) {
@@ -142,9 +142,9 @@ func (instance *Overlayfs) Notify(callbackData *projfs.PRJ_CALLBACK_DATA, IsDire
 
 	case projfs.PRJ_NOTIFICATION_NEW_FILE_CREATED:
 		if IsDirectory {
-			return returncode(instance.fs.Mkdir(filename, 0777))
+			return returncode(instance.FS.Mkdir(filename, 0777))
 		} else {
-			_, err := instance.fs.Create(filename)
+			_, err := instance.FS.Create(filename)
 			if err != nil {
 				log.Print(err)
 				return 1
@@ -156,19 +156,19 @@ func (instance *Overlayfs) Notify(callbackData *projfs.PRJ_CALLBACK_DATA, IsDire
 			return returncode(instance.streamLocalToRemote(filename))
 		}
 	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_DELETED:
-		return returncode(instance.fs.Remove(filename))
+		return returncode(instance.FS.Remove(filename))
 	}
 	return 0
 }
 
 func (instance *Overlayfs) streamLocalToRemote(filename string) error {
-	file, err := instance.fs.Open(filename)
+	file, err := instance.FS.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 	data := make([]byte, 1024*1024)
-	targetfile, err := instance.fs.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0666)
+	targetfile, err := instance.FS.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func (instance *Overlayfs) GetDirectoryEnumeration(callbackData *projfs.PRJ_CALL
 	}
 	instance.internalStruct.(*virtualizationStruct).enumerations[*enumerationId].countget++
 
-	files, err := instance.fs.ReadDir(filenamepath)
+	files, err := instance.FS.ReadDir(filenamepath)
 	if err != nil {
 		log.Printf("Error reading directory %s: %s", filenamepath, err)
 		return uintptr(syscall.EIO)
@@ -309,7 +309,7 @@ func (instance *Overlayfs) GetPlaceholderInfo(callbackData *projfs.PRJ_CALLBACK_
 	var data projfs.PRJ_PLACEHOLDER_INFO
 	filename := callbackData.GetFilePathName()
 	log.Printf("GetPlaceholderInfo %s", filename)
-	stat, err := instance.fs.Stat(filename)
+	stat, err := instance.FS.Stat(filename)
 	if os.IsNotExist(err) {
 		return uintptr(0x80070002)
 	}
@@ -324,7 +324,7 @@ func (instance *Overlayfs) GetPlaceholderInfo(callbackData *projfs.PRJ_CALLBACK_
 func (instance *Overlayfs) GetFileData(callbackData *projfs.PRJ_CALLBACK_DATA, byteOffset uint64, length uint32) uintptr {
 	filename := callbackData.GetFilePathName()
 	log.Printf("GetFileData %s[%d]@%d", filename, length, byteOffset)
-	file, err := instance.fs.Open(filename)
+	file, err := instance.FS.Open(filename)
 	if err != nil {
 		log.Printf("Error opening file %s: %s", filename, err)
 		return uintptr(syscall.EIO)

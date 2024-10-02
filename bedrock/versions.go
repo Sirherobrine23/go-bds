@@ -3,18 +3,17 @@ package mojang
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal"
-	"sirherobrine23.com.br/go-bds/go-bds/request/gohtml"
+	"sirherobrine23.com.br/go-bds/go-bds/internal/regex"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
+	"sirherobrine23.com.br/go-bds/go-bds/request/gohtml"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
 var (
 	VersionsRemote string = "https://sirherobrine23.com.br/go-bds/BedrockFetch/raw/branch/main/versions.json" // Remote cached versions
-	VersionMatch          = regexp.MustCompile(`(?m)(\-|_)(?P<Version>[0-9\.]+)\.zip$`)
+	VersionMatch          = regex.MustCompile(`(?m)(\-|_)(?P<Version>[0-9\.]+)\.zip$`)
 
 	ErrInvalidFileVersions error = errors.New("invalid versions file or url")            // Versions file invalid url schema
 	ErrNoVersion           error = errors.New("cannot find version")                     // Version request not exists
@@ -70,9 +69,9 @@ func FromVersions() (Versions, error) {
 // Extract server to folder
 func (version *VersionPlatform) Download(serverPath string) error {
 	if version.TarSHA1 != "" && version.TarFile != "" {
-		return request.Tar(version.TarFile, request.TarOptions{Cwd: serverPath}, nil)
+		return request.Tar(version.TarFile, request.ExtractOptions{Cwd: serverPath}, nil)
 	}
-	return request.Zip(version.ZipFile, request.TarOptions{Cwd: serverPath}, nil)
+	return request.Zip(version.ZipFile, request.ExtractOptions{Cwd: serverPath}, nil)
 }
 
 // Get new versions from minecraft.net/en-us/download/server/bedrock
@@ -89,7 +88,7 @@ func FetchFromWebsite() (*MojangHTML, error) {
 	}
 
 	for index, value := range body.Versions {
-		body.Versions[index].Version = internal.FindAllGroups(VersionMatch, value.URL)["Version"]
+		body.Versions[index].Version = VersionMatch.FindAllGroups(value.URL)["Version"]
 
 		// Set go platform
 		switch value.Platform {

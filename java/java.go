@@ -4,13 +4,12 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/internal"
-	"sirherobrine23.com.br/go-bds/go-bds/internal/ccopy"
 	"sirherobrine23.com.br/go-bds/go-bds/java/adoptium"
 )
 
@@ -37,10 +36,9 @@ type JavaServer struct {
 //
 // On run this function YOU auto accept minecraft EULA https://www.minecraft.net/en-us/eula
 func (w *JavaServer) Start() error {
-	if !internal.ExistPath(filepath.Join(w.SavePath, ServerMain)) {
+	if _, err := os.Stat(filepath.Join(w.SavePath, ServerMain)); os.IsNotExist(err) {
 		return ErrInstallServer
 	}
-
 	w.SeverProc = &exec.Os{}
 	var opts = exec.ProcExec{
 		Arguments: []string{"java", "-jar", ServerMain, "--nogui"},
@@ -52,10 +50,11 @@ func (w *JavaServer) Start() error {
 	} else {
 		javaRootFolder := filepath.Join(w.JavaFolders, strconv.FormatInt(int64(w.JavaVersion), 10))
 		javacEmbed := fmt.Sprintf("javac/%d", w.JavaVersion)
-		if ccopy.FSExists(javac, javacEmbed) {
-			if err := ccopy.FSCopyDirectory(javac, javacEmbed, javaRootFolder); err != nil {
+		if subFs, err := fs.Sub(javac, javacEmbed); err == nil {
+			if err := os.CopyFS(javaRootFolder, subFs); err != nil {
 				return err
 			}
+
 		} else if err := adoptium.InstallLatest(w.JavaVersion, javaRootFolder); err != nil {
 			return err
 		}

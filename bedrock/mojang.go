@@ -12,7 +12,6 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/internal"
 	"sirherobrine23.com.br/go-bds/go-bds/overleyfs"
 )
 
@@ -27,6 +26,19 @@ type Mojang struct {
 	RootfsConfig  *exec.Proot          // Config to run in proot
 
 	ServerProc exec.Proc // Server process
+}
+
+func EmptyFolder(fpath string) (bool, error) {
+	if _, err := os.Stat(fpath); os.IsNotExist(err) {
+		return true, nil
+	} else if err != nil {
+		return false, err
+	}
+	entrys, err := os.ReadDir(fpath)
+	if err != nil {
+		return false, err
+	}
+	return len(entrys) == 0, nil
 }
 
 func (server *Mojang) Close() error {
@@ -61,19 +73,18 @@ func (server *Mojang) Start() error {
 	versionRoot := filepath.Join(server.VersionsFolder, server.Version)
 
 	// Clear version folder if empty
-	if versionEmpty, err := internal.EmptyFolder(versionRoot); err != nil {
-		return err
-	} else if !versionEmpty {
+	if entrys, _ := os.ReadDir(versionRoot); len(entrys) == 0 {
 		if err := os.RemoveAll(versionRoot); err != nil {
 			return err
 		}
 	}
 
-	if !internal.ExistPath(versionRoot) {
+	// Check and Download version if not exists
+	if _, err := os.Stat(versionRoot); os.IsNotExist(err) {
 		versions, err := FromVersions()
 		if err != nil {
 			return err
-		} else if err := os.MkdirAll(versionRoot, 0700); err != nil {
+		} else if err := os.MkdirAll(versionRoot, 0666); err != nil {
 			return err
 		}
 
