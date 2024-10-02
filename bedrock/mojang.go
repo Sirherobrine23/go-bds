@@ -13,7 +13,6 @@ import (
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/internal"
-	"sirherobrine23.com.br/go-bds/go-bds/internal/difffs"
 	"sirherobrine23.com.br/go-bds/go-bds/overleyfs"
 )
 
@@ -152,17 +151,12 @@ func (server *Mojang) Start() error {
 
 // Create backup from server
 //
-// if running in overlafs backup only Upper folder, else backup full server
+// if running in overlafs backup only Upper folder else backup full server
 func (server Mojang) Tar(w io.Writer) error {
 	tarball := tar.NewWriter(w)
 	defer tarball.Close()
 	if server.OverlayConfig != nil {
 		return tarball.AddFS(os.DirFS(server.OverlayConfig.Upper))
 	}
-	return tarball.AddFS(&difffs.Diff{
-		Lowers: []string{
-			filepath.Join(server.VersionsFolder, server.Version),
-			server.Path,
-		},
-	})
+	return tarball.AddFS(os.DirFS(server.Path))
 }

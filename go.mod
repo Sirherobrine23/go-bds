@@ -6,6 +6,7 @@ require (
 	code.gitea.io/sdk/gitea v0.19.0
 	github.com/PuerkitoBio/goquery v1.9.2
 	github.com/balazsgrill/potatodrive v0.1.0
+	github.com/google/uuid v1.6.0
 	github.com/gookit/properties v0.3.0
 	golang.org/x/net v0.28.0
 	golang.org/x/sys v0.24.0

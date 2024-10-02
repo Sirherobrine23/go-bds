@@ -16,7 +16,8 @@ type Overlayfs struct {
 	Upper   string   // Folder to write modifications, blank to read-only
 	Lower   []string // Folders layers, read-only
 
-	internalStruct any // Struct to save backend or syscall structs
+	fs             *mergefs.Mergefs // Mergefs
+	internalStruct any              // Struct to save backend or syscall structs
 }
 
 // Get fs.FS from merged Lowers folders
