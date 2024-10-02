@@ -3,12 +3,9 @@ package overleyfs
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
-	"os"
-	"path/filepath"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal/mergefs"
+	"sirherobrine23.com.br/go-bds/go-bds/overleyfs/mergefs"
 )
 
 var ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")
@@ -23,20 +20,6 @@ type Overlayfs struct {
 }
 
 // Get fs.FS from merged Lowers folders
-func (w *Overlayfs) GoMerge() (fs.FS, error) {
-	var fss []fs.FS
-	for _, folderPath := range w.Lower {
-		fpath, err := filepath.Abs(folderPath)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = os.Stat(folderPath)
-		if err != nil {
-			return nil, fmt.Errorf("mergefs: %s", err.Error())
-		}
-
-		fss = append(fss, os.DirFS(fpath))
-	}
-	return mergefs.Merge(fss...), nil
+func (w *Overlayfs) GoMerge() fs.FS {
+	return mergefs.NewFS(mergefs.NewMergefsWithTopLayer(w.Upper, w.Lower...))
 }
