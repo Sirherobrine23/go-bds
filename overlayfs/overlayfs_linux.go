@@ -1,27 +1,20 @@
-// Mount overlayfs in compatible system
-package overleyfs
+//go:build linux
+
+// For non root user mount in namespace (unshare -rm)
+package overlayfs
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal/mergefs"
+	"golang.org/x/sys/unix"
 )
 
-var ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")
-
-type Overlayfs struct {
-	Target  string   // Folder with merged another folder
-	Workdir string   // Folder to write temporary files
-	Upper   string   // Folder to write modifications, blank to read-only
-	Lower   []string // Folders layers, read-only
-}
-
-func (w *Overlayfs) makeFlags() (_ string, err error) {
+// Mount overlayfs same `mount -t overlay overlay`:
+//
+//   - The working directory (Workdir) needs to be an empty directory on the same filesystem as the Upper directory.
+func (w *Overlayfs) Mount() error {
 	// overlay on /var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/merged
 	//    workdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/work
 	//   upperdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/diff
@@ -29,24 +22,25 @@ func (w *Overlayfs) makeFlags() (_ string, err error) {
 	//           /var/lib/docker/overlay2/l/X4HBSZ4R5V7LFSZYXQ5T7V3Q2Q
 
 	if len(w.Lower) == 0 {
-		return "", fmt.Errorf("set one lower dir")
+		return fmt.Errorf("set one lower dir")
 	} else if w.Workdir == "" && w.Upper != "" {
-		return "", fmt.Errorf("set workdir to user Upperdir")
+		return fmt.Errorf("set workdir to user Upperdir")
 	}
 
+	var err error
 	if w.Upper != "" {
 		if w.Upper, err = filepath.Abs(w.Upper); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if w.Workdir != "" {
 		if w.Workdir, err = filepath.Abs(w.Workdir); err != nil {
-			return "", err
+			return err
 		}
 	}
 	for workIndex := range w.Lower {
 		if w.Lower[workIndex], err = filepath.Abs(w.Lower[workIndex]); err != nil {
-			return "", err
+			return err
 		}
 	}
 
@@ -56,25 +50,10 @@ func (w *Overlayfs) makeFlags() (_ string, err error) {
 	} else {
 		flags = "lowerdir=" + strings.Join(w.Lower, ":")
 	}
-
-	return flags, nil
+	return unix.Mount("overlay", w.Target, "overlay", 0, flags)
 }
 
-// Get fs.FS from merged Lowers folders
-func (w *Overlayfs) GoMerge() (fs.FS, error) {
-	var fss []fs.FS
-	for _, folderPath := range w.Lower {
-		fpath, err := filepath.Abs(folderPath)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = os.Stat(folderPath)
-		if err != nil {
-			return nil, fmt.Errorf("mergefs: %s", err.Error())
-		}
-
-		fss = append(fss, os.DirFS(fpath))
-	}
-	return mergefs.Merge(fss...), nil
+// Unmount overlayfs same `unmount`
+func (w *Overlayfs) Unmount() error {
+	return unix.Unmount(w.Target, unix.MNT_DETACH)
 }

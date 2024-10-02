@@ -19,4 +19,5 @@ jobs:
         go-version: "^1.23"
         cache: true
 
-    - run: go test -v ./...
+    - name: Go test
+      run: go test -v ./...

@@ -1,15 +1,15 @@
 {
-  "go.toolsEnvVars": {
-    "GOFLAGS": "-tags=bdsexperimental",
-    "CGO_ENABLED": "1",
-    "CGO": "1"
-  },
   "terminal.integrated.profiles.linux": {
     "unshare": {
       "path": "unshare",
       "args": [
         "-rm"
       ]
+    }
+  },
+  "gopls": {
+    "analyses": {
+      "unsafeptr": false
     }
   }
 }

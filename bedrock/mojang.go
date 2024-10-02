@@ -12,9 +12,7 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/internal"
-	"sirherobrine23.com.br/go-bds/go-bds/internal/difffs"
-	"sirherobrine23.com.br/go-bds/go-bds/overleyfs"
+	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 )
 
 var ErrPlatform error = errors.New("current platform no supported or cannot emulate arch") // Cannot run server in platform or cannot emulate arch
@@ -24,10 +22,23 @@ type Mojang struct {
 	Version        string // Version to run server
 	Path           string // Server folder to run
 
-	OverlayConfig *overleyfs.Overlayfs // Config to overlayfs, go-bds replace necesarys configs
+	OverlayConfig *overlayfs.Overlayfs // Config to overlayfs, go-bds replace necesarys configs
 	RootfsConfig  *exec.Proot          // Config to run in proot
 
 	ServerProc exec.Proc // Server process
+}
+
+func EmptyFolder(fpath string) (bool, error) {
+	if _, err := os.Stat(fpath); os.IsNotExist(err) {
+		return true, nil
+	} else if err != nil {
+		return false, err
+	}
+	entrys, err := os.ReadDir(fpath)
+	if err != nil {
+		return false, err
+	}
+	return len(entrys) == 0, nil
 }
 
 func (server *Mojang) Close() error {
@@ -62,19 +73,18 @@ func (server *Mojang) Start() error {
 	versionRoot := filepath.Join(server.VersionsFolder, server.Version)
 
 	// Clear version folder if empty
-	if versionEmpty, err := internal.EmptyFolder(versionRoot); err != nil {
-		return err
-	} else if !versionEmpty {
+	if entrys, _ := os.ReadDir(versionRoot); len(entrys) == 0 {
 		if err := os.RemoveAll(versionRoot); err != nil {
 			return err
 		}
 	}
 
-	if !internal.ExistPath(versionRoot) {
+	// Check and Download version if not exists
+	if _, err := os.Stat(versionRoot); os.IsNotExist(err) {
 		versions, err := FromVersions()
 		if err != nil {
 			return err
-		} else if err := os.MkdirAll(versionRoot, 0700); err != nil {
+		} else if err := os.MkdirAll(versionRoot, 0666); err != nil {
 			return err
 		}
 
@@ -152,17 +162,12 @@ func (server *Mojang) Start() error {
 
 // Create backup from server
 //
-// if running in overlafs backup only Upper folder, else backup full server
+// if running in overlafs backup only Upper folder else backup full server
 func (server Mojang) Tar(w io.Writer) error {
 	tarball := tar.NewWriter(w)
 	defer tarball.Close()
 	if server.OverlayConfig != nil {
 		return tarball.AddFS(os.DirFS(server.OverlayConfig.Upper))
 	}
-	return tarball.AddFS(&difffs.Diff{
-		Lowers: []string{
-			filepath.Join(server.VersionsFolder, server.Version),
-			server.Path,
-		},
-	})
+	return tarball.AddFS(os.DirFS(server.Path))
 }

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-type TarOptions struct {
+type ExtractOptions struct {
 	Strip             int    // Remove n components from file extraction
 	Cwd               string // Folder output
 	PreserveOwners    bool   // Preserver user and group
@@ -34,7 +34,7 @@ func updateFile(rootFile string, head *tar.Header, PreserveOwners bool) error {
 }
 
 // Create request and extract to Cwd folder
-func Tar(Url string, TarOption TarOptions, RequestOption *Options) error {
+func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 	request, err := MountRequest(Url, RequestOption)
 	if err != nil {
 		return err
