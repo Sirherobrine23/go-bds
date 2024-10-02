@@ -9,7 +9,7 @@ import (
 
 var (
 	ErrNoSupportedPlatform error = errors.New("current platform not support binfmt")
-	ErrCannotFind          error = errors.New("canot find Fmt")
+	ErrCannotFind          error = errors.New("cannot find Fmt")
 )
 
 type Fmt struct {

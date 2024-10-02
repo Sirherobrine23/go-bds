@@ -7,15 +7,14 @@ import (
 
 // Make request and return struct body
 func JSON[T any](Url string, Option *Options) (T, *http.Response, error) {
+	var data T // Data
 	res, err := Request(Url, Option)
 	if err != nil {
-		return *new(T), res, err
+		return data, res, err
 	}
 	defer res.Body.Close()
-
-	var data T // Data
 	if err = json.NewDecoder(res.Body).Decode(&data); err != nil {
-		return *new(T), res, err
+		return data, res, err
 	}
 	return data, res, err
 }

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/internal"
-	"sirherobrine23.com.br/go-bds/go-bds/internal/gohtml"
+	"sirherobrine23.com.br/go-bds/go-bds/request/gohtml"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
