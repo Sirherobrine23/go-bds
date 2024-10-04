@@ -1,6 +1,10 @@
 //go:build windows && cgo
 
-// Create Virtual filesystem with Windows ProjFS and merged folders
+// Create Virtual filesystem with Windows Projfs and merged folders
+//
+// To enable run with Admin in powershell: Enable-WindowsOptionalFeature -Online -FeatureName Client-ProjFS -NoRestart
+//
+// https://learn.microsoft.com/pt-br/windows/win32/projfs/projected-file-system
 package overleyfs
 
 import (
@@ -9,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,10 +57,39 @@ func GetPointer(str string) uintptr {
 	return uintptr(unsafe.Pointer(ptr))
 }
 
+func CodeStatus(err error) uintptr {
+	if err != nil {
+		if os.IsNotExist(err) {
+			return uintptr(0x80070002)
+		} else if os.IsExist(err) {
+			return uintptr(syscall.EEXIST)
+		} else if os.IsPermission(err) {
+			return uintptr(syscall.ENOENT)
+		}
+		return 1
+	}
+	return 0
+}
+
+func getVersionInfo(basicInfo *projfs.PRJ_FILE_BASIC_INFO) projfs.PRJ_PLACEHOLDER_VERSION_INFO {
+	result := projfs.PRJ_PLACEHOLDER_VERSION_INFO{
+		ProviderID: [projfs.PRJ_PLACEHOLDER_ID_LENGTH]byte{0, 0x1},
+		ContentID:  [projfs.PRJ_PLACEHOLDER_ID_LENGTH]byte{0},
+	}
+
+	version := uint64(basicInfo.LastWriteTime.Nanoseconds())
+	binary.LittleEndian.PutUint64(result.ContentID[:], version)
+	return result
+}
+
+func FillInPlaceholderInfo(data *projfs.PRJ_PLACEHOLDER_INFO, fileinfo fs.FileInfo) {
+	data.FileBasicInfo = toBasicInfo(fileinfo)
+	data.VersionInfo = getVersionInfo(&data.FileBasicInfo)
+}
+
 // Stop Windows Project Filesystem virtualization
 func (w *Overlayfs) Unmount() error {
-	if virtStr, ok := w.internalStruct.(*virtualizationStruct); ok && virtStr._instanceHandle != 0{
-		log.Printf("Stoping %v\n", virtStr._instanceHandle)
+	if virtStr, ok := w.internalStruct.(*virtualizationStruct); ok && virtStr._instanceHandle != 0 {
 		projfs.PrjStopVirtualizing(virtStr._instanceHandle)
 		virtStr._instanceHandle = 0
 	}
@@ -92,18 +124,17 @@ func (w *Overlayfs) Mount() error {
 		}
 	}
 
-	status := projfs.PrjMarkDirectoryAsPlaceholder(w.Target, "", nil, &virtualizationGUID)
-	if status != 0 {
+	if status := projfs.PrjMarkDirectoryAsPlaceholder(w.Target, "", nil, &virtualizationGUID); status != 0 {
 		return fmt.Errorf("error to make directory placeholder, status code: 0x%08x", status)
 	}
 
 	options := &projfs.PRJ_STARTVIRTUALIZING_OPTIONS{
 		NotificationMappingsCount: 1,
-		PoolThreadCount:           4,
-		ConcurrentThreadCount:     4,
+		PoolThreadCount:           0,
+		ConcurrentThreadCount:     0,
 		NotificationMappings: &projfs.PRJ_NOTIFICATION_MAPPING{
-			NotificationBitMask: projfs.PRJ_NOTIFY_NEW_FILE_CREATED | projfs.PRJ_NOTIFY_FILE_OVERWRITTEN | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_DELETED | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_MODIFIED,
 			NotificationRoot:    GetPointer(""),
+			NotificationBitMask: projfs.PRJ_NOTIFY_NEW_FILE_CREATED | projfs.PRJ_NOTIFY_FILE_OVERWRITTEN | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_DELETED | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_MODIFIED,
 		},
 	}
 
@@ -119,44 +150,32 @@ func (w *Overlayfs) Mount() error {
 	}
 
 	w.internalStruct = new(virtualizationStruct)
-	status = projfs.PrjStartVirtualizing(w.Target, callback, w, options, &w.internalStruct.(*virtualizationStruct)._instanceHandle)
-	if status != 0 {
+	if status := projfs.PrjStartVirtualizing(w.Target, callback, w, options, &w.internalStruct.(*virtualizationStruct)._instanceHandle); status != 0 {
 		return fmt.Errorf("cannot start folder virtualization, status code: 0x%08x", status)
 	}
-	log.Printf("Starting virtualization Handler %v\n", w.internalStruct.(*virtualizationStruct)._instanceHandle)
 	return nil
-}
-
-func returncode(err error) uintptr {
-	if err != nil {
-		return 1
-	}
-	return 0
 }
 
 func (instance *Overlayfs) Notify(callbackData *projfs.PRJ_CALLBACK_DATA, IsDirectory bool, notification projfs.PRJ_NOTIFICATION, destinationFileName uintptr, operationParameters *projfs.PRJ_NOTIFICATION_PARAMETERS) uintptr {
 	// operation is done on file system
 	filename := callbackData.GetFilePathName()
-	log.Printf("Notify: %t %d %d '%s', %d", IsDirectory, callbackData.CommandId, notification, filename, *operationParameters)
 	switch notification {
-
 	case projfs.PRJ_NOTIFICATION_NEW_FILE_CREATED:
 		if IsDirectory {
-			return returncode(instance.FS.Mkdir(filename, 0777))
+			return CodeStatus(instance.FS.Mkdir(filename, 0777))
 		} else {
 			_, err := instance.FS.Create(filename)
 			if err != nil {
-				log.Print(err)
 				return 1
 			}
 			return 0
 		}
 	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_MODIFIED, projfs.PRJ_NOTIFICATION_FILE_OVERWRITTEN:
 		if !IsDirectory {
-			return returncode(instance.streamLocalToRemote(filename))
+			return CodeStatus(instance.streamLocalToRemote(filename))
 		}
 	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_DELETED:
-		return returncode(instance.FS.Remove(filename))
+		return CodeStatus(instance.FS.Remove(filename))
 	}
 	return 0
 }
@@ -196,18 +215,10 @@ func (instance *Overlayfs) streamLocalToRemote(filename string) error {
 	return instance.internalStruct.(*virtualizationStruct).remoteCacheState.UpdateHash(filename, hash.Sum(nil))
 }
 
-func (instance *Overlayfs) QueryFileName(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr {
-	filename := callbackData.GetFilePathName()
-	log.Printf("QueryFileName: '%s'", filename)
-	return 0
-}
-
-func (instance *Overlayfs) CancelCommand(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr {
-	return 0
-}
+func (instance *Overlayfs) QueryFileName(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr { return 0 }
+func (instance *Overlayfs) CancelCommand(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr { return 0 }
 
 func (instance *Overlayfs) StartDirectoryEnumeration(callbackData *projfs.PRJ_CALLBACK_DATA, enumerationId *syscall.GUID) uintptr {
-	log.Printf("StartDirectoryEnumeration: '%v'", *enumerationId)
 	instance.internalStruct.(*virtualizationStruct).enumerations[*enumerationId] = &enumerationSession{
 		searchstr: 0,
 		countget:  0,
@@ -218,8 +229,7 @@ func (instance *Overlayfs) StartDirectoryEnumeration(callbackData *projfs.PRJ_CA
 }
 
 func (instance *Overlayfs) EndDirectoryEnumeration(callbackData *projfs.PRJ_CALLBACK_DATA, enumerationId *syscall.GUID) uintptr {
-	log.Printf("EndDirectoryEnumeration: '%v'", *enumerationId)
-	instance.internalStruct.(*virtualizationStruct).enumerations[*enumerationId] = nil
+	delete(instance.internalStruct.(*virtualizationStruct).enumerations, *enumerationId)
 	return 0
 }
 
@@ -232,7 +242,6 @@ func (instance *Overlayfs) GetDirectoryEnumeration(callbackData *projfs.PRJ_CALL
 	if !ok {
 		return uintptr(syscall.EINVAL)
 	}
-	log.Printf("GetDirectoryEnumeration (%t, %t, %d) %s", first, restart, session.sentcount, filenamepath)
 
 	if restart || first {
 		session.sentcount = 0
@@ -248,7 +257,6 @@ func (instance *Overlayfs) GetDirectoryEnumeration(callbackData *projfs.PRJ_CALL
 
 	files, err := instance.FS.ReadDir(filenamepath)
 	if err != nil {
-		log.Printf("Error reading directory %s: %s", filenamepath, err)
 		return uintptr(syscall.EIO)
 	}
 
@@ -272,7 +280,6 @@ func (instance *Overlayfs) GetDirectoryEnumeration(callbackData *projfs.PRJ_CALL
 		dirEntry := toBasicInfo(info)
 		projfs.PrjFillDirEntryBuffer(file.Name(), &dirEntry, dirEntryBufferHandle)
 	}
-	log.Printf("Sent %d entries", session.sentcount)
 	return 0
 }
 
@@ -289,32 +296,13 @@ func toBasicInfo(file fs.FileInfo) projfs.PRJ_FILE_BASIC_INFO {
 	}
 }
 
-func getVersionInfo(basicInfo *projfs.PRJ_FILE_BASIC_INFO) projfs.PRJ_PLACEHOLDER_VERSION_INFO {
-	result := projfs.PRJ_PLACEHOLDER_VERSION_INFO{
-		ProviderID: [projfs.PRJ_PLACEHOLDER_ID_LENGTH]byte{0, 0x1},
-		ContentID:  [projfs.PRJ_PLACEHOLDER_ID_LENGTH]byte{0},
-	}
-
-	version := uint64(basicInfo.LastWriteTime.Nanoseconds())
-	binary.LittleEndian.PutUint64(result.ContentID[:], version)
-	return result
-}
-
-func FillInPlaceholderInfo(data *projfs.PRJ_PLACEHOLDER_INFO, fileinfo fs.FileInfo) {
-	data.FileBasicInfo = toBasicInfo(fileinfo)
-	data.VersionInfo = getVersionInfo(&data.FileBasicInfo)
-}
-
 func (instance *Overlayfs) GetPlaceholderInfo(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr {
 	var data projfs.PRJ_PLACEHOLDER_INFO
 	filename := callbackData.GetFilePathName()
-	log.Printf("GetPlaceholderInfo %s", filename)
 	stat, err := instance.FS.Stat(filename)
 	if os.IsNotExist(err) {
 		return uintptr(0x80070002)
-	}
-	if err != nil {
-		log.Printf("Error getting placeholder info for %s: %s", filename, err)
+	} else if err != nil {
 		return uintptr(syscall.EIO)
 	}
 	FillInPlaceholderInfo(&data, stat)
@@ -323,10 +311,8 @@ func (instance *Overlayfs) GetPlaceholderInfo(callbackData *projfs.PRJ_CALLBACK_
 
 func (instance *Overlayfs) GetFileData(callbackData *projfs.PRJ_CALLBACK_DATA, byteOffset uint64, length uint32) uintptr {
 	filename := callbackData.GetFilePathName()
-	log.Printf("GetFileData %s[%d]@%d", filename, length, byteOffset)
 	file, err := instance.FS.Open(filename)
 	if err != nil {
-		log.Printf("Error opening file %s: %s", filename, err)
 		return uintptr(syscall.EIO)
 	}
 	defer file.Close()
@@ -343,9 +329,7 @@ func (instance *Overlayfs) GetFileData(callbackData *projfs.PRJ_CALLBACK_DATA, b
 		}
 	}
 
-	log.Printf("Read %d bytes", count)
 	if err != nil {
-		log.Printf("Error reading file %s: %s", filename, err)
 		return uintptr(syscall.EIO)
 	}
 	return projfs.PrjWriteFileData(instance.internalStruct.(*virtualizationStruct)._instanceHandle, &callbackData.DataStreamId, &buffer[0], byteOffset, length)

@@ -1,4 +1,3 @@
-// Mount overlayfs in compatible system
 package overleyfs
 
 import (
