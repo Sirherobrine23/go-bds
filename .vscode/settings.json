@@ -6,13 +6,5 @@
         "-rm"
       ]
     }
-  },
-  "go.toolsEnvVars": {
-    "CGO_ENABLED": "1"
-  },
-  "files.associations": {
-    "*.dsc": "ini",
-    "*.gyp": "python",
-    "projectedfslib.h": "c"
   }
 }

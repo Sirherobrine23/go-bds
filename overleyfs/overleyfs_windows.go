@@ -1,4 +1,4 @@
-//go:build windows && cgo
+//go:build windows
 
 // Create Virtual filesystem with Windows Projfs and merged folders
 //
@@ -14,19 +14,43 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"unsafe"
 
-	"github.com/balazsgrill/potatodrive/win/projfs"
 	"github.com/google/uuid"
 	"sirherobrine23.com.br/go-bds/go-bds/overleyfs/mergefs"
+	"sirherobrine23.com.br/go-bds/go-bds/overleyfs/projfs"
 )
 
-type RemoteStateCache interface {
-	UpdateHash(remotepath string, hash []byte) error
-	GetHash(remotepath string) ([]byte, error)
+type remoteHashFiles struct {
+	fs *mergefs.Mergefs
+}
+
+// GetHash implements RemoteStateCache.
+func (instance *remoteHashFiles) GetHash(remotepath string) ([]byte, error) {
+	hashpath := instance.path_hashFile(remotepath)
+	if _, err := instance.fs.Stat(hashpath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return instance.fs.ReadFile(hashpath)
+}
+
+// UpdateHash implements RemoteStateCache.
+func (instance *remoteHashFiles) UpdateHash(remotepath string, hash []byte) error {
+	return instance.fs.WriteFile(instance.path_hashFile(remotepath), hash, 0666)
+}
+
+func (instance *remoteHashFiles) path_hashFile(remotepath string) string {
+	fname := path.Base(remotepath)
+	dir := path.Dir(remotepath)
+	return dir + "/.md5_" + fname
 }
 
 type enumerationSession struct {
@@ -37,24 +61,10 @@ type enumerationSession struct {
 }
 
 type virtualizationStruct struct {
-	remoteCacheState RemoteStateCache
-	_instanceHandle  projfs.PRJ_NAMESPACE_VIRTUALIZATION_CONTEXT
-	enumerations     map[syscall.GUID]*enumerationSession
-}
-
-func SetGUID(b []byte, guid *syscall.GUID) {
-	guid.Data1 = binary.LittleEndian.Uint32(b[0:4])
-	guid.Data2 = binary.LittleEndian.Uint16(b[4:6])
-	guid.Data3 = binary.LittleEndian.Uint16(b[6:8])
-	guid.Data4 = ([8]byte)(b[8:16])
-}
-
-func GetPointer(str string) uintptr {
-	ptr, err := syscall.UTF16PtrFromString(str)
-	if err != nil {
-		return 0
-	}
-	return uintptr(unsafe.Pointer(ptr))
+	remoteCacheState   *remoteHashFiles
+	enumerationsLocker *sync.Mutex
+	enumerations       map[syscall.GUID]*enumerationSession
+	_instanceHandle    projfs.PRJ_NAMESPACE_VIRTUALIZATION_CONTEXT
 }
 
 func CodeStatus(err error) uintptr {
@@ -87,7 +97,7 @@ func FillInPlaceholderInfo(data *projfs.PRJ_PLACEHOLDER_INFO, fileinfo fs.FileIn
 	data.VersionInfo = getVersionInfo(&data.FileBasicInfo)
 }
 
-// Stop Windows Project Filesystem virtualization
+// Unmount overlayfs
 func (w *Overlayfs) Unmount() error {
 	if virtStr, ok := w.internalStruct.(*virtualizationStruct); ok && virtStr._instanceHandle != 0 {
 		projfs.PrjStopVirtualizing(virtStr._instanceHandle)
@@ -96,6 +106,7 @@ func (w *Overlayfs) Unmount() error {
 	return nil
 }
 
+// Mount overlayfs
 func (w *Overlayfs) Mount() error {
 	if _, err := os.Stat(w.Target); os.IsNotExist(err) {
 		if err = os.MkdirAll(w.Target, 0); err != nil {
@@ -112,13 +123,13 @@ func (w *Overlayfs) Mount() error {
 		} else if len(b) != 16 {
 			return fmt.Errorf("invalid GUID")
 		}
-		SetGUID(b, &virtualizationGUID)
+		projfs.SetGUID(b, &virtualizationGUID)
 	} else {
 		uuid, err := uuid.NewRandom()
 		if err != nil {
 			return err
 		}
-		SetGUID(uuid[:], &virtualizationGUID)
+		projfs.SetGUID(uuid[:], &virtualizationGUID)
 		if err = os.WriteFile(filepath.Join(w.Target, "_obgmgrproj.guid"), uuid[:], 0666); err != nil {
 			return err
 		}
@@ -133,8 +144,8 @@ func (w *Overlayfs) Mount() error {
 		PoolThreadCount:           0,
 		ConcurrentThreadCount:     0,
 		NotificationMappings: &projfs.PRJ_NOTIFICATION_MAPPING{
-			NotificationRoot:    GetPointer(""),
-			NotificationBitMask: projfs.PRJ_NOTIFY_NEW_FILE_CREATED | projfs.PRJ_NOTIFY_FILE_OVERWRITTEN | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_DELETED | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_MODIFIED,
+			NotificationRoot:    projfs.GetPointer(""),
+			NotificationBitMask: projfs.PRJ_NOTIFY_NEW_FILE_CREATED | projfs.PRJ_NOTIFY_FILE_OVERWRITTEN | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_DELETED | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_MODIFIED | projfs.PRJ_NOTIFY_HARDLINK_CREATED | projfs.PRJ_NOTIFY_FILE_RENAMED,
 		},
 	}
 
@@ -149,7 +160,11 @@ func (w *Overlayfs) Mount() error {
 		GetFileDataCallback:               w.GetFileData,
 	}
 
-	w.internalStruct = new(virtualizationStruct)
+	w.internalStruct = &virtualizationStruct{
+		enumerations:       make(map[syscall.GUID]*enumerationSession),
+		remoteCacheState:   &remoteHashFiles{fs: w.FS},
+		enumerationsLocker: &sync.Mutex{},
+	}
 	if status := projfs.PrjStartVirtualizing(w.Target, callback, w, options, &w.internalStruct.(*virtualizationStruct)._instanceHandle); status != 0 {
 		return fmt.Errorf("cannot start folder virtualization, status code: 0x%08x", status)
 	}
@@ -160,24 +175,31 @@ func (instance *Overlayfs) Notify(callbackData *projfs.PRJ_CALLBACK_DATA, IsDire
 	// operation is done on file system
 	filename := callbackData.GetFilePathName()
 	switch notification {
-	case projfs.PRJ_NOTIFICATION_NEW_FILE_CREATED:
-		if IsDirectory {
-			return CodeStatus(instance.FS.Mkdir(filename, 0777))
-		} else {
-			_, err := instance.FS.Create(filename)
-			if err != nil {
-				return 1
-			}
-			return 0
-		}
+	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_DELETED:
+		return CodeStatus(instance.FS.Remove(filename))
+	case projfs.PRJ_NOTIFICATION_HARDLINK_CREATED:
+		return CodeStatus(instance.CreateHardLink(callbackData, destinationFileName))
 	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_MODIFIED, projfs.PRJ_NOTIFICATION_FILE_OVERWRITTEN:
 		if !IsDirectory {
 			return CodeStatus(instance.streamLocalToRemote(filename))
 		}
-	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_DELETED:
-		return CodeStatus(instance.FS.Remove(filename))
+	case projfs.PRJ_NOTIFICATION_NEW_FILE_CREATED:
+		if IsDirectory {
+			return CodeStatus(instance.FS.Mkdir(filename, 0777))
+		}
+		_, err := instance.FS.Create(filename)
+		return CodeStatus(err)
 	}
+
 	return 0
+}
+
+func (instance *Overlayfs) CreateHardLink(callbackData *projfs.PRJ_CALLBACK_DATA, destinationFileName uintptr) error {
+	filePath, targetPath := callbackData.GetFilePathName(), projfs.GetString(destinationFileName)
+	if filePath == "" || targetPath == "" {
+		return nil
+	}
+	return instance.FS.Link(filePath, targetPath)
 }
 
 func (instance *Overlayfs) streamLocalToRemote(filename string) error {
@@ -219,6 +241,8 @@ func (instance *Overlayfs) QueryFileName(callbackData *projfs.PRJ_CALLBACK_DATA)
 func (instance *Overlayfs) CancelCommand(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr { return 0 }
 
 func (instance *Overlayfs) StartDirectoryEnumeration(callbackData *projfs.PRJ_CALLBACK_DATA, enumerationId *syscall.GUID) uintptr {
+	instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Lock()
+	defer instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Unlock()
 	instance.internalStruct.(*virtualizationStruct).enumerations[*enumerationId] = &enumerationSession{
 		searchstr: 0,
 		countget:  0,
@@ -229,11 +253,15 @@ func (instance *Overlayfs) StartDirectoryEnumeration(callbackData *projfs.PRJ_CA
 }
 
 func (instance *Overlayfs) EndDirectoryEnumeration(callbackData *projfs.PRJ_CALLBACK_DATA, enumerationId *syscall.GUID) uintptr {
+	instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Lock()
+	defer instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Unlock()
 	delete(instance.internalStruct.(*virtualizationStruct).enumerations, *enumerationId)
 	return 0
 }
 
 func (instance *Overlayfs) GetDirectoryEnumeration(callbackData *projfs.PRJ_CALLBACK_DATA, enumerationId *syscall.GUID, searchExpression uintptr, dirEntryBufferHandle projfs.PRJ_DIR_ENTRY_BUFFER_HANDLE) uintptr {
+	instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Lock()
+	defer instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Unlock()
 	filenamepath := callbackData.GetFilePathName()
 	first := instance.internalStruct.(*virtualizationStruct).enumerations[*enumerationId].countget == 0
 	restart := callbackData.Flags&projfs.PRJ_CB_DATA_FLAG_ENUM_RESTART_SCAN != 0
