@@ -8,13 +8,11 @@
 package overleyfs
 
 import (
-	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -26,32 +24,7 @@ import (
 	"sirherobrine23.com.br/go-bds/go-bds/overleyfs/projfs"
 )
 
-type remoteHashFiles struct {
-	fs *mergefs.Mergefs
-}
-
-// GetHash implements RemoteStateCache.
-func (instance *remoteHashFiles) GetHash(remotepath string) ([]byte, error) {
-	hashpath := instance.path_hashFile(remotepath)
-	if _, err := instance.fs.Stat(hashpath); err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return instance.fs.ReadFile(hashpath)
-}
-
-// UpdateHash implements RemoteStateCache.
-func (instance *remoteHashFiles) UpdateHash(remotepath string, hash []byte) error {
-	return instance.fs.WriteFile(instance.path_hashFile(remotepath), hash, 0666)
-}
-
-func (instance *remoteHashFiles) path_hashFile(remotepath string) string {
-	fname := path.Base(remotepath)
-	dir := path.Dir(remotepath)
-	return dir + "/.md5_" + fname
-}
+const guidFile string = "_obgmgrproj.guid"
 
 type enumerationSession struct {
 	searchstr uintptr
@@ -61,7 +34,6 @@ type enumerationSession struct {
 }
 
 type virtualizationStruct struct {
-	remoteCacheState   *remoteHashFiles
 	enumerationsLocker *sync.Mutex
 	enumerations       map[syscall.GUID]*enumerationSession
 	_instanceHandle    projfs.PRJ_NAMESPACE_VIRTUALIZATION_CONTEXT
@@ -102,12 +74,19 @@ func (w *Overlayfs) Unmount() error {
 	if virtStr, ok := w.internalStruct.(*virtualizationStruct); ok && virtStr._instanceHandle != 0 {
 		projfs.PrjStopVirtualizing(virtStr._instanceHandle)
 		virtStr._instanceHandle = 0
+		return syscall.GetLastError()
 	}
 	return nil
 }
 
 // Mount overlayfs
 func (w *Overlayfs) Mount() error {
+	if instance, ok := w.internalStruct.(*virtualizationStruct); ok {
+		if instance._instanceHandle != 0 {
+			return fmt.Errorf("already started")
+		}
+	}
+
 	if _, err := os.Stat(w.Target); os.IsNotExist(err) {
 		if err = os.MkdirAll(w.Target, 0); err != nil {
 			return err
@@ -116,8 +95,8 @@ func (w *Overlayfs) Mount() error {
 	w.FS = mergefs.NewMergefsWithTopLayer(w.Upper, w.Lower...)
 
 	var virtualizationGUID syscall.GUID
-	if _, err := os.Stat(filepath.Join(w.Target, "_obgmgrproj.guid")); !os.IsNotExist(err) {
-		b, err := os.ReadFile(filepath.Join(w.Target, "_obgmgrproj.guid"))
+	if _, err := os.Stat(filepath.Join(w.Target, guidFile)); !os.IsNotExist(err) {
+		b, err := os.ReadFile(filepath.Join(w.Target, guidFile))
 		if err != nil {
 			return err
 		} else if len(b) != 16 {
@@ -130,7 +109,7 @@ func (w *Overlayfs) Mount() error {
 			return err
 		}
 		projfs.SetGUID(uuid[:], &virtualizationGUID)
-		if err = os.WriteFile(filepath.Join(w.Target, "_obgmgrproj.guid"), uuid[:], 0666); err != nil {
+		if err = os.WriteFile(filepath.Join(w.Target, guidFile), uuid[:], 0666); err != nil {
 			return err
 		}
 	}
@@ -140,12 +119,17 @@ func (w *Overlayfs) Mount() error {
 	}
 
 	options := &projfs.PRJ_STARTVIRTUALIZING_OPTIONS{
-		NotificationMappingsCount: 1,
 		PoolThreadCount:           0,
 		ConcurrentThreadCount:     0,
+		NotificationMappingsCount: 1,
 		NotificationMappings: &projfs.PRJ_NOTIFICATION_MAPPING{
-			NotificationRoot:    projfs.GetPointer(""),
-			NotificationBitMask: projfs.PRJ_NOTIFY_NEW_FILE_CREATED | projfs.PRJ_NOTIFY_FILE_OVERWRITTEN | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_DELETED | projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_MODIFIED | projfs.PRJ_NOTIFY_HARDLINK_CREATED | projfs.PRJ_NOTIFY_FILE_RENAMED,
+			NotificationRoot: projfs.GetPointer(""),
+			NotificationBitMask: projfs.PRJ_NOTIFY_HARDLINK_CREATED |
+				projfs.PRJ_NOTIFY_NEW_FILE_CREATED |
+				projfs.PRJ_NOTIFY_FILE_OPENED |
+				projfs.PRJ_NOTIFY_FILE_OVERWRITTEN |
+				projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_DELETED |
+				projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_MODIFIED,
 		},
 	}
 
@@ -160,11 +144,7 @@ func (w *Overlayfs) Mount() error {
 		GetFileDataCallback:               w.GetFileData,
 	}
 
-	w.internalStruct = &virtualizationStruct{
-		enumerations:       make(map[syscall.GUID]*enumerationSession),
-		remoteCacheState:   &remoteHashFiles{fs: w.FS},
-		enumerationsLocker: &sync.Mutex{},
-	}
+	w.internalStruct = &virtualizationStruct{enumerationsLocker: &sync.Mutex{}, enumerations: make(map[syscall.GUID]*enumerationSession)}
 	if status := projfs.PrjStartVirtualizing(w.Target, callback, w, options, &w.internalStruct.(*virtualizationStruct)._instanceHandle); status != 0 {
 		return fmt.Errorf("cannot start folder virtualization, status code: 0x%08x", status)
 	}
@@ -174,21 +154,34 @@ func (w *Overlayfs) Mount() error {
 func (instance *Overlayfs) Notify(callbackData *projfs.PRJ_CALLBACK_DATA, IsDirectory bool, notification projfs.PRJ_NOTIFICATION, destinationFileName uintptr, operationParameters *projfs.PRJ_NOTIFICATION_PARAMETERS) uintptr {
 	// operation is done on file system
 	filename := callbackData.GetFilePathName()
+	fmt.Printf("Notify: %t %d %d '%s', %d\n", IsDirectory, callbackData.CommandId, notification, filename, *operationParameters)
+
 	switch notification {
 	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_DELETED:
 		return CodeStatus(instance.FS.Remove(filename))
 	case projfs.PRJ_NOTIFICATION_HARDLINK_CREATED:
 		return CodeStatus(instance.CreateHardLink(callbackData, destinationFileName))
-	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_MODIFIED, projfs.PRJ_NOTIFICATION_FILE_OVERWRITTEN:
-		if !IsDirectory {
-			return CodeStatus(instance.streamLocalToRemote(filename))
-		}
 	case projfs.PRJ_NOTIFICATION_NEW_FILE_CREATED:
 		if IsDirectory {
 			return CodeStatus(instance.FS.Mkdir(filename, 0777))
 		}
 		_, err := instance.FS.Create(filename)
 		return CodeStatus(err)
+	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_MODIFIED, projfs.PRJ_NOTIFICATION_FILE_OVERWRITTEN:
+		if !IsDirectory {
+			file, err := os.Open(filepath.Join(instance.Target, filename))
+			if err != nil {
+				return CodeStatus(err)
+			}
+			defer file.Close()
+			targetfile, err := instance.FS.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0666)
+			if err != nil {
+				return CodeStatus(err)
+			}
+			defer targetfile.Close()
+			_, err = io.Copy(targetfile, file)
+			return CodeStatus(err)
+		}
 	}
 
 	return 0
@@ -202,53 +195,13 @@ func (instance *Overlayfs) CreateHardLink(callbackData *projfs.PRJ_CALLBACK_DATA
 	return instance.FS.Link(filePath, targetPath)
 }
 
-func (instance *Overlayfs) streamLocalToRemote(filename string) error {
-	file, err := instance.FS.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	data := make([]byte, 1024*1024)
-	targetfile, err := instance.FS.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		return err
-	}
-	defer targetfile.Close()
-
-	hash := md5.New()
-	for {
-		n, err := file.Read(data)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-		_, err = hash.Write(data[:n])
-		if err != nil {
-			return err
-		}
-		_, err = targetfile.Write(data[:n])
-		if err != nil {
-			return err
-		}
-	}
-
-	return instance.internalStruct.(*virtualizationStruct).remoteCacheState.UpdateHash(filename, hash.Sum(nil))
-}
-
 func (instance *Overlayfs) QueryFileName(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr { return 0 }
 func (instance *Overlayfs) CancelCommand(callbackData *projfs.PRJ_CALLBACK_DATA) uintptr { return 0 }
 
 func (instance *Overlayfs) StartDirectoryEnumeration(callbackData *projfs.PRJ_CALLBACK_DATA, enumerationId *syscall.GUID) uintptr {
 	instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Lock()
 	defer instance.internalStruct.(*virtualizationStruct).enumerationsLocker.Unlock()
-	instance.internalStruct.(*virtualizationStruct).enumerations[*enumerationId] = &enumerationSession{
-		searchstr: 0,
-		countget:  0,
-		sentcount: 0,
-		wildcard:  false,
-	}
+	instance.internalStruct.(*virtualizationStruct).enumerations[*enumerationId] = &enumerationSession{searchstr: 0, countget: 0, sentcount: 0, wildcard: false}
 	return 0
 }
 
@@ -291,7 +244,7 @@ func (instance *Overlayfs) GetDirectoryEnumeration(callbackData *projfs.PRJ_CALL
 	for _, file := range files[session.sentcount:] {
 		session.sentcount += 1
 		fname := filepath.Base(file.Name())
-		if strings.HasPrefix(fname, ".") {
+		if strings.HasPrefix(fname, ".") || fname == guidFile {
 			continue
 		}
 

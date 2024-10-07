@@ -2,55 +2,85 @@ package overleyfs
 
 import (
 	"bytes"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"testing"
 )
 
 func TestOverlayMount(t *testing.T) {
 	if !(runtime.GOOS == "linux" || runtime.GOOS == "windows") {
-		t.Skip("Test not supported")
+		t.Skip("Test not supported to current platform")
 		return
 	}
 
-	root, err := os.MkdirTemp(os.TempDir(), "overlay_test_*")
-	if err != nil {
+	root := filepath.Join(t.TempDir(), "overlayfs")
+	if err := os.MkdirAll(root, 0666); err != nil {
 		return
 	}
 	defer os.RemoveAll(root)
-	t.Logf("Folder test %q", root)
-
-	var fs Overlayfs
-
-	fs.Workdir = filepath.Join(root, "workdir")
-	fs.Target = filepath.Join(root, "merged")
-	fs.Upper = filepath.Join(root, "upper")
-	fs.Lower = []string{
+	t.Logf("Root folder %q", root)
+	var overlayFS Overlayfs
+	overlayFS.Workdir = filepath.Join(root, "workdir")
+	overlayFS.Target = filepath.Join(root, "merged")
+	overlayFS.Upper = filepath.Join(root, "upper")
+	overlayFS.Lower = []string{
 		filepath.Join(root, "low1"),
 		filepath.Join(root, "low2"),
 	}
-	for _, k := range append(fs.Lower, fs.Workdir, fs.Target, fs.Upper) {
+	for _, k := range append(overlayFS.Lower, overlayFS.Workdir, overlayFS.Target, overlayFS.Upper) {
 		os.MkdirAll(k, 0600)
 	}
 
 	textExample := []byte("google is best\n")
-	os.WriteFile(filepath.Join(fs.Lower[0], "test1.txt"), textExample, 0600)
-	os.WriteFile(filepath.Join(fs.Upper, "test2.txt"), textExample, 0600)
+	os.WriteFile(filepath.Join(overlayFS.Lower[0], "test1.txt"), textExample, 0600)
+	os.WriteFile(filepath.Join(overlayFS.Upper, "test2.txt"), textExample, 0600)
 
-	defer fs.Unmount()
-	if err := fs.Mount(); err != nil {
+	defer overlayFS.Unmount()
+	if err := overlayFS.Mount(); err != nil {
 		t.Error(err)
 		return
 	}
 
-	d1, _ := os.ReadFile(filepath.Join(fs.Target, "test1.txt"))
-	d2, _ := os.ReadFile(filepath.Join(fs.Target, "test2.txt"))
+	entrys, err := os.ReadDir(overlayFS.Target)
+	if err != nil {
+		t.Error("cannot check overlayfs correct work")
+		return
+	}
+	entrys = slices.DeleteFunc(entrys, func(s fs.DirEntry) bool { return s.Name() == "_obgmgrproj.guid" })
+	if len(entrys) != 2 {
+		files := ""
+		for _, i := range entrys {
+			if files += ", " + i.Name(); strings.HasPrefix(files, ", ") {
+				files = files[2:]
+			}
+		}
+		t.Errorf("Invalid entrys files count, files count %d: %q", len(entrys), files)
+		return
+	}
+
+	d1, _ := os.ReadFile(filepath.Join(overlayFS.Target, "test1.txt"))
+	d2, _ := os.ReadFile(filepath.Join(overlayFS.Target, "test2.txt"))
 	for _, k := range [][]byte{d1, d2} {
 		if !bytes.Equal(textExample, k) {
 			t.Error("cannot check overlayfs correct work")
 			break
 		}
 	}
-	fs.Unmount()
+	if err := os.WriteFile(filepath.Join(overlayFS.Target, "test3.txt"), textExample, 0600); err != nil {
+		t.Error(err)
+		return
+	}
+	d3, _ := os.ReadFile(filepath.Join(overlayFS.Upper, "test3.txt"))
+	if !bytes.Equal(textExample, d3) {
+		t.Error("cannot check overlayfs write to Top layer")
+		return
+	}
+
+	if err := overlayFS.Unmount(); err != nil {
+		t.Logf("Unmount error: %s", err.Error())
+	}
 }

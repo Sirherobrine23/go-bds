@@ -13,10 +13,10 @@ var (
 )
 
 type Overlayfs struct {
-	Target  string           // Folder with merged another folder
-	Workdir string           // Folder to write temporary files
-	Upper   string           // Folder to write modifications, blank to read-only
 	Lower   []string         // Folders layers, read-only
+	Upper   string           // Folder to write modifications, blank to read-only
+	Target  string           // Destination folder with all Upper and Lower layers merged
+	Workdir string           // Folder to write temporary files, only linux required
 	FS      *mergefs.Mergefs // Mergefs for internals process
 
 	internalStruct any // Struct to save backend or syscall structs
