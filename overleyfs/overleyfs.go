@@ -13,16 +13,32 @@ var (
 )
 
 type Overlayfs struct {
-	Lower   []string         // Folders layers, read-only
-	Upper   string           // Folder to write modifications, blank to read-only
 	Target  string           // Destination folder with all Upper and Lower layers merged
+	Upper   string           // Folder to write modifications, blank to read-only
+	Lower   []string         // Folders layers, read-only
 	Workdir string           // Folder to write temporary files, only linux required
 	FS      *mergefs.Mergefs // Mergefs for internals process
 
 	internalStruct any // Struct to save backend or syscall structs
 }
 
-// Get new fs.FS from layers
-func (w *Overlayfs) GoMerge() fs.FS {
-	return mergefs.NewFS(mergefs.NewMergefsWithTopLayer(w.Upper, w.Lower...))
+// Return new Overlayfs
+//
+// Crate new *Overlayfs with values, examples:
+//
+// NewOverlayFS("/Root", "/data", "/workdir", "/low1", "/low2") // To read-write target
+//
+// NewOverlayFS("/Root", "", "", "/low1", "/low2") // To read-only target
+func NewOverlayFS(TargetFolder, TopLayer, Workdir string, LowLayers ...string) *Overlayfs {
+	return &Overlayfs{
+		Target:  TargetFolder,
+		Lower:   LowLayers,
+		Upper:   TopLayer,
+		Workdir: Workdir,
+	}
+}
+
+// Get new [io/fs.FS] from layers with MergeFS style directly from Golang
+func (w Overlayfs) MergeFS() fs.FS {
+	return mergefs.NewFS(mergefs.NewMergefs(w.Upper, w.Lower...))
 }

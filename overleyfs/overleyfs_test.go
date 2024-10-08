@@ -2,6 +2,7 @@ package overleyfs
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOverlayMount(t *testing.T) {
@@ -21,7 +23,7 @@ func TestOverlayMount(t *testing.T) {
 	if err := os.MkdirAll(root, 0666); err != nil {
 		return
 	}
-	defer os.RemoveAll(root)
+	// defer os.RemoveAll(root)
 	t.Logf("Root folder %q", root)
 	var overlayFS Overlayfs
 	overlayFS.Workdir = filepath.Join(root, "workdir")
@@ -34,6 +36,8 @@ func TestOverlayMount(t *testing.T) {
 	for _, k := range append(overlayFS.Lower, overlayFS.Workdir, overlayFS.Target, overlayFS.Upper) {
 		os.MkdirAll(k, 0600)
 	}
+	config, _ := json.MarshalIndent(overlayFS, "", "  ")
+	t.Log(string(config))
 
 	textExample := []byte("google is best\n")
 	os.WriteFile(filepath.Join(overlayFS.Lower[0], "test1.txt"), textExample, 0600)
@@ -45,6 +49,7 @@ func TestOverlayMount(t *testing.T) {
 		return
 	}
 
+	<-time.After(time.Minute * 2)
 	entrys, err := os.ReadDir(overlayFS.Target)
 	if err != nil {
 		t.Error("cannot check overlayfs correct work")
@@ -70,12 +75,17 @@ func TestOverlayMount(t *testing.T) {
 			break
 		}
 	}
+
 	if err := os.WriteFile(filepath.Join(overlayFS.Target, "test3.txt"), textExample, 0600); err != nil {
 		t.Error(err)
 		return
 	}
-	d3, _ := os.ReadFile(filepath.Join(overlayFS.Upper, "test3.txt"))
-	if !bytes.Equal(textExample, d3) {
+
+	d3, err := os.ReadFile(filepath.Join(overlayFS.Upper, "test3.txt"))
+	if err != nil {
+		t.Error(err)
+		return
+	} else if !bytes.Equal(textExample, d3) {
 		t.Error("cannot check overlayfs write to Top layer")
 		return
 	}

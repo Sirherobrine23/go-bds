@@ -13,65 +13,52 @@ import (
 
 const SuffixToDeletedFile string = "__mergfsdelete_"
 
-var (
-	_ fs.FS         = &FsMergeFs{}
-	_ fs.ReadFileFS = &FsMergeFs{}
-	_ fs.ReadDirFS  = &FsMergeFs{}
-	_ fs.StatFS     = &FsMergeFs{}
-)
-
 type Mergefs struct {
 	TopLayer    string
 	LowerLayers []string
 }
 
-type FsMergeFs struct{ *Mergefs }
-
 // Return new Mergefs struct with TopLayer
-func NewMergefsWithTopLayer(top string, layers ...string) *Mergefs { return &Mergefs{top, layers} }
+func NewMergefs(top string, layers ...string) *Mergefs { return &Mergefs{top, layers} }
 
-// Return new Mergefs struct only read-only
-func NewMergefs(layers ...string) *Mergefs { return &Mergefs{"", layers} }
-
-// Pipe MergeFS to fs.FS
-func NewFS(fs *Mergefs) fs.FS { return &FsMergeFs{fs} }
-
-func checkIfAredDeleted(root, name string) (string, error) {
-	if name == "" {
+func (merge Mergefs) checkForDeleted(name string) (string, error) {
+	if merge.TopLayer == "" {
 		return "", nil
 	}
-	Dir, Filename := filepath.Split(filepath.Clean(name))
-	if _, err := os.Stat(filepath.Join(root, Dir, SuffixToDeletedFile+Filename)); err != nil {
-		if !os.IsNotExist(err) {
+	for name != "" {
+		var base string
+		name, base = filepath.Split(name)
+		if _, err := os.Stat(filepath.Join(merge.TopLayer, name, SuffixToDeletedFile+base)); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return "", err
 		}
-		return checkIfAredDeleted(root, Dir)
+		return filepath.Join(merge.TopLayer, name, SuffixToDeletedFile+base), nil
 	}
-	return filepath.Join(root, Dir, SuffixToDeletedFile+Filename), nil
+	return "", nil
 }
 
-// Rewrite Open to [io/fs.FS]
-func (fss FsMergeFs) Open(name string) (fs.File, error) {
-	if fss.Mergefs == nil {
-		return nil, fs.ErrInvalid
-	}
-	return fss.Mergefs.Open(name)
+// Is Read And Write
+func (merge Mergefs) Exists(name string) bool {
+	_, err := merge.Stat(name)
+	return err == nil
 }
 
 // ReadDir reads the named directory, returning all its directory entries. If an error occurs reading the directory, ReadDir returns the entries it was able to read before the error, along with the error.
 func (merge Mergefs) ReadDir(name string) ([]fs.DirEntry, error) {
 	name = filepath.Clean(name)
+	deleteFile, err := merge.checkForDeleted(name)
+	if err != nil {
+		return nil, err
+	} else if deleteFile != "" {
+		return nil, &os.PathError{Err: fs.ErrNotExist, Path: name, Op: "mergefs"}
+	}
+
 	mapFile := make(map[string]fs.DirEntry)
 	notExistsLen := len(append(merge.LowerLayers, merge.TopLayer))
 	for _, folderPath := range append(merge.LowerLayers, merge.TopLayer) {
 		if folderPath == "" {
-			notExistsLen--
-			continue
-		}
-		ok, err := checkIfAredDeleted(folderPath, name)
-		if err != nil {
-			return nil, err
-		} else if ok != "" {
 			notExistsLen--
 			continue
 		}
@@ -84,15 +71,15 @@ func (merge Mergefs) ReadDir(name string) ([]fs.DirEntry, error) {
 			return nil, err
 		}
 		for _, fsEntry := range entrys {
-			if _, err := os.Stat(filepath.Join(folderPath, name, SuffixToDeletedFile + fsEntry.Name())); strings.HasSuffix(fsEntry.Name(), SuffixToDeletedFile) || !os.IsNotExist(err) {
-				delete(mapFile, fsEntry.Name()[15:]) // Delete entry if exists
+			if _, err := os.Stat(filepath.Join(folderPath, name, SuffixToDeletedFile+fsEntry.Name())); strings.HasSuffix(fsEntry.Name(), SuffixToDeletedFile) || !os.IsNotExist(err) {
+				delete(mapFile, fsEntry.Name()[len(SuffixToDeletedFile):]) // Delete entry if exists
 				continue
 			}
 			mapFile[fsEntry.Name()] = fsEntry // Set new entry
 		}
 	}
 	if notExistsLen == 0 {
-		return nil, fs.ErrNotExist
+		return nil, &os.PathError{Err: fs.ErrNotExist, Path: name, Op: "mergefs"}
 	}
 	return slices.Collect(maps.Values(mapFile)), nil
 }
@@ -101,13 +88,10 @@ func (merge Mergefs) ReadDir(name string) ([]fs.DirEntry, error) {
 func (merge Mergefs) Mkdir(name string, perm fs.FileMode) error {
 	name = filepath.Clean(name)
 	if merge.TopLayer == "" {
-		return fs.ErrPermission
+		return &os.PathError{Err: fs.ErrPermission, Op: "mergefs", Path: name}
 	}
-	ok, err := checkIfAredDeleted(merge.TopLayer, name)
-	if err != nil {
-		return err
-	} else if ok != "" {
-		os.Remove(ok)
+	if deleteFile, _ := merge.checkForDeleted(name); deleteFile != "" {
+		os.RemoveAll(deleteFile)
 	}
 	return os.Mkdir(filepath.Join(merge.TopLayer, name), perm)
 }
@@ -116,13 +100,10 @@ func (merge Mergefs) Mkdir(name string, perm fs.FileMode) error {
 func (merge Mergefs) MkdirAll(name string, perm fs.FileMode) error {
 	name = filepath.Clean(name)
 	if merge.TopLayer == "" {
-		return fs.ErrPermission
+		return &os.PathError{Err: fs.ErrPermission, Op: "mergefs", Path: name}
 	}
-	ok, err := checkIfAredDeleted(merge.TopLayer, name)
-	if err != nil {
-		return err
-	} else if ok != "" {
-		os.Remove(ok)
+	if deleteFile, _ := merge.checkForDeleted(name); deleteFile != "" {
+		os.RemoveAll(deleteFile)
 	}
 	return os.MkdirAll(filepath.Join(merge.TopLayer, name), perm)
 }
@@ -130,11 +111,11 @@ func (merge Mergefs) MkdirAll(name string, perm fs.FileMode) error {
 // Stat returns a [FileInfo] describing the named file. If there is an error, it will be of type [*PathError].
 func (merge Mergefs) Stat(name string) (os.FileInfo, error) {
 	if name == "" || name == "." {
-		if merge.TopLayer == "" {
-			return nil, fs.ErrNotExist
-		}
-		return os.Stat(merge.TopLayer)
+		return nil, &os.PathError{Err: fs.ErrNotExist, Path: name, Op: "mergefs"}
+	} else if deleteFile, _ := merge.checkForDeleted(name); deleteFile != "" {
+		return nil, &os.PathError{Err: fs.ErrNotExist, Path: name, Op: "mergefs"}
 	}
+
 	name = filepath.Clean(name)
 	DirPath, FileName := filepath.Split(name)
 	files, err := merge.ReadDir(DirPath)
@@ -146,14 +127,14 @@ func (merge Mergefs) Stat(name string) (os.FileInfo, error) {
 			return kn.Info()
 		}
 	}
-	return nil, fs.ErrNotExist
+	return nil, &os.PathError{Err: fs.ErrNotExist, Path: name, Op: "mergefs"}
 }
 
 // Create creates or truncates the named file. If the file already exists, it is truncated. If the file does not exist, it is created with mode 0o666 (before umask). If successful, methods on the returned File can be used for I/O; the associated file descriptor has mode O_RDWR. If there is an error, it will be of type *PathError.
 func (merge Mergefs) Create(name string) (*os.File, error) {
 	name = filepath.Clean(name)
 	if merge.TopLayer == "" {
-		return nil, fs.ErrPermission
+		return nil, &os.PathError{Err: fs.ErrPermission, Op: "mergefs", Path: name}
 	}
 	Dir, FileName := filepath.Split(name)
 	if _, err := os.Stat(filepath.Join(merge.TopLayer, Dir, SuffixToDeletedFile+FileName)); err == nil {
@@ -167,7 +148,7 @@ func (merge Mergefs) OpenFile(name string, flag int, perm fs.FileMode) (*os.File
 	name = filepath.Clean(name)
 	if !(flag&os.O_CREATE == 0 || flag&os.O_APPEND == 0) {
 		if merge.TopLayer == "" {
-			return nil, fs.ErrPermission
+			return nil, &os.PathError{Err: fs.ErrPermission, Op: "mergefs", Path: name}
 		}
 		Dir, FileName := filepath.Split(name)
 		if _, err := os.Stat(filepath.Join(merge.TopLayer, Dir, SuffixToDeletedFile+FileName)); err == nil {
@@ -196,8 +177,9 @@ func (merge Mergefs) OpenFile(name string, flag int, perm fs.FileMode) (*os.File
 	if merge.TopLayer != "" {
 		Dir, FileName := filepath.Split(name)
 		if _, err := os.Stat(filepath.Join(merge.TopLayer, Dir, SuffixToDeletedFile+FileName)); err == nil {
-			return nil, fs.ErrNotExist
+			return nil, &os.PathError{Err: fs.ErrNotExist, Path: name, Op: "mergefs"}
 		}
+
 	}
 
 	foldersTargets := append(merge.LowerLayers, merge.TopLayer)
@@ -212,7 +194,7 @@ func (merge Mergefs) OpenFile(name string, flag int, perm fs.FileMode) (*os.File
 		}
 		return f, nil
 	}
-	return nil, fs.ErrNotExist
+	return nil, &os.PathError{Err: fs.ErrNotExist, Path: name, Op: "mergefs"}
 }
 
 // Open opens the named file for reading. If successful, methods on the returned file can be used for reading; the associated file descriptor has mode O_RDONLY. If there is an error, it will be of type *PathError.
@@ -224,7 +206,7 @@ func (merge Mergefs) Open(name string) (*os.File, error) {
 func (merge Mergefs) Remove(name string) error {
 	name = filepath.Clean(name)
 	if merge.TopLayer == "" {
-		return fs.ErrPermission
+		return &os.PathError{Err: fs.ErrPermission, Op: "mergefs", Path: name}
 	} else if _, err := merge.Stat(filepath.Join(merge.TopLayer, name)); err == nil {
 		if err = os.Remove(filepath.Join(merge.TopLayer, name)); err != nil {
 			return err
@@ -242,7 +224,7 @@ func (merge Mergefs) Remove(name string) error {
 func (merge Mergefs) RemoveAll(name string) error {
 	name = filepath.Clean(name)
 	if merge.TopLayer == "" {
-		return fs.ErrPermission
+		return &os.PathError{Err: fs.ErrPermission, Op: "mergefs", Path: name}
 	} else if _, err := merge.Stat(filepath.Join(merge.TopLayer, name)); err == nil {
 		if err = os.RemoveAll(filepath.Join(merge.TopLayer, name)); err != nil {
 			return err
@@ -280,7 +262,7 @@ func (merge Mergefs) ReadFile(name string) ([]byte, error) {
 // Link creates newname as a hard link to the oldname file. If there is an error, it will be of type *LinkError.
 func (merge Mergefs) Link(oldname string, newname string) error {
 	if merge.TopLayer == "" {
-		return fs.ErrPermission
+		return &os.PathError{Err: fs.ErrPermission, Op: "mergefs"}
 	}
 
 	// Copy layer to new location
@@ -300,7 +282,7 @@ func (merge Mergefs) Link(oldname string, newname string) error {
 // Symlink creates newname as a symbolic link to oldname. On Windows, a symlink to a non-existent oldname creates a file symlink; if oldname is later created as a directory the symlink will not work. If there is an error, it will be of type *LinkError.
 func (merge Mergefs) Symlink(oldname string, newname string) error {
 	if merge.TopLayer == "" {
-		return fs.ErrPermission
+		return &os.PathError{Err: fs.ErrPermission, Op: "mergefs"}
 	}
 
 	// Copy layer to new location
@@ -315,4 +297,11 @@ func (merge Mergefs) Symlink(oldname string, newname string) error {
 
 	// Create symlink in Top layer
 	return os.Symlink(filepath.Join(merge.TopLayer, oldname), filepath.Join(merge.TopLayer, newname))
+}
+
+func (merge Mergefs) Rename(oldpath string, newpath string) error {
+	if merge.TopLayer == "" {
+		return &os.PathError{Err: fs.ErrPermission, Op: "mergefs"}
+	}
+	return os.Rename(filepath.Join(merge.TopLayer, oldpath), filepath.Join(merge.TopLayer, newpath))
 }

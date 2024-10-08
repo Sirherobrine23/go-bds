@@ -74,7 +74,10 @@ func (w *Overlayfs) Unmount() error {
 	if virtStr, ok := w.internalStruct.(*virtualizationStruct); ok && virtStr._instanceHandle != 0 {
 		projfs.PrjStopVirtualizing(virtStr._instanceHandle)
 		virtStr._instanceHandle = 0
-		return syscall.GetLastError()
+		if err := syscall.GetLastError(); err != nil {
+			return err
+		}
+		return os.RemoveAll(w.Target)
 	}
 	return nil
 }
@@ -92,7 +95,8 @@ func (w *Overlayfs) Mount() error {
 			return err
 		}
 	}
-	w.FS = mergefs.NewMergefsWithTopLayer(w.Upper, w.Lower...)
+	w.FS = mergefs.NewMergefs(w.Upper, w.Lower...)
+	os.MkdirAll(w.Target, 0666) // Create if not exists
 
 	var virtualizationGUID syscall.GUID
 	if _, err := os.Stat(filepath.Join(w.Target, guidFile)); !os.IsNotExist(err) {
@@ -124,11 +128,13 @@ func (w *Overlayfs) Mount() error {
 		NotificationMappingsCount: 1,
 		NotificationMappings: &projfs.PRJ_NOTIFICATION_MAPPING{
 			NotificationRoot: projfs.GetPointer(""),
-			NotificationBitMask: projfs.PRJ_NOTIFY_HARDLINK_CREATED |
-				projfs.PRJ_NOTIFY_NEW_FILE_CREATED |
-				projfs.PRJ_NOTIFY_FILE_OPENED |
+			NotificationBitMask: projfs.PRJ_NOTIFY_FILE_OPENED |
+				projfs.PRJ_NOTIFY_FILE_RENAMED |
 				projfs.PRJ_NOTIFY_FILE_OVERWRITTEN |
 				projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_DELETED |
+				projfs.PRJ_NOTIFY_NEW_FILE_CREATED |
+				projfs.PRJ_NOTIFY_HARDLINK_CREATED |
+				projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_NO_MODIFICATION |
 				projfs.PRJ_NOTIFY_FILE_HANDLE_CLOSED_FILE_MODIFIED,
 		},
 	}
@@ -154,20 +160,22 @@ func (w *Overlayfs) Mount() error {
 func (instance *Overlayfs) Notify(callbackData *projfs.PRJ_CALLBACK_DATA, IsDirectory bool, notification projfs.PRJ_NOTIFICATION, destinationFileName uintptr, operationParameters *projfs.PRJ_NOTIFICATION_PARAMETERS) uintptr {
 	// operation is done on file system
 	filename := callbackData.GetFilePathName()
-	fmt.Printf("Notify: %t %d %d '%s', %d\n", IsDirectory, callbackData.CommandId, notification, filename, *operationParameters)
 
 	switch notification {
+	default:
+		fmt.Printf("Notify: %t %d 0x%08x '%s', %d\n", IsDirectory, callbackData.CommandId, notification, filename, *operationParameters)
 	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_DELETED:
 		return CodeStatus(instance.FS.Remove(filename))
 	case projfs.PRJ_NOTIFICATION_HARDLINK_CREATED:
 		return CodeStatus(instance.CreateHardLink(callbackData, destinationFileName))
+	case projfs.PRJ_NOTIFICATION_FILE_RENAMED:
+		return CodeStatus(instance.FS.Rename(filename, projfs.GetString(destinationFileName)))
 	case projfs.PRJ_NOTIFICATION_NEW_FILE_CREATED:
 		if IsDirectory {
 			return CodeStatus(instance.FS.Mkdir(filename, 0777))
 		}
-		_, err := instance.FS.Create(filename)
-		return CodeStatus(err)
-	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_MODIFIED, projfs.PRJ_NOTIFICATION_FILE_OVERWRITTEN:
+		return CodeStatus(instance.FS.WriteFile(filename, nil, 0600))
+	case projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_MODIFIED, projfs.PRJ_NOTIFICATION_FILE_OVERWRITTEN, projfs.PRJ_NOTIFICATION_FILE_OPENED, projfs.PRJ_NOTIFICATION_FILE_HANDLE_CLOSED_NO_MODIFICATION:
 		if !IsDirectory {
 			file, err := os.Open(filepath.Join(instance.Target, filename))
 			if err != nil {
@@ -291,26 +299,13 @@ func (instance *Overlayfs) GetPlaceholderInfo(callbackData *projfs.PRJ_CALLBACK_
 }
 
 func (instance *Overlayfs) GetFileData(callbackData *projfs.PRJ_CALLBACK_DATA, byteOffset uint64, length uint32) uintptr {
-	filename := callbackData.GetFilePathName()
-	file, err := instance.FS.Open(filename)
+	file, err := instance.FS.Open(callbackData.GetFilePathName())
 	if err != nil {
 		return uintptr(syscall.EIO)
 	}
 	defer file.Close()
 	buffer := make([]byte, length)
-
-	var n int
-	var count uint32
-	for count < length {
-		n, err = file.ReadAt(buffer[count:], int64(byteOffset+uint64(count)))
-		count += uint32(n)
-		if err == io.EOF {
-			err = nil
-			break
-		}
-	}
-
-	if err != nil {
+	if _, err = io.ReadAtLeast(file, buffer, int(length)); err != nil {
 		return uintptr(syscall.EIO)
 	}
 	return projfs.PrjWriteFileData(instance.internalStruct.(*virtualizationStruct)._instanceHandle, &callbackData.DataStreamId, &buffer[0], byteOffset, length)
