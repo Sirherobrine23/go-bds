@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"strings"
 )
 
 var (
@@ -27,17 +28,24 @@ func FindByPlatform(target string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
+	if strings.Contains(target, "/") {
+		target = strings.Split(target, "/")[1]
+	}
 	return slices.ContainsFunc(archs, func(entry *Fmt) bool {
+		if entry.Arch == target {
+			return true
+		}
 		switch target {
-		case "linux/amd64", "amd64", "x86_64", "x64":
+		case "amd64", "x86_64", "x64":
 			return entry.Arch == "x86_64"
-		case "linux/arm64", "aarch64", "arm64":
+		case "i386", "i286", "x86":
+			return entry.Arch == "i286" || entry.Arch =="i386" || entry.Arch == "x86"
+		case "aarch64", "arm64":
 			return entry.Arch == "aarch64" || entry.Arch == "arm64"
-		case "linux/arm", "arm", "armhf", "armel":
+		case "arm", "armhf", "armel":
 			return entry.Arch == "arm" || entry.Arch == "armhf" || entry.Arch == "armel"
 		}
-		return false
+		return entry.Arch == target
 	}), nil
 }
 

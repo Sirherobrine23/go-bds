@@ -66,12 +66,17 @@ func FromVersions() (Versions, error) {
 	return versions, err
 }
 
-// Extract server to folder
-func (version *VersionPlatform) Download(serverPath string) error {
-	if version.TarSHA1 != "" && version.TarFile != "" {
-		return request.Tar(version.TarFile, request.ExtractOptions{Cwd: serverPath}, nil)
+// Download and Extract server to folder
+func (version VersionPlatform) Download(serverPath string) error {
+	if version.TarFile == "" && version.ZipFile == "" {
+		return fmt.Errorf("invalid system target to download, cannot download server")
 	}
-	return request.Zip(version.ZipFile, request.ExtractOptions{Cwd: serverPath}, nil)
+
+	extractOptions := request.ExtractOptions{Cwd: serverPath}
+	if version.TarFile != "" { // Not require to check file signature
+		return request.Tar(version.TarFile, extractOptions, nil)
+	}
+	return request.Zip(version.ZipFile, extractOptions, nil)
 }
 
 // Get new versions from minecraft.net/en-us/download/server/bedrock
