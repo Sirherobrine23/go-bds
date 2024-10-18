@@ -92,7 +92,7 @@ func (version VersionPlatform) Download(serverPath string) error {
 	if version.TarFile != "" { // Not require to check file signature
 		return request.Tar(version.TarFile, extractOptions, nil)
 	}
-	return request.Zip(version.ZipFile, request.ExtractOptions{Cwd: serverPath}, nil)
+	return request.Zip(version.ZipFile, extractOptions, nil)
 }
 
 // Get new versions from minecraft.net/en-us/download/server/bedrock
