@@ -1,8 +1,9 @@
-package mojang
+package bedrock
 
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/internal/regex"
@@ -53,12 +54,19 @@ type VersionPlatform struct {
 	ReleaseDate time.Time `json:"releaseDate"` // Platform release/build day
 }
 
+type Versions map[string]Version
 type Version struct {
 	IsPreview   bool                       `json:"preview"`          // Preview server
 	DockerImage map[string]string          `json:"images,omitempty"` // Docker images
 	Platforms   map[string]VersionPlatform `json:"platforms"`        // Golang platforms target
 }
-type Versions map[string]Version
+
+type WithVersion struct {
+	ServerVersion string `json:"version"`
+	Version
+}
+
+func (ver WithVersion) SemverVersion() *semver.Version { return semver.New(ver.ServerVersion) }
 
 // Get versions from cached versions
 func FromVersions() (Versions, error) {
@@ -66,10 +74,23 @@ func FromVersions() (Versions, error) {
 	return versions, err
 }
 
-// Extract server to folder
-func (version *VersionPlatform) Download(serverPath string) error {
-	if version.TarSHA1 != "" && version.TarFile != "" {
-		return request.Tar(version.TarFile, request.ExtractOptions{Cwd: serverPath}, nil)
+func (ver Versions) Slices() []WithVersion {
+	var dd []WithVersion
+	for vv, entry := range ver {
+		dd = append(dd, WithVersion{vv, entry})
+	}
+	return dd
+}
+
+// Download and Extract server to folder
+func (version VersionPlatform) Download(serverPath string) error {
+	if version.TarFile == "" && version.ZipFile == "" {
+		return fmt.Errorf("invalid system target to download, cannot download server")
+	}
+
+	extractOptions := request.ExtractOptions{Cwd: serverPath}
+	if version.TarFile != "" { // Not require to check file signature
+		return request.Tar(version.TarFile, extractOptions, nil)
 	}
 	return request.Zip(version.ZipFile, request.ExtractOptions{Cwd: serverPath}, nil)
 }
@@ -110,25 +131,17 @@ func FetchFromWebsite() (*MojangHTML, error) {
 }
 
 func GetLatest(a Versions) string {
-	var k []*semver.Version
-	for key, v := range a {
-		if v.IsPreview {
-			continue
-		}
-		k = append(k, semver.New(key))
-	}
-	semver.Sort(k)
-	return k[len(k)-1].String()
+	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
+		return !v.IsPreview
+	})
+	semver.SortStruct(k)
+	return k[len(k)-1].ServerVersion
 }
 
 func GetLatestPreview(a Versions) string {
-	var k []*semver.Version
-	for key, v := range a {
-		if !v.IsPreview {
-			continue
-		}
-		k = append(k, semver.New(key))
-	}
-	semver.Sort(k)
-	return k[len(k)-1].String()
+	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
+		return v.IsPreview
+	})
+	semver.SortStruct(k)
+	return k[len(k)-1].ServerVersion
 }

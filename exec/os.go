@@ -33,6 +33,12 @@ func (p *dynamicWrite) Write(w []byte) (int, error) {
 	return len(w), nil
 }
 
+// Check if binary exists
+func LocalBinExist(name string) bool {
+	binpath, err := exec.LookPath(name)
+	return err == nil && binpath != ""
+}
+
 type Os struct {
 	osProc *exec.Cmd
 
@@ -104,9 +110,7 @@ func (cli *Os) StderrFork() (io.ReadCloser, error) {
 }
 
 func (w *Os) Start(options ProcExec) error {
-	if w.osProc = exec.Command(options.Arguments[0]); len(options.Arguments) >= 2 {
-		w.osProc.Args = options.Arguments[1:]
-	}
+	w.osProc = exec.Command(options.Arguments[0], options.Arguments[1:]...)
 	w.osProc.Dir = options.Cwd
 	for key, value := range options.Environment {
 		w.osProc.Env = append(w.osProc.Env, fmt.Sprintf("%s=%s", key, value))

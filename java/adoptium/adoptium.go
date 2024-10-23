@@ -1,3 +1,4 @@
+// Install java with builds from adoptium
 package adoptium
 
 import "errors"

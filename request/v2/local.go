@@ -14,7 +14,12 @@ func SaveAs(Url, OnSave string, Option *Options) (*http.Response, error) {
 		return res, err
 	}
 	defer res.Body.Close()
-	os.MkdirAll(filepath.Dir(OnSave), 0600)
+
+	// Create folder if not exists
+	if _, err := os.Stat(filepath.Dir(OnSave)); os.IsNotExist(err) {
+		os.MkdirAll(filepath.Dir(OnSave), 0600)
+	}
+
 	file, err := os.Create(OnSave)
 	if err != nil {
 		return res, err

@@ -26,11 +26,12 @@ func (err errResponseCode) Error() string {
 
 // Request options
 type Options struct {
-	Method      string               // Request method, example, Get, Post
-	Body        any                  // Struct or io.Reader, if is Struct convert to json
-	Header      map[string]string    // Extra request Headers
-	CodeProcess map[int]CodeCallback // Process request with callback, -1 call any other status code
-	Jar         http.CookieJar
+	Method            string               // Request method, example, Get, Post
+	Body              any                  // Struct or io.Reader, if is Struct convert to json
+	Header            map[string]string    // Extra request Headers
+	CodeProcess       map[int]CodeCallback // Process request with callback, -1 call any other status code
+	NotFollowRedirect bool                 // Watcher requests redirects
+	Jar               http.CookieJar
 }
 
 // Request struct
@@ -107,8 +108,17 @@ func (req RequestRoot) MakeRequest() (*http.Response, error) {
 	}
 
 	var client http.Client
+
+	// Client custom cookies jar
 	if req.Options.Jar != nil {
 		client.Jar = req.Options.Jar
+	}
+
+	// Don't follow request's redirect
+	if req.Options.NotFollowRedirect {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse // Process only fist request
+		}
 	}
 	return client.Do(request)
 }

@@ -15,7 +15,6 @@
 package semver
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -95,31 +94,14 @@ func (v *Version) Set(version string) error {
 	return nil
 }
 
-func (v Version) String() string {
-	return v.Original
-}
+func (v Version) String() string               { return v.Original }
+func (v Version) MarshalText() ([]byte, error) { return []byte(v.String()), nil }
 
-func (v *Version) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var data string
-	if err := unmarshal(&data); err != nil {
-		return err
-	}
-	return v.Set(data)
-}
-
-func (v Version) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + v.String() + `"`), nil
-}
-
-func (v *Version) UnmarshalJSON(data []byte) error {
-	l := len(data)
-	if l == 0 || string(data) == `""` {
+func (v *Version) UnmarshalText(data []byte) error {
+	if string(data) == "" {
 		return nil
 	}
-	if l < 2 || data[0] != '"' || data[l-1] != '"' {
-		return errors.New("invalid semver string")
-	}
-	return v.Set(string(data[1 : l-1]))
+	return v.Set(string(data))
 }
 
 // Compare tests if v is less than, equal to, or greater than versionB,
@@ -168,13 +150,17 @@ func preReleaseCompare(versionA Version, versionB Version) int {
 }
 
 func recursiveCompare(versionA []int64, versionB []int64) int {
-	if len(versionA) == 0 {
+	if len(versionA) == 0 && len(versionB) == 0 {
 		return 0
 	}
 
-	a := versionA[0]
-	b := versionB[0]
+	if len(versionA) == 0 {
+		versionA = make([]int64, len(versionB))
+	} else if len(versionB) == 0 {
+		versionB = make([]int64, len(versionA))
+	}
 
+	a, b := versionA[0], versionB[0]
 	if a > b {
 		return 1
 	} else if a < b {
@@ -286,19 +272,30 @@ var reIdentifier = regexp.MustCompile(`^[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*$`)
 
 type Versions []*Version
 
-func (s Versions) Len() int {
-	return len(s)
+// Sort sorts the given slice of Version
+func Sort(versions []*Version) {
+	sort.Sort(Versions(versions))
 }
 
-func (s Versions) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
+func (s Versions) Len() int      { return len(s) }
+func (s Versions) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s Versions) Less(i, j int) bool {
 	return s[i].LessThan(*s[j])
 }
 
-// Sort sorts the given slice of Version
-func Sort(versions []*Version) {
-	sort.Sort(Versions(versions))
+type SemverVersion interface {
+	SemverVersion() *Version
+}
+
+// Sort Struct giving from SemverVersion function
+func SortStruct[S SemverVersion](versions []S) {
+	sort.Sort(InterfaceVersion[S](versions))
+}
+
+type InterfaceVersion[P SemverVersion] []P
+
+func (s InterfaceVersion[P]) Len() int      { return len(s) }
+func (s InterfaceVersion[P]) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s InterfaceVersion[P]) Less(i, j int) bool {
+	return s[i].SemverVersion().LessThan(*s[j].SemverVersion())
 }

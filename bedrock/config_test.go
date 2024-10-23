@@ -1,4 +1,4 @@
-package mojang
+package bedrock
 
 import (
 	"testing"

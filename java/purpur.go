@@ -1,4 +1,4 @@
-package mojang
+package java
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
-
 
 type purpurVersion struct {
 	MCStarget string    `json:"version"`

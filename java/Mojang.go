@@ -1,4 +1,4 @@
-package mojang
+package java
 
 import (
 	"path/filepath"

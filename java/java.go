@@ -1,10 +1,7 @@
-package mojang
+package java
 
 import (
-	"embed"
 	"errors"
-	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,9 +11,6 @@ import (
 )
 
 var (
-	//go:embed javac/*
-	javac embed.FS
-
 	ErrInstallServer error = errors.New("install server fist")
 	ErrNoServer      error = errors.New("cannot find server")
 )
@@ -49,13 +43,7 @@ func (w *JavaServer) Start() error {
 		opts.Arguments[0] = w.JavaFolders
 	} else {
 		javaRootFolder := filepath.Join(w.JavaFolders, strconv.FormatInt(int64(w.JavaVersion), 10))
-		javacEmbed := fmt.Sprintf("javac/%d", w.JavaVersion)
-		if subFs, err := fs.Sub(javac, javacEmbed); err == nil {
-			if err := os.CopyFS(javaRootFolder, subFs); err != nil {
-				return err
-			}
-
-		} else if err := adoptium.InstallLatest(w.JavaVersion, javaRootFolder); err != nil {
+		if err := adoptium.InstallLatest(w.JavaVersion, javaRootFolder); err != nil {
 			return err
 		}
 		opts.Arguments[0] = filepath.Join(javaRootFolder, "bin/java")

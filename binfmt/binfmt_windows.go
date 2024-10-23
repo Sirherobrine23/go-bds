@@ -10,26 +10,26 @@ func Archs() ([]*Fmt, error) {
 		return []*Fmt{
 			{
 				AutoEmulate: true,
-				Arch: "386",
-				Magic: []byte{0x4d, 0x5a},
+				Arch:        "386",
+				Magic:       []byte{0x4d, 0x5a},
 			},
 		}, nil
 	case "arm64":
 		return []*Fmt{
 			{
 				AutoEmulate: true,
-				Arch: "386",
-				Magic: []byte{0x4d, 0x5a},
+				Arch:        "386",
+				Magic:       []byte{0x4d, 0x5a},
 			},
 			{
 				AutoEmulate: true,
-				Arch: "x86_64",
-				Magic: []byte{0x4d, 0x5a},
+				Arch:        "x86_64",
+				Magic:       []byte{0x4d, 0x5a},
 			},
 			{
 				AutoEmulate: true,
-				Arch: "arm",
-				Magic: []byte{0x4d, 0x5a},
+				Arch:        "arm",
+				Magic:       []byte{0x4d, 0x5a},
 			},
 		}, nil
 	}

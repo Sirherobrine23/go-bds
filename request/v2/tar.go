@@ -6,31 +6,23 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ulikunitz/xz"
 )
 
 type ExtractOptions struct {
-	Strip             int    // Remove n components from file extraction
-	Cwd               string // Folder output
-	PreserveOwners    bool   // Preserver user and group
-	Gzip, Bzip2, Zlib bool   // Uncompress
+	Strip                 int    // Remove n components from file extraction
+	Cwd                   string // Folder output
+	PreserveOwners        bool   // Preserver user and group
+	Gzip, Bzip2, Zlib, Xz bool   // Uncompress
 }
 
 func stripPath(fpath string, st int) string {
-	return filepath.Join(strings.Split(filepath.ToSlash(fpath), "/")[st:]...)
-}
-
-func updateFile(rootFile string, head *tar.Header, PreserveOwners bool) error {
-	if err := os.Chtimes(rootFile, head.AccessTime, head.ModTime); err != nil {
-		return err
-	} else if PreserveOwners {
-		if err := os.Chown(rootFile, head.Uid, head.Gid); err != nil {
-			return err
-		}
-	}
-	return nil
+	return filepath.Join(strings.Split(filepath.ToSlash(fpath), "/")[int(math.Max(0, float64(st))):]...)
 }
 
 // Create request and extract to Cwd folder
@@ -51,7 +43,11 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 		if tarball, err = gzip.NewReader(res.Body); err != nil {
 			return err
 		}
-		defer tarball.(io.ReadCloser).Close()
+		defer tarball.(*gzip.Reader).Close()
+	} else if TarOption.Xz || strings.Contains(res.Header.Get("Content-Type"), "application/x-xz") {
+		if tarball, err = xz.NewReader(res.Body); err != nil {
+			return err
+		}
 	} else if TarOption.Zlib || strings.Contains(res.Header.Get("Content-Type"), "application/zlib") {
 		if tarball, err = zlib.NewReader(res.Body); err != nil {
 			return err
@@ -61,51 +57,38 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 		tarball = bzip2.NewReader(res.Body)
 	}
 
-	tarExt := tar.NewReader(tarball)
+	tarReader := tar.NewReader(tarball)
 	for {
-		head, err := tarExt.Next()
+		head, err := tarReader.Next()
 		if err != nil {
 			if err == io.EOF {
-				break
+				return nil
 			}
 			return err
 		}
-		fileInfo := head.FileInfo()
-		rootFile := filepath.Join(TarOption.Cwd, stripPath(fileInfo.Name(), TarOption.Strip))
-		if fileInfo.IsDir() {
-			if err := os.MkdirAll(rootFile, fileInfo.Mode()); err != nil {
-				return err
-			} else if err := updateFile(rootFile, head, TarOption.PreserveOwners); err != nil {
-				return err
-			}
-			continue
-		}
-		switch head.Typeflag {
-		case tar.TypeBlock, tar.TypeChar, tar.TypeFifo:
-			continue
-		case tar.TypeSymlink:
-			if err := os.Symlink(head.Linkname, rootFile); err != nil {
-				return err
-			}
-		default:
-			{
-				if err := os.MkdirAll(filepath.Dir(rootFile), fileInfo.Mode()); err != nil {
-					return err
-				}
-				localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_WRONLY, fileInfo.Mode())
-				if err != nil {
-					return err
-				}
-				defer localFile.Close()
-				if _, err := io.CopyN(localFile, tarExt, head.Size); err != nil {
-					return err
-				} else if err := updateFile(rootFile, head, TarOption.PreserveOwners); err != nil {
-					return err
-				}
-				localFile.Close()
-			}
-		}
-	}
 
-	return nil
+		rootFile := filepath.Join(TarOption.Cwd, stripPath(head.Name, TarOption.Strip))
+		if rootFile == TarOption.Cwd {
+			continue
+		}
+
+		fsInfo := head.FileInfo()
+		mode := fsInfo.Mode()
+		if fsInfo.IsDir() {
+			if err := os.MkdirAll(rootFile, mode.Perm()); err != nil {
+				return err
+			}
+			continue
+		} else if !mode.IsRegular() {
+			continue
+		}
+		localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode.Perm())
+		if err != nil {
+			return err
+		} else if _, err := io.CopyN(localFile, tarReader, head.Size); err != nil {
+			localFile.Close() // Close file
+			return err
+		}
+		localFile.Close() // Close file
+	}
 }

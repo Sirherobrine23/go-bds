@@ -4,120 +4,19 @@
 package adoptium
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"compress/gzip"
 	"fmt"
-	"io"
-	"os"
+	"net/http"
 	"path/filepath"
 	"runtime"
-	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
-func download(path, url string) error {
-	ext := filepath.Ext(filepath.Base(url))
-	switch ext {
-	case ".zip":
-		localFile, err := os.CreateTemp(os.TempDir(), "java_*.zip")
-		if err != nil {
-			return err
-		}
-		defer localFile.Close()
-		defer os.Remove(localFile.Name())
-
-		res, err := (&request.RequestOptions{HttpError: true, Url: url}).Request()
-		if err != nil {
-			return err
-		}
-		defer res.Body.Close()
-		if _, err := io.Copy(localFile, res.Body); err != nil {
-			return err
-		} else if _, err := localFile.Seek(0, 0); err != nil {
-			return err
-		}
-
-		s, _ := localFile.Stat()
-		zr, err := zip.NewReader(localFile, s.Size())
-		if err != nil {
-			return err
-		}
-
-		for _, file := range zr.File {
-			info := file.FileInfo()
-			pathFixed := filepath.Join(path, strings.Join(filepath.SplitList(file.Name)[1:], "/"))
-			if info.IsDir() {
-				if err := os.MkdirAll(pathFixed, info.Mode()); err != nil {
-					return err
-				}
-				continue
-			}
-
-			tfile, err := os.OpenFile(pathFixed, os.O_CREATE|os.O_EXCL|os.O_RDWR, info.Mode())
-			if err != nil {
-				return err
-			}
-			defer tfile.Close()
-			zrf, err := file.Open()
-			if err != nil {
-				return err
-			}
-			defer zrf.Close()
-			if _, err := io.Copy(tfile, zrf); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	case ".tgz", ".gz", ".tar.gz":
-		res, err := (&request.RequestOptions{HttpError: true, Url: url}).Request()
-		if err != nil {
-			return err
-		}
-		defer res.Body.Close()
-
-		gz, err := gzip.NewReader(res.Body)
-		if err != nil {
-			return err
-		}
-		defer gz.Close()
-		tarball := tar.NewReader(gz)
-		for {
-			head, err := tarball.Next()
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				return err
-			}
-			info := head.FileInfo()
-			pathFixed := filepath.Join(path, strings.Join(filepath.SplitList(head.Name)[1:], "/"))
-			if info.IsDir() {
-				if err := os.MkdirAll(pathFixed, info.Mode()); err != nil {
-					return err
-				}
-				continue
-			}
-			tfile, err := os.OpenFile(pathFixed, os.O_CREATE|os.O_EXCL|os.O_RDWR, info.Mode())
-			if err != nil {
-				return err
-			}
-			defer tfile.Close()
-			if _, err := io.CopyN(tfile, tarball, info.Size()); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return ErrSystem
-}
-
+// Install latest version from adoptium
 func InstallLatest(featVersion uint, installPath string) error {
-	var reqOpt request.RequestOptions
+	var reqOpt request.Options
 	// architecture: x64, x86, x32, ppc64, ppc64le, s390x, aarch64, arm, sparcv9, riscv64
-	var arch = runtime.GOARCH
+	arch := runtime.GOARCH
 	switch arch {
 	case "amd64":
 		arch = "x64"
@@ -128,7 +27,7 @@ func InstallLatest(featVersion uint, installPath string) error {
 	}
 
 	// os: linux, windows, mac, solaris, aix, alpine-linux
-	var os = runtime.GOOS
+	os := runtime.GOOS
 	switch os {
 	case "darwin":
 		os = "mac"
@@ -136,10 +35,38 @@ func InstallLatest(featVersion uint, installPath string) error {
 		os = "solaris"
 	}
 
-	reqOpt.Url = fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, os, arch)
-	fileUrl, err := reqOpt.GetRedirect()
-	if err != nil {
+	processRedirect := func(res *http.Response) (*http.Response, error) {
+		defer res.Body.Close()
+		var RequestURL string
+		if RequestURL = res.Header.Get("Location"); RequestURL == "" {
+			if RequestURL = res.Header.Get("location"); RequestURL == "" {
+				return res, ErrSystem
+			}
+		}
+		extractOptions := request.ExtractOptions{
+			Cwd:   installPath,
+			Strip: 1,
+		}
+		switch filepath.Ext(RequestURL) {
+		case ".zip":
+			return res, request.Zip(RequestURL, extractOptions, nil)
+		case ".tar":
+			return res, request.Tar(RequestURL, extractOptions, nil)
+		case ".tgz", ".tar.gz", ".gz":
+			extractOptions.Gzip = true
+			return res, request.Tar(RequestURL, extractOptions, nil)
+		case ".txz", ".tar.xz":
+			extractOptions.Xz = true
+			return res, request.Tar(RequestURL, extractOptions, nil)
+		}
+		return res, ErrSystem
+	}
+
+	reqOpt.NotFollowRedirect = true
+	reqOpt.CodeProcess = map[int]request.CodeCallback{301: processRedirect, 302: processRedirect, 307: processRedirect}
+	Url := fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, os, arch)
+	if _, err := request.Request(Url, &reqOpt); err != nil {
 		return err
 	}
-	return download(installPath, fileUrl)
+	return nil
 }
