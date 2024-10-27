@@ -3,34 +3,58 @@ package java
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"time"
 
+	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
-type paperProjectVersion struct {
+var (
+	_ VersionSearch = &PaperSearch{}
+	_ Version       = &PaperVersion{}
+
+	paperProjects            []string = []string{"paper", "folia", "velocity"}
+	paperProjectURL          string   = "https://api.papermc.io/v2/projects/%s"
+	paperProjectBuildsURL    string   = "https://api.papermc.io/v2/projects/%s/versions/%s/builds"
+	paperProjectGetBuildsURL string   = "https://api.papermc.io/v2/projects/%s/versions/%s/builds/%d/downloads/%s"
+)
+
+type PaperSearch struct {
+	ProjectTarget string
+	Versions      map[string]PaperVersion
+}
+
+type PaperVersion struct {
 	MCTarget  string
 	BuildDate time.Time
+	JVM       uint
 	FileURL   []struct {
 		Type, Name, URL string
 	}
 }
 
-// Get all releases from paper project
-func PaperReleases(Project string) (Releases, error) {
-	if !(Project == "paper" || Project == "folia" || Project == "velocity") {
-		return nil, fmt.Errorf(`invalid project, accept only, "paper", "folia" or "velocity"`)
+func (paper PaperSearch) Find(version string) (Version, error) {
+	if ver, ok := paper.Versions[version]; ok {
+		return ver, nil
 	}
+	return nil, ErrNoFoundVersion
+}
+
+func (paper *PaperSearch) List() error {
+	if !slices.Contains(paperProjects, paper.ProjectTarget) {
+		return ErrNoFoundVersion
+	}
+	paper.Versions = make(map[string]PaperVersion)
 
 	var projectVersions struct {
 		Versions []string `json:"versions"`
 	}
-	_, err := request.JSONDo(fmt.Sprintf("https://api.papermc.io/v2/projects/%s", Project), &projectVersions, nil)
+	_, err := request.JSONDo(fmt.Sprintf(paperProjectURL, paper.ProjectTarget), &projectVersions, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	release := make(Releases)
 	for _, version := range projectVersions.Versions {
 		var builds struct {
 			Builds []struct {
@@ -43,12 +67,12 @@ func PaperReleases(Project string) (Releases, error) {
 			} `json:"builds"`
 		}
 
-		if _, err = request.JSONDo(fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s/builds", Project, version), &builds, nil); err != nil {
-			return release, err
+		if _, err = request.JSONDo(fmt.Sprintf(paperProjectBuildsURL, paper.ProjectTarget, version), &builds, nil); err != nil {
+			return err
 		}
 
 		latestBuild := builds.Builds[len(builds.Builds)-1]
-		root := paperProjectVersion{
+		root := PaperVersion{
 			MCTarget:  version,
 			BuildDate: latestBuild.BuildTime,
 			FileURL: []struct {
@@ -57,30 +81,41 @@ func PaperReleases(Project string) (Releases, error) {
 				URL  string
 			}{},
 		}
-
 		for k, v := range latestBuild.Downloads {
 			root.FileURL = append(root.FileURL, struct {
 				Type string
 				Name string
 				URL  string
-			}{k, v.Name, fmt.Sprintf("https://api.papermc.io/v2/projects/%s/versions/%s/builds/%d/downloads/%s", Project, version, latestBuild.Build, v.Name)})
+			}{k, v.Name, fmt.Sprintf(paperProjectGetBuildsURL, paper.ProjectTarget, version, latestBuild.Build, v.Name)})
 		}
-		release[version] = root
+		paper.Versions[version] = root
 	}
 
-	return release, nil
+	return nil
 }
 
-func (w paperProjectVersion) ReleaseType() string    { return "oficial" }
-func (w paperProjectVersion) String() string         { return w.MCTarget }
-func (w paperProjectVersion) ReleaseTime() time.Time { return w.BuildDate }
-func (w paperProjectVersion) Download(folder string) error {
-	for _, asset := range w.FileURL {
+func (ver PaperVersion) SemverVersion() *semver.Version { return semver.New(ver.MCTarget) }
+func (ver PaperVersion) JavaVersion() uint {
+	switch {
+	case semver.New("1.12").LessThan(*ver.SemverVersion()):
+		return 8
+	case semver.New("1.16").LessThan(*ver.SemverVersion()):
+		return 11
+	case semver.New("1.17").LessThan(*ver.SemverVersion()):
+		return 16
+	case semver.New("1.20").LessThan(*ver.SemverVersion()):
+		return 17
+	default:
+		return 21
+	}
+}
+func (ver PaperVersion) Install(path string) error {
+	for _, asset := range ver.FileURL {
 		var name string
 		if name = asset.Name; asset.Type == "application" {
 			name = ServerMain
 		}
-		if _, err := request.SaveAs(asset.URL, filepath.Join(folder, name), nil); err != nil {
+		if _, err := request.SaveAs(asset.URL, filepath.Join(path, name), nil); err != nil {
 			return err
 		}
 	}

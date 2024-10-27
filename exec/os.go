@@ -34,8 +34,8 @@ func (p *dynamicWrite) Write(w []byte) (int, error) {
 }
 
 // Check if binary exists
-func LocalBinExist(name string) bool {
-	binpath, err := exec.LookPath(name)
+func LocalBinExist(processConfig ProcExec) bool {
+	binpath, err := exec.LookPath(processConfig.Arguments[0])
 	return err == nil && binpath != ""
 }
 

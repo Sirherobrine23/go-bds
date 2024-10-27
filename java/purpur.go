@@ -4,19 +4,27 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
+	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
-type purpurVersion struct {
-	MCStarget string    `json:"version"`
-	BuildDate time.Time `json:"build"`
-	FileURL   string    `json:"fileUrl"`
+var (
+	_ VersionSearch = PurpurSearch{}
+	_ Version       = PurpurVersion{}
+)
+
+type PurpurSearch struct {
+	Version map[string]PurpurVersion
 }
 
-// Get all releases from purpur server
-func PurpurReleases() (Releases, error) {
+type PurpurVersion struct {
+	MCStarget string `json:"version"`
+	FileURL   string `json:"fileUrl"`
+}
+
+func (purpur PurpurSearch) list() error {
+	purpur.Version = make(map[string]PurpurVersion)
 	type projectVersions struct {
 		Versions []string `json:"versions"`
 	}
@@ -30,14 +38,13 @@ func PurpurReleases() (Releases, error) {
 
 	versions, _, err := request.JSON[projectVersions]("https://api.purpurmc.org/v2/purpur", nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	mapInfo := make(Releases)
 	for _, version := range versions.Versions {
 		buildInfo, _, err := request.JSON[projectBuilds](fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s", version), nil)
 		if err != nil {
-			return mapInfo, err
+			return err
 		}
 		resBuild, _, err := request.JSON[struct {
 			MCStarget string `json:"version"`
@@ -46,13 +53,13 @@ func PurpurReleases() (Releases, error) {
 			Build     string `json:"build"`
 		}](fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s", version, buildInfo.Builds.Latest), nil)
 		if err != nil {
-			return mapInfo, err
+			return err
 		}
 
 		if strings.ToUpper(resBuild.Result) != "SUCCESS" {
 			for _, build := range buildInfo.Builds.All {
 				if _, err = request.JSONDo(fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s", version, build), &resBuild, nil); err != nil {
-					return mapInfo, err
+					return err
 				}
 				if strings.ToUpper(resBuild.Result) == "SUCCESS" {
 					break
@@ -61,20 +68,32 @@ func PurpurReleases() (Releases, error) {
 		}
 
 		if strings.ToUpper(resBuild.Result) == "SUCCESS" {
-			mapInfo[version] = purpurVersion{
+			purpur.Version[version] = PurpurVersion{
 				MCStarget: resBuild.MCStarget,
-				BuildDate: time.UnixMilli(resBuild.Time),
 				FileURL:   fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s/download", version, resBuild.Build),
 			}
 		}
 	}
-	return mapInfo, nil
+
+	return nil
 }
 
-func (w purpurVersion) ReleaseType() string    { return "oficial" }
-func (w purpurVersion) String() string         { return w.MCStarget }
-func (w purpurVersion) ReleaseTime() time.Time { return w.BuildDate }
-func (w purpurVersion) Download(folder string) error {
-	_, err := request.SaveAs(w.FileURL, filepath.Join(folder, ServerMain), nil)
+func (purpur PurpurSearch) Find(Version string) (Version, error) {
+	if err := purpur.list(); err != nil {
+		return nil, err
+	}
+
+	if ver, ok := purpur.Version[Version]; ok {
+		return ver, nil
+	}
+	return nil, ErrNoFoundVersion
+}
+
+func (ver PurpurVersion) JavaVersion() uint {
+	return PaperVersion{MCTarget: ver.MCStarget}.JavaVersion()
+}
+func (ver PurpurVersion) SemverVersion() *semver.Version { return semver.New(ver.MCStarget) }
+func (ver PurpurVersion) Install(path string) error {
+	_, err := request.SaveAs(ver.FileURL, filepath.Join(path, ServerMain), nil)
 	return err
 }

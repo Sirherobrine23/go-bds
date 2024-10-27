@@ -19,6 +19,19 @@ This is just a base package, without cli or even http api, for this you must cre
       - `folia`
       - `velocity`
 
+## System
+
+|    System     | Overlayfs/Mergefs  |   Bedrock Server   |    Java Server     |
+| :-----------: | :----------------: | :----------------: | :----------------: |
+|    Windows    |        :x:         | :heavy_check_mark: | :heavy_check_mark: |
+|     Linux     | :heavy_check_mark: |     :warning:      | :heavy_check_mark: |
+|     MacOS     |  :traffic_light:   |        :x:         | :heavy_check_mark: |
+|  *BSD Family  |  :traffic_light:   |        :x:         |  :traffic_light:   |
+| Solaris/SunOS |        :x:         |        :x:         |  :traffic_light:   |
+
+1. The Linux server will be emulated if possible if the architecture is different from amd64/x86_64
+2. BSD Family require tests for Java server
+
 ## System packages
 
 We implement system calls to set up filesystems of the type or similar to Linux's OverlayFS on possible platforms and in a way that is mostly compatible with servers, and another tools to maneger server easyly.

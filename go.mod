@@ -3,7 +3,6 @@ module sirherobrine23.com.br/go-bds/go-bds
 go 1.23
 
 require (
-	code.gitea.io/sdk/gitea v0.19.0
 	github.com/PuerkitoBio/goquery v1.9.2
 	github.com/gookit/properties v0.3.0
 	github.com/ulikunitz/xz v0.5.12
@@ -14,16 +13,12 @@ require (
 require (
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/davidmz/go-pageant v1.0.2 // indirect
-	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/gookit/goutil v0.6.16 // indirect
-	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/term v0.23.0 // indirect

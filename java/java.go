@@ -2,57 +2,87 @@ package java
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
+	"runtime"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
+	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/java/adoptium"
+	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 )
 
 var (
-	ErrInstallServer error = errors.New("install server fist")
-	ErrNoServer      error = errors.New("cannot find server")
+	ErrInstallServer  error = errors.New("install server fist")
+	ErrNoServer       error = errors.New("cannot find server")
+	ErrNoFoundVersion error = errors.New("version not found")
 )
 
 const ServerMain string = "server.jar"
 
+type Version interface {
+	Install(path string) error      // Install server in path
+	JavaVersion() uint              // Java version to Run server
+	SemverVersion() *semver.Version // Platform version
+}
+
+type VersionSearch interface {
+	Find(version string) (Version, error) // Find version and return Installer, if not exists return Version not found
+}
+
 // Global struct to Minecraft java server to run .jar
 type JavaServer struct {
-	JavaFolders string `json:"javaFolders"` // Java bins, if blank use local java
-	JavaVersion uint   `json:"javaVersion"` // Java version to run
-	SavePath    string `json:"savePath"`    // Folder path to save server run data
+	VersionsFolder    string        // Folder with versions
+	JVMVersionsFolder string        // Folder with versions
+	VersionsSearch    VersionSearch // Struct Find server, default is from Mojang
+	Version           string        // Version to run server
+	Path              string        // Server folder to run
 
-	SeverProc exec.Proc // Interface to process running
+	OverlayConfig *overlayfs.Overlayfs // Config to overlayfs, go-bds replace necesarys configs
+
+	ServerProc exec.Proc // Interface to process running
 }
 
 // Start server
-//
-// On run this function YOU auto accept minecraft EULA https://www.minecraft.net/en-us/eula
 func (w *JavaServer) Start() error {
-	if _, err := os.Stat(filepath.Join(w.SavePath, ServerMain)); os.IsNotExist(err) {
-		return ErrInstallServer
-	}
-	w.SeverProc = &exec.Os{}
-	var opts = exec.ProcExec{
-		Arguments: []string{"java", "-jar", ServerMain, "--nogui"},
-		Cwd:       w.SavePath,
+	if w.VersionsSearch == nil {
+		w.VersionsSearch = &MojangSearch{}
 	}
 
-	if w.JavaFolders != "" {
-		opts.Arguments[0] = w.JavaFolders
-	} else {
-		javaRootFolder := filepath.Join(w.JavaFolders, strconv.FormatInt(int64(w.JavaVersion), 10))
-		if err := adoptium.InstallLatest(w.JavaVersion, javaRootFolder); err != nil {
-			return err
-		}
-		opts.Arguments[0] = filepath.Join(javaRootFolder, "bin/java")
-	}
-
-	// Write eula=true
-	os.WriteFile(filepath.Join(w.SavePath, "eula.txt"), []byte("eula=true"), 0600)
-	if err := w.SeverProc.Start(opts); err != nil {
+	versionPath := filepath.Join(w.VersionsFolder, w.Version)
+	ver, err := w.VersionsSearch.Find(w.Version)
+	if err != nil {
 		return err
 	}
+
+	if _, err := os.Stat(filepath.Join(versionPath, ServerMain)); os.IsNotExist(err) {
+		if err = ver.Install(versionPath); err != nil {
+			return err
+		}
+	}
+
+	var processConfig exec.ProcExec
+	processConfig.Cwd = w.Path
+	processConfig.Arguments = []string{"java", "-jar", ServerMain, "-nogui"}
+
+	if !exec.LocalBinExist(processConfig) {
+		javaRoot := filepath.Join(w.JVMVersionsFolder, fmt.Sprint(ver.JavaVersion()))
+		if processConfig.Arguments[0] = filepath.Join(javaRoot, "bin/java"); runtime.GOOS == "windows" {
+			processConfig.Arguments[0] += ".exe"
+		}
+
+		if _, err := os.Stat(processConfig.Arguments[0]); os.IsNotExist(err) {
+			if err := adoptium.InstallLatest(ver.JavaVersion(), javaRoot); err != nil {
+				return err
+			}
+		}
+	}
+
+	w.ServerProc = &exec.Os{}
+	if err := w.ServerProc.Start(processConfig); err != nil {
+		return err
+	}
+
 	return nil
 }
