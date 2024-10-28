@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,7 +13,6 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/internal/fsdiff"
 	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 )
 
@@ -138,33 +138,70 @@ func (server *Mojang) Start() error {
 			if err := os.CopyFS(server.Path, os.DirFS(versionRoot)); err != nil {
 				return err
 			}
-		} else { // Get diff from files and copy
-			filesNode, err := fsdiff.Diff(os.DirFS(versionRoot), os.DirFS(server.Path))
-			if err != nil {
+		} else {
+			type fileBackup struct {
+				name    string
+				content []byte
+			}
+
+			files := []fileBackup{
+				{"server.properties", nil},
+				{"permissions.json", nil},
+				{"allowlist.json", nil},
+			}
+			for fileIndex := range files {
+				files[fileIndex].content, _ = os.ReadFile(filepath.Join(server.Path, files[fileIndex].name))
+			}
+
+			CopyFS := func(dir string, fsys fs.FS) error {
+				return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+					if err != nil {
+						return err
+					}
+
+					fpath, err := filepath.Localize(path)
+					if err != nil {
+						return err
+					}
+					newPath := filepath.Join(dir, fpath)
+					if d.IsDir() {
+						return os.MkdirAll(newPath, 0777)
+					} else if !d.Type().IsRegular() {
+						return nil
+					}
+
+					r, err := fsys.Open(path)
+					if err != nil {
+						return err
+					}
+					defer r.Close()
+					info, err := r.Stat()
+					if err != nil {
+						return err
+					}
+					w, err := os.OpenFile(newPath, os.O_CREATE|os.O_EXCL|os.O_TRUNC|os.O_WRONLY, 0666|info.Mode()&0777)
+					if err != nil {
+						return err
+					}
+
+					if _, err := io.Copy(w, r); err != nil {
+						w.Close()
+						return &fs.PathError{Op: "Copy", Path: newPath, Err: err}
+					}
+					return w.Close()
+				})
+			}
+
+			if err := CopyFS(server.Path, os.DirFS(versionRoot)); err != nil {
 				return err
 			}
 
-			for _, path := range filesNode {
-				stat, _ := os.Stat(filepath.Join(versionRoot, path))
-				os.MkdirAll(filepath.Join(server.Path, filepath.Dir(path)), stat.Mode()) // Create folder if not exists
-
-				// Create
-				v1File, _ := os.Open(filepath.Join(versionRoot, path))
-				defer v1File.Close()
-
-				// Open
-				v2File, err := os.OpenFile(filepath.Join(server.Path, path), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, stat.Mode())
-				if err != nil {
-					return err
+			for fileIndex := range files {
+				if len(files[fileIndex].content) > 0 {
+					if err := os.WriteFile(filepath.Join(server.Path, files[fileIndex].name), files[fileIndex].content, 0); err != nil {
+						return err
+					}
 				}
-				defer v2File.Close()
-
-				// Copy content
-				if _, err := io.Copy(v2File, v1File); err != nil {
-					return err
-				}
-				v1File.Close()
-				v2File.Close()
 			}
 		}
 	}
