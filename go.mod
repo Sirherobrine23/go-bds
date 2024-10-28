@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/PuerkitoBio/goquery v1.9.2
+	github.com/aegistudio/go-winfsp v1.0.0
 	github.com/gookit/properties v0.3.0
 	github.com/ulikunitz/xz v0.5.12
 	golang.org/x/net v0.28.0
@@ -16,6 +17,7 @@ require (
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/gookit/goutil v0.6.16 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect

@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !(linux || windows)
 
 // Overlayfs not avaible to current platform
 package overlayfs

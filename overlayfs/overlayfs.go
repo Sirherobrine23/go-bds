@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")
-	ErrNoCGOAvaible      error = errors.New("cgo is disabled to process syscall's")
+	ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")                // Current system ou another variables cannot mount merge filesystem or similar
+	ErrNoCGOAvaible      error = errors.New("cgo is disabled to process syscall's") // Cannot mount mergefs/overlayfs with cgo disabled
+	ErrMounted           error = errors.New("current path is mounted")              // Path target current as mounted
 )
 
 type Overlayfs struct {
@@ -17,6 +18,8 @@ type Overlayfs struct {
 	Upper   string   // Folder to write modifications, blank to read-only
 	Lower   []string // Folders layers, read-only
 	Workdir string   // Folder to write temporary files, only linux required
+
+	internal any
 }
 
 // Return new Overlayfs

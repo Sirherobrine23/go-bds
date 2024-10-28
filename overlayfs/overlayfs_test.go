@@ -14,7 +14,7 @@ import (
 )
 
 func TestOverlayMount(t *testing.T) {
-	if runtime.GOOS != "linux" {
+	if !(runtime.GOOS == "linux" || runtime.GOOS == "windows") {
 		t.Skip("Test not supported to current platform")
 		return
 	}
@@ -36,6 +36,7 @@ func TestOverlayMount(t *testing.T) {
 	for _, k := range append(overlayFS.Lower, overlayFS.Workdir, overlayFS.Target, overlayFS.Upper) {
 		os.MkdirAll(k, 0600)
 	}
+
 	config, _ := json.MarshalIndent(overlayFS, "", "  ")
 	t.Log(string(config))
 
