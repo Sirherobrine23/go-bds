@@ -3,8 +3,6 @@ package overlayfs
 import (
 	"errors"
 	"io/fs"
-
-	"sirherobrine23.com.br/go-bds/go-bds/overlayfs/mergefs"
 )
 
 var (
@@ -19,8 +17,11 @@ type Overlayfs struct {
 	Lower   []string // Folders layers, read-only
 	Workdir string   // Folder to write temporary files, only linux required
 
-	internal any
+	ProcessInternal any
 }
+
+// Get new [io/fs.FS] from layers with MergeFS style directly from Golang
+func (overlay *Overlayfs) MergeFS() fs.FS { return NewFS(overlay) }
 
 // Return new Overlayfs
 //
@@ -36,9 +37,4 @@ func NewOverlayFS(TargetFolder, TopLayer, Workdir string, LowLayers ...string) *
 		Upper:   TopLayer,
 		Workdir: Workdir,
 	}
-}
-
-// Get new [io/fs.FS] from layers with MergeFS style directly from Golang
-func (w Overlayfs) MergeFS() fs.FS {
-	return mergefs.NewFS(mergefs.NewMergefs(w.Upper, w.Lower...))
 }

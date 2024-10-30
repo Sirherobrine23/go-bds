@@ -60,12 +60,6 @@ func (server *JavaServer) Start() error {
 		return err
 	}
 
-	if _, err := os.Stat(filepath.Join(versionRoot, ServerMain)); os.IsNotExist(err) {
-		if err = ver.Install(versionRoot); err != nil {
-			return err
-		}
-	}
-
 	var processConfig exec.ProcExec
 	processConfig.Cwd = server.Path
 	processConfig.Arguments = []string{"java", "-jar", ServerMain, "-nogui"}
@@ -93,11 +87,9 @@ func (server *JavaServer) Start() error {
 	}
 
 	// Mount overlayfs if avaible
-	if err := server.OverlayConfig.Mount(); err != nil {
-		if err != overlayfs.ErrNotOverlayAvaible {
-			return err // Return if another any error
-		}
-
+	if err := server.OverlayConfig.Mount(); err != nil && err != overlayfs.ErrNotOverlayAvaible {
+		return err // Return if another any error
+	} else if err == overlayfs.ErrNotOverlayAvaible {
 		CopyFS := func(dir string, fsys fs.FS) error {
 			return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
@@ -137,8 +129,21 @@ func (server *JavaServer) Start() error {
 			})
 		}
 
+		if _, err := os.Stat(filepath.Join(versionRoot, ServerMain)); os.IsNotExist(err) {
+			if err = ver.Install(versionRoot); err != nil {
+				return err
+			}
+		}
+
 		if err := CopyFS(server.Path, server.OverlayConfig.MergeFS()); err != nil {
 			return err
+		}
+	} else {
+		// Install server before mount java bins
+		if _, err := os.Stat(filepath.Join(versionRoot, ServerMain)); os.IsNotExist(err) {
+			if err = ver.Install(versionRoot); err != nil {
+				return err
+			}
 		}
 	}
 

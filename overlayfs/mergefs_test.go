@@ -1,4 +1,4 @@
-package mergefs
+package overlayfs
 
 import (
 	"bytes"
@@ -20,14 +20,14 @@ func TestMergefs(t *testing.T) {
 	t.Logf("Temp folder %q", tmpFolder)
 	defer os.RemoveAll(tmpFolder)
 
-	var mergeFolders Mergefs
-	mergeFolders.TopLayer = filepath.Join(tmpFolder, "top")
-	mergeFolders.LowerLayers = []string{
+	var mergeFolders Overlayfs
+	mergeFolders.Upper = filepath.Join(tmpFolder, "top")
+	mergeFolders.Lower = []string{
 		filepath.Join(tmpFolder, "low1"),
 		filepath.Join(tmpFolder, "low2"),
 		filepath.Join(tmpFolder, "gotFolder"),
 	}
-	for _, f := range append(mergeFolders.LowerLayers, mergeFolders.TopLayer) {
+	for _, f := range append(mergeFolders.Lower, mergeFolders.Upper) {
 		os.MkdirAll(f, 0666)
 	}
 
@@ -37,7 +37,7 @@ func TestMergefs(t *testing.T) {
 	}
 	files := []locations{}
 	for range rand.IntN(128) {
-		rootLow := mergeFolders.LowerLayers[rand.IntN(len(mergeFolders.LowerLayers))]
+		rootLow := mergeFolders.Lower[rand.IntN(len(mergeFolders.Lower))]
 		tempFile, err := os.CreateTemp(rootLow, "*.txt")
 		if err != nil {
 			continue

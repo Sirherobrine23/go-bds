@@ -1,4 +1,4 @@
-package mergefs
+package overlayfs
 
 import (
 	"io/fs"
@@ -15,12 +15,12 @@ var (
 )
 
 type FsMergeFs struct {
-	MergedFS *Mergefs
+	MergedFS *Overlayfs
 	Subdir   string
 }
 
 // Pipe MergeFS to [io/fs.FS]
-func NewFS(fs *Mergefs) fs.FS {
+func NewFS(fs *Overlayfs) fs.FS {
 	return &FsMergeFs{
 		MergedFS: fs,
 		Subdir:   "",

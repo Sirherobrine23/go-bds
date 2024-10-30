@@ -93,10 +93,15 @@ func (ver SpigotMC) SemverVersion() *semver.Version { return semver.New(ver.Vers
 func (ver SpigotMC) JavaVersion() uint { return ver.JavaVersions[len(ver.JavaVersions)-1] - 44 }
 
 // Build Spigot localy
+//
+// If InstallPath already has java in the path "InstallPath + bin/java", this version will be used
 func (ver SpigotMC) Install(InstallPath string) error {
 	if _, err := os.Stat(filepath.Join(InstallPath, ServerMain)); err == nil {
-		if err := os.Remove(filepath.Join(InstallPath, ServerMain)); err != nil {
-			return err
+		filesEntrys, _ := os.ReadDir(InstallPath)
+		for _, file := range filesEntrys {
+			if !file.IsDir() && strings.HasSuffix(file.Name(), ".jar") {
+				os.Remove(filepath.Join(InstallPath, file.Name()))
+			}
 		}
 	}
 
@@ -121,7 +126,10 @@ func (ver SpigotMC) Install(InstallPath string) error {
 		Arguments: []string{"java", "-jar", "SpigotBuildTools.jar", "--rev", ver.Version, "--output-dir", InstallPath},
 	}
 
-	if !exec.LocalBinExist(execOpt) {
+	preInstalledJava := filepath.Join(InstallPath, "bin/java")
+	if _, err := os.Stat(preInstalledJava); err == nil {
+		execOpt.Arguments[0] = preInstalledJava // Set installed java
+	} else if !exec.LocalBinExist(execOpt) {
 		javaFolder := filepath.Join(BuildDir, "java")
 		if execOpt.Arguments[0] = filepath.Join(javaFolder, "bin/java"); runtime.GOOS == "windows" {
 			execOpt.Arguments[0] += ".exe"
