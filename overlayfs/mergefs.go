@@ -30,12 +30,27 @@ func (merge Overlayfs) MkdirAll(name string, perm fs.FileMode) error {
 
 // Stat returns a [FileInfo] describing the named file. If there is an error, it will be of type [*PathError].
 func (merge Overlayfs) Stat(name string) (os.FileInfo, error) {
-	file, err := merge.Open(name)
-	if err != nil {
-		return nil, err
+	if (name == "" || name == "." || name == "/") {
+		if merge.Upper == "" {
+			return nil, &fs.PathError{Op: "readdir", Path: filepath.Clean(name), Err: fs.ErrPermission}
+		}
+		return os.Stat(merge.Upper)
 	}
-	defer file.Close()
-	return file.Stat()
+
+	folders := append(merge.Lower, merge.Upper)
+	slices.Reverse(folders)
+	for _, folderPath := range folders {
+		if folderPath == "" {
+			continue
+		}
+
+		s, err := os.Stat(filepath.Join(folderPath, name))
+		if err != nil {
+			continue
+		}
+		return s, nil
+	}
+	return nil, &fs.PathError{Op: "readdir", Path: filepath.Clean(name), Err: fs.ErrNotExist}
 }
 
 // Create creates or truncates the named file. If the file already exists, it is truncated. If the file does not exist, it is created with mode 0o666 (before umask). If successful, methods on the returned File can be used for I/O; the associated file descriptor has mode O_RDWR. If there is an error, it will be of type *PathError.

@@ -2,85 +2,162 @@ package overlayfs
 
 import (
 	"bytes"
-	crypto "crypto/rand"
-	"encoding/hex"
-	"math/rand/v2"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestMergefs(t *testing.T) {
-	tmpFolder, err := os.MkdirTemp(os.TempDir(), "testMergefs_*")
+func TestGoMergefs(t *testing.T) {
+	root, err := os.MkdirTemp(t.TempDir(), "mergefs*")
 	if err != nil {
-		t.Skipf("Cannot make temporary folder to test Mergefs, error: %s", err)
-		t.SkipNow()
+		t.Skipf("Cannot make root folder to test go-mergefs, error: %s", err.Error())
 		return
 	}
-	t.Logf("Temp folder %q", tmpFolder)
-	defer os.RemoveAll(tmpFolder)
 
-	var mergeFolders Overlayfs
-	mergeFolders.Upper = filepath.Join(tmpFolder, "top")
-	mergeFolders.Lower = []string{
-		filepath.Join(tmpFolder, "low1"),
-		filepath.Join(tmpFolder, "low2"),
-		filepath.Join(tmpFolder, "gotFolder"),
-	}
-	for _, f := range append(mergeFolders.Lower, mergeFolders.Upper) {
-		os.MkdirAll(f, 0666)
-	}
-
-	type locations struct {
-		Root, File string
-		Content    []byte
-	}
-	files := []locations{}
-	for range rand.IntN(128) {
-		rootLow := mergeFolders.Lower[rand.IntN(len(mergeFolders.Lower))]
-		tempFile, err := os.CreateTemp(rootLow, "*.txt")
-		if err != nil {
-			continue
+	t.Run("Read-Only", func(t *testing.T) {
+		Mergefs := NewOverlayFS("", "", "", filepath.Join(root, "ronly/low1"), filepath.Join(root, "ronly/low2"))
+		for _, mk := range Mergefs.Lower {
+			if err := os.MkdirAll(mk, 0777); err != nil {
+				t.Skipf("cannot create folder %q, skiped because cannot make folders, error: %s", mk, err.Error())
+				return
+			}
 		}
-		content := make([]byte, 256)
-		crypto.Read(content)
-		files = append(files, locations{
-			File:    filepath.Base(tempFile.Name()),
-			Root:    rootLow,
-			Content: content,
-		})
-		os.WriteFile(tempFile.Name(), content, 0666)
-	}
 
-	t.Run("Stat", func(t *testing.T) {
-		_, err = mergeFolders.Stat("")
-		if !os.IsNotExist(err) {
-			t.Error(err)
-			return
+		contentBody, FilesList := []byte("Golang is best"), []string{
+			".",                             // Tentar pegar a camda Upper
+			"file1.txt",                     // Arquivo na Root
+			"file2.txt",                     // Secondo aquivo na Root
+			"long/long/file3.txt",           // Terceiro arquivo, mas com caminho longo
+			"long/long/longshort/file4.txt", // Quarto arquivo, mas com caminho longo
 		}
-		for range len(files) / 2 {
-			randFile := files[rand.IntN(len(files))]
-			t.Run(randFile.File, func(t *testing.T) {
-				_, err = mergeFolders.Stat(randFile.File)
-				if err != nil {
+
+		for fileIndex := range FilesList {
+			if fileIndex == 0 {
+				continue
+			}
+			rootPath := Mergefs.Lower[0]
+			if (fileIndex % 2) == 0 {
+				rootPath = Mergefs.Lower[1]
+			}
+
+			// Create dir if not exists
+			if dir := filepath.Dir(FilesList[fileIndex]); dir != "" {
+				if _, err := os.Stat(filepath.Join(rootPath, dir)); err != nil {
+					if err = os.MkdirAll(filepath.Join(rootPath, dir), 0777); err != nil {
+						t.Error("cannot make files or folder to test")
+						return
+					}
+				}
+			}
+
+			if err := os.WriteFile(filepath.Join(rootPath, FilesList[fileIndex]), contentBody, 0777); err != nil {
+				t.Error("cannot make files or folder to test", err)
+				return
+			}
+		}
+
+		for _, filePath := range FilesList {
+			// Stat
+			t.Run(fmt.Sprintf("Stat=%q", filePath), func(t *testing.T) {
+				_, err := Mergefs.Stat(filePath)
+				if filePath == FilesList[0] && err != nil {
+					if !os.IsPermission(err) {
+						t.Error("Stat required return Bad Permission to read-only")
+					}
+				} else if err != nil {
 					t.Error(err)
 					return
 				}
 			})
+
+			if filePath != FilesList[0] {
+				t.Run(fmt.Sprintf("Read=%q", filePath), func(t *testing.T) {
+					content, err := Mergefs.ReadFile(filePath)
+					if err != nil {
+						t.Error(err)
+						return
+					} else if !bytes.Equal(content, contentBody) {
+						t.Error("The file body are not the same")
+						return
+					}
+				})
+			}
 		}
 	})
 
-	t.Run("Read", func(t *testing.T) {
-		for range len(files) / 2 {
-			randFile := files[rand.IntN(len(files))]
-			data, err := mergeFolders.ReadFile(randFile.File)
-			if err != nil {
-				t.Error(err)
-				return
-			} else if !bytes.Equal(data, randFile.Content) {
-				t.Errorf("Bytes not is equal, Required %q, From Mergefs %q", hex.EncodeToString(randFile.Content), hex.EncodeToString(data))
+	t.Run("Read-Write", func(t *testing.T) {
+		Mergefs := NewOverlayFS("", filepath.Join(root, "rw/up"), "", filepath.Join(root, "rw/low1"), filepath.Join(root, "rw/low2"))
+		for _, mk := range append(Mergefs.Lower, Mergefs.Upper) {
+			if err := os.MkdirAll(mk, 0777); err != nil {
+				t.Skipf("cannot create folder %q, skiped because cannot make folders, error: %s", mk, err.Error())
 				return
 			}
+		}
+
+		type RW struct {
+			path        string
+			P1, P2 []byte
+		}
+
+		writeFile := []RW{
+			{"fileLong/file1.txt", []byte("golang made"), []byte("designed by Google")},
+			{"fileLong/longshort/file2.txt", []byte("designed by Google"), []byte("google.com")},
+			{"root3.txt", []byte("youtube.com"), []byte("hangouts.google.com")},
+			{"short/file4.txt", []byte("designed by Google"), []byte("google.com")},
+			{"world/wide/web/file5.txt", []byte("designed by Google"), []byte("google.com")},
+			{"search/world/wide/web/file6.txt", []byte("designed by Google"), []byte("google.com")},
+			{"search/world/wide/web/file7.txt", []byte("designed by Google"), []byte("google.com")},
+			{"minecraft/java/bedrock/global/maneger8.txt", []byte("designed by Google"), []byte("google.com")},
+		}
+
+		for _, fileToMake := range writeFile {
+			t.Run(fileToMake.path, func(t *testing.T) {
+				t.Run("P1", func(t *testing.T) {
+					if dir := filepath.Dir(fileToMake.path); dir != "" {
+						if _, err := Mergefs.Stat(fileToMake.path); os.IsNotExist(err) {
+							if err = Mergefs.MkdirAll(dir, 0777); err != nil {
+								t.Error(err)
+								return
+							}
+						}
+					}
+
+					if err := Mergefs.WriteFile(fileToMake.path, fileToMake.P1, 0777); err != nil {
+						t.Error(err)
+					}
+
+					content, err := Mergefs.ReadFile(fileToMake.path)
+					if err != nil {
+						t.Error(err)
+						return
+					} else if !bytes.Equal(content, fileToMake.P1) {
+						t.Error("Body mismatch")
+					}
+				})
+				t.Run("P2", func(t *testing.T) {
+					if dir := filepath.Dir(fileToMake.path); dir != "" {
+						if _, err := Mergefs.Stat(fileToMake.path); os.IsNotExist(err) {
+							if err = Mergefs.MkdirAll(dir, 0777); err != nil {
+								t.Error(err)
+								return
+							}
+						}
+					}
+
+					if err := Mergefs.WriteFile(fileToMake.path, fileToMake.P2, 0777); err != nil {
+						t.Error(err)
+					}
+
+					content, err := Mergefs.ReadFile(fileToMake.path)
+					if err != nil {
+						t.Error(err)
+						return
+					} else if !bytes.Equal(content, fileToMake.P2) {
+						t.Error("Body mismatch")
+					}
+				})
+			})
 		}
 	})
 }
