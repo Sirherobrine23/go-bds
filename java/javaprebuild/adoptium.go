@@ -1,5 +1,5 @@
 // Install java with builds from adoptium
-package adoptium
+package javaprebuild
 
 import "errors"
 

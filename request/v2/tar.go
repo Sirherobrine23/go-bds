@@ -2,16 +2,13 @@ package request
 
 import (
 	"archive/tar"
-	"compress/bzip2"
-	"compress/gzip"
-	"compress/zlib"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/ulikunitz/xz"
+	"sirherobrine23.com.br/go-bds/go-bds/descompress"
 )
 
 type ExtractOptions struct {
@@ -38,26 +35,14 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 	}
 	defer res.Body.Close()
 
-	var tarball io.Reader = res.Body
-	if TarOption.Gzip || strings.Contains(res.Header.Get("Content-Type"), "application/gzip") {
-		if tarball, err = gzip.NewReader(res.Body); err != nil {
-			return err
-		}
-		defer tarball.(*gzip.Reader).Close()
-	} else if TarOption.Xz || strings.Contains(res.Header.Get("Content-Type"), "application/x-xz") {
-		if tarball, err = xz.NewReader(res.Body); err != nil {
-			return err
-		}
-	} else if TarOption.Zlib || strings.Contains(res.Header.Get("Content-Type"), "application/zlib") {
-		if tarball, err = zlib.NewReader(res.Body); err != nil {
-			return err
-		}
-		defer tarball.(io.ReadCloser).Close()
-	} else if TarOption.Bzip2 || strings.Contains(res.Header.Get("Content-Type"), "application/bzip2") || strings.Contains(res.Header.Get("Content-Type"), "application/x-bzip2") {
-		tarball = bzip2.NewReader(res.Body)
+	descompressed, err := descompress.NewDescompress(res.Body)
+	if err != nil {
+		return err
+	} else if closer, ok := descompressed.(io.Closer); ok {
+		defer closer.Close()
 	}
 
-	tarReader := tar.NewReader(tarball)
+	tarReader := tar.NewReader(descompressed)
 	for {
 		head, err := tarReader.Next()
 		if err != nil {

@@ -30,7 +30,7 @@ func (merge Overlayfs) MkdirAll(name string, perm fs.FileMode) error {
 
 // Stat returns a [FileInfo] describing the named file. If there is an error, it will be of type [*PathError].
 func (merge Overlayfs) Stat(name string) (os.FileInfo, error) {
-	if (name == "" || name == "." || name == "/") {
+	if name == "" || name == "." || name == "/" {
 		if merge.Upper == "" {
 			return nil, &fs.PathError{Op: "readdir", Path: filepath.Clean(name), Err: fs.ErrPermission}
 		}

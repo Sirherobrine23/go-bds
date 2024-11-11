@@ -11,7 +11,7 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
-	"sirherobrine23.com.br/go-bds/go-bds/java/adoptium"
+	"sirherobrine23.com.br/go-bds/go-bds/java/javaprebuild"
 	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 )
 
@@ -74,7 +74,7 @@ func (server *JavaServer) Start() error {
 
 	javaRoot := filepath.Join(server.JVMVersionsFolder, fmt.Sprint(ver.JavaVersion()))
 	if _, err := os.Stat(processConfig.Arguments[0]); os.IsNotExist(err) {
-		if err := adoptium.InstallLatest(ver.JavaVersion(), javaRoot); err != nil && err != adoptium.ErrSystem {
+		if err := javaprebuild.InstallLatest(ver.JavaVersion(), javaRoot); err != nil && err != javaprebuild.ErrSystem {
 			return err
 		}
 	}

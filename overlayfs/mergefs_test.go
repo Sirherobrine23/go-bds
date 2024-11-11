@@ -96,7 +96,7 @@ func TestGoMergefs(t *testing.T) {
 		}
 
 		type RW struct {
-			path        string
+			path   string
 			P1, P2 []byte
 		}
 
