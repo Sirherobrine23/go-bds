@@ -66,6 +66,10 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 			continue
 		} else if !mode.IsRegular() {
 			continue
+		} else if _, err := os.Stat(filepath.Dir(rootFile)); os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(rootFile), mode.Perm()); err != nil {
+				return err
+			}
 		}
 		localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode.Perm())
 		if err != nil {
