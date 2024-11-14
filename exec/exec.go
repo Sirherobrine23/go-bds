@@ -10,6 +10,7 @@ var (
 	ErrNoRunning error = errors.New("process nothing running") // Process not started or not running
 )
 
+// Generic struct to start Process
 type ProcExec struct {
 	Arguments   []string          // command and arguments
 	Cwd         string            // Workdir path
@@ -27,4 +28,56 @@ type Proc interface {
 	StdinFork() (io.WriteCloser, error) // Create stdin fork to write
 	StdoutFork() (io.ReadCloser, error) // Create stdout fork to read log
 	StderrFork() (io.ReadCloser, error) // Create stderr fork to read log
+}
+
+// Write to many streamings and if closed remove from list
+type MultiWrite struct {
+	Std []io.Writer
+	Closed bool
+}
+
+func (p *MultiWrite) AddNewWriter(w io.Writer) {
+	if !p.Closed {
+		p.Std = append(p.Std, w)
+	}
+}
+
+func (p *MultiWrite) Close() error {
+	p.Closed = true
+	return nil
+}
+
+func (p *MultiWrite) Write(w []byte) (int, error) {
+	if p.Closed {
+		return 0, io.EOF
+	}
+
+	for indexWriter := range p.Std {
+		if p.Std[indexWriter] == nil {
+			continue
+		}
+		switch _, err := p.Std[indexWriter].Write(w); err {
+		case nil:
+			continue
+		case io.EOF, io.ErrUnexpectedEOF:
+			p.Std[indexWriter] = nil
+		default:
+			return 0, err
+		}
+	}
+
+	for writeIndex := 0; writeIndex < len(p.Std); writeIndex++ {
+		if p.Std[writeIndex] != nil {
+			continue
+		} else if writeIndex == len(p.Std) {
+			p.Std = p.Std[writeIndex-1:]
+		} else if writeIndex == 0 {
+			p.Std = p.Std[1:]
+		} else {
+			p.Std = append(p.Std[writeIndex:], p.Std[writeIndex+1:]...)
+		}
+		writeIndex -= 2
+	}
+
+	return len(w), nil
 }

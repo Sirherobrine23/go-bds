@@ -12,10 +12,9 @@ import (
 )
 
 type ExtractOptions struct {
-	Strip                 int    // Remove n components from file extraction
-	Cwd                   string // Folder output
-	PreserveOwners        bool   // Preserver user and group
-	Gzip, Bzip2, Zlib, Xz bool   // Uncompress
+	Strip          int    // Remove n components from file extraction
+	Cwd            string // Folder output
+	PreserveOwners bool   // Preserver user and group
 }
 
 func stripPath(fpath string, st int) string {
@@ -53,31 +52,26 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 		}
 
 		rootFile := filepath.Join(TarOption.Cwd, stripPath(head.Name, TarOption.Strip))
-		if rootFile == TarOption.Cwd {
+		if rootFile == TarOption.Cwd || head.FileInfo().IsDir() || !head.FileInfo().Mode().IsRegular() {
 			continue
 		}
 
-		fsInfo := head.FileInfo()
-		mode := fsInfo.Mode()
-		if fsInfo.IsDir() {
-			if err := os.MkdirAll(rootFile, mode.Perm()); err != nil {
-				return err
-			}
-			continue
-		} else if !mode.IsRegular() {
-			continue
-		} else if _, err := os.Stat(filepath.Dir(rootFile)); os.IsNotExist(err) {
-			if err := os.MkdirAll(filepath.Dir(rootFile), mode.Perm()); err != nil {
+		if _, err := os.Stat(filepath.Dir(rootFile)); err != nil && os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(rootFile), 0777); err != nil {
 				return err
 			}
 		}
-		localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode.Perm())
+
+		// Open file or create
+		localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0777)
 		if err != nil {
 			return err
-		} else if _, err := io.CopyN(localFile, tarReader, head.Size); err != nil {
-			localFile.Close() // Close file
+		}
+
+		_, err = io.CopyN(localFile, tarReader, head.Size) // Copy data
+		localFile.Close()                                  // Close file
+		if err != nil {
 			return err
 		}
-		localFile.Close() // Close file
 	}
 }

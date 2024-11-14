@@ -19,6 +19,14 @@ import (
 var (
 	ErrVersionNotFound error = errors.New("version not found")                                    // Version not found in remote cache or another storages
 	ErrPlatform        error = errors.New("current platform no supported or cannot emulate arch") // Cannot run server in platform or cannot emulate arch
+
+	// Files or folders to back up Manually
+	FilesToBackup = []string{
+		"server.properties",
+		"permissions.json",
+		"allowlist.json",
+		"worlds/",
+	}
 )
 
 type Mojang struct {
@@ -73,6 +81,19 @@ func (server *Mojang) Close() error {
 func (server *Mojang) Start() error {
 	if server.Version == "" || server.Version == "latest" {
 		return fmt.Errorf("set valid Minecraft Bedrock version to run")
+	} else if server.Path == "" {
+		return fmt.Errorf("set Path to run minecraft server")
+	}
+
+	for _, folder := range []string{
+		server.VersionsPath,
+		server.WorkdirPath,
+		server.UpperPath,
+		server.Path,
+	} {
+		if err := checkCreate(folder); err != nil {
+			return err
+		}
 	}
 
 	// Version folder path
@@ -82,7 +103,7 @@ func (server *Mojang) Start() error {
 	downloadServer := false
 	if entrys, _ := os.ReadDir(versionRoot); len(entrys) == 0 {
 		downloadServer = true
-		if err := os.RemoveAll(versionRoot); !os.IsNotExist(err) {
+		if err := os.RemoveAll(versionRoot); err != nil && !os.IsNotExist(err) {
 			return err // Return if not exist folder
 		}
 	}
@@ -91,8 +112,6 @@ func (server *Mojang) Start() error {
 	if downloadServer {
 		versions, err := FromVersions()
 		if err != nil {
-			return err
-		} else if err := os.MkdirAll(versionRoot, 0666); err != nil {
 			return err
 		}
 
@@ -115,10 +134,6 @@ func (server *Mojang) Start() error {
 		}
 	}
 
-	if server.Path == "" {
-		return fmt.Errorf("set Path to run minecraft server")
-	}
-
 	// Prepare overlayfs/mergefs configuration
 	server.OverlayConfig = &overlayfs.Overlayfs{
 		Target:  server.Path,           // Target path to merged folder
@@ -127,11 +142,13 @@ func (server *Mojang) Start() error {
 		Lower:   []string{versionRoot}, // Only low layer require to run server, base server
 	}
 
+	var serverExecOptions exec.ProcExec
+
 	// Mount overlayfs if avaible
-	if err := server.OverlayConfig.Mount(); err != nil {
-		if err != overlayfs.ErrNotOverlayAvaible {
-			return err // Return if another any error
-		}
+	if err := server.OverlayConfig.Mount(); err == nil {
+		serverExecOptions.Cwd = server.OverlayConfig.Target
+	} else if err == overlayfs.ErrNotOverlayAvaible {
+		serverExecOptions.Cwd = server.Path
 
 		exist := slices.ContainsFunc([]string{filepath.Join(server.Path, "bedrock_server"), filepath.Join(server.Path, "bedrock_server.exe")}, func(rpath string) bool { _, err := os.Stat(rpath); return err == nil })
 		if !exist { // Copy full server
@@ -204,6 +221,8 @@ func (server *Mojang) Start() error {
 				}
 			}
 		}
+	} else {
+		return err
 	}
 
 	var serverExecOptions exec.ProcExec
@@ -256,6 +275,10 @@ func (server *Mojang) Start() error {
 		return ErrPlatform
 	}
 
+	if server.ServerProc == nil {
+		server.ServerProc = &exec.Os{}
+	}
+
 	// Start server
 	return server.ServerProc.Start(serverExecOptions)
 }
@@ -269,5 +292,68 @@ func (server Mojang) Tar(w io.Writer) error {
 	if server.OverlayConfig != nil {
 		return tarball.AddFS(os.DirFS(server.OverlayConfig.Upper))
 	}
-	return tarball.AddFS(os.DirFS(server.Path))
+
+	for _, pathBackup := range FilesToBackup {
+		targetPath := filepath.Join(server.Path, pathBackup)
+		stat, err := os.Stat(targetPath)
+		if err != nil && os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return err
+		} else if stat.IsDir() {
+			err := fs.WalkDir(os.DirFS(targetPath), ".", func(name string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				} else if d.IsDir() {
+					return nil
+				}
+
+				info, err := d.Info()
+				if err != nil {
+					return err
+				} else if !info.Mode().IsRegular() {
+					return nil
+				}
+
+				h, err := tar.FileInfoHeader(info, "")
+				if err != nil {
+					return err
+				}
+				h.Name = filepath.Join(pathBackup, name)
+				if err := tarball.WriteHeader(h); err != nil {
+					return err
+				}
+				f, err := os.Open(name)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				_, err = io.Copy(tarball, f)
+				return err
+			})
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		h, err := tar.FileInfoHeader(stat, "")
+		if err != nil {
+			return err
+		}
+		h.Name = pathBackup
+		if err := tarball.WriteHeader(h); err != nil {
+			return err
+		}
+		f, err := os.Open(targetPath)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(tarball, f)
+		f.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -132,7 +132,7 @@ func FetchFromWebsite() (*MojangHTML, error) {
 
 func GetLatest(a Versions) string {
 	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
-		return !v.IsPreview
+		return v.IsPreview
 	})
 	semver.SortStruct(k)
 	return k[len(k)-1].ServerVersion
@@ -140,7 +140,7 @@ func GetLatest(a Versions) string {
 
 func GetLatestPreview(a Versions) string {
 	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
-		return v.IsPreview
+		return !v.IsPreview
 	})
 	semver.SortStruct(k)
 	return k[len(k)-1].ServerVersion
