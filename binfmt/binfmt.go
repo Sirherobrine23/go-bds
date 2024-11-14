@@ -1,10 +1,11 @@
 package binfmt
 
 import (
-	"bytes"
 	"errors"
+	"io"
 	"os"
 	"slices"
+	"strings"
 )
 
 var (
@@ -12,46 +13,36 @@ var (
 	ErrCannotFind          error = errors.New("cannot find Fmt")
 )
 
-type Fmt struct {
-	AutoEmulate bool   // System auto select emulater
-	Interpreter string // binary path
-	Arch        string // Binary target
-	Offset      int
-	Magic       []byte
-	Mask        []byte
-	Flags       []string
+type Binfmt interface {
+	String() string
+	Arch() string                // Target arch
+	Sys() string                 // Target system
+	SystemSelect() bool          // System select Interpreter automatic
+	ProgramArgs() []string       // Program args
+	Check(r io.ReadSeeker) error // Check if is compatible file stream
 }
 
-func FindByPlatform(target string) (bool, error) {
+func Target(target string) (bool, error) {
 	archs, err := Archs()
 	if err != nil {
 		return false, err
+	} else if strings.Contains(target, "/") {
+		target = strings.Split(target, "/")[1]
 	}
-
-	return slices.ContainsFunc(archs, func(entry *Fmt) bool {
-		switch target {
-		case "linux/amd64", "amd64", "x86_64", "x64":
-			return entry.Arch == "x86_64"
-		case "linux/arm64", "aarch64", "arm64":
-			return entry.Arch == "aarch64" || entry.Arch == "arm64"
-		case "linux/arm", "arm", "armhf", "armel":
-			return entry.Arch == "arm" || entry.Arch == "armhf" || entry.Arch == "armel"
-		}
-		return false
-	}), nil
+	return slices.ContainsFunc(archs, func(entry Binfmt) bool { return entry.Arch() == target }), nil
 }
 
 // Check binary is required emulate software
-func CheckEmulate(binPath string) (bool, error) {
-	fmt, err := GetBinfmtEmulater(binPath)
+func RequireEmulate(binPath string) (bool, error) {
+	fmt, err := ResolveBinfmt(binPath)
 	if err != nil {
 		return false, err
 	}
-	return !fmt.AutoEmulate, nil
+	return !fmt.SystemSelect(), nil
 }
 
 // Check if binary contains in fist offset+Magic
-func GetBinfmtEmulater(binPath string) (*Fmt, error) {
+func ResolveBinfmt(binPath string) (Binfmt, error) {
 	archs, err := Archs()
 	if err != nil {
 		return nil, err
@@ -63,11 +54,11 @@ func GetBinfmtEmulater(binPath string) (*Fmt, error) {
 	defer bin.Close()
 
 	for _, binFmt := range archs {
-		fistBytes := make([]byte, binFmt.Offset+len(binFmt.Magic))
-		if _, err := bin.Read(fistBytes); err != nil {
+		if err := binFmt.Check(bin); err != nil {
+			if err == ErrNoSupportedPlatform {
+				continue
+			}
 			return nil, err
-		} else if bytes.Contains(fistBytes, binFmt.Magic) {
-			return binFmt, nil
 		}
 		bin.Seek(0, 0)
 		continue

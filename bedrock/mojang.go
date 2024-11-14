@@ -23,7 +23,6 @@ type Mojang struct {
 	Path           string // Server folder to run
 
 	OverlayConfig *overlayfs.Overlayfs // Config to overlayfs, go-bds replace necesarys configs
-	RootfsConfig  *exec.Proot          // Config to run in proot
 
 	ServerProc exec.Proc // Server process
 }
@@ -58,7 +57,9 @@ func (server *Mojang) Close() error {
 	return nil
 }
 
-// Start server and mount overlayfs if version not exists localy download
+// Prepare the server and if it doesn't exist it will be downloaded and configured, and if overlayfs is available it will be used.
+//
+// If the server requires emulation, it will be checked whether any program is available on the system, such as qemu or box64
 func (server *Mojang) Start() error {
 	// Get latest version if empty or `latest`
 	if server.Version == "" || strings.ToLower(server.Version) == "latest" {
@@ -92,7 +93,7 @@ func (server *Mojang) Start() error {
 		if version, ok := versions[server.Version]; !ok {
 			return fmt.Errorf("version not found in database")
 		} else if target, ok = version.Platforms[fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)]; !ok {
-			if ok, err = binfmt.FindByPlatform("linux/amd64"); err != nil {
+			if ok, err = binfmt.Target("linux/amd64"); err != nil {
 				return err
 			} else if ok {
 				target, ok = version.Platforms["linux/amd64"]
@@ -112,13 +113,15 @@ func (server *Mojang) Start() error {
 
 	var serverExecOptions exec.ProcExec
 	serverExecOptions.Cwd = server.Path
-	if runtime.GOOS == "windows" {
+
+	switch runtime.GOOS {
+	case "windows":
 		if !(runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
 			return fmt.Errorf("run minecraft server in Windows with x64/amd64 or arm64")
 		}
 		serverExecOptions.Arguments = []string{"bedrock_server.exe"}
 		server.ServerProc = &exec.Os{}
-	} else if runtime.GOOS == "linux" {
+	case "linux", "android":
 		if server.OverlayConfig != nil {
 			if server.OverlayConfig.Upper == "" || server.OverlayConfig.Workdir == "" {
 				return fmt.Errorf("bedrock,overlayfs: require Upper and Workdir to run with overlayfs")
@@ -131,28 +134,30 @@ func (server *Mojang) Start() error {
 			serverExecOptions.Cwd = server.OverlayConfig.Target
 		}
 
-		if server.RootfsConfig != nil {
-			server.ServerProc = server.RootfsConfig
+		useQemu, err := false, error(nil)
+		if useQemu, err = binfmt.RequireEmulate(filepath.Join(versionRoot, "bedrock_server")); err != nil {
+			return err
 		}
 
-		requireQemu, err := binfmt.CheckEmulate(filepath.Join(versionRoot, "bedrock_server"))
-		if err != nil {
-			return err
-		} else if requireQemu {
-			binfmt, err := binfmt.GetBinfmtEmulater(filepath.Join(versionRoot, "bedrock_server"))
-			if err != nil {
+		if useQemu {
+			var emulater binfmt.Binfmt
+			if emulater, err = binfmt.ResolveBinfmt(filepath.Join(versionRoot, "bedrock_server")); err != nil {
 				return err
 			}
+
 			if proot, ok := server.ServerProc.(*exec.Proot); ok {
-				proot.Qemu = binfmt.Interpreter
+				emulaterArgs := emulater.ProgramArgs()
+				proot.Qemu = emulaterArgs[0]
+				serverExecOptions.Arguments = emulaterArgs[1:]
 			} else {
 				server.ServerProc = &exec.Os{}
-				serverExecOptions.Arguments = []string{binfmt.Interpreter}
+				serverExecOptions.Arguments = emulater.ProgramArgs()
 			}
 		}
+
 		serverExecOptions.Arguments = append(serverExecOptions.Arguments, "./bedrock_server")
 		serverExecOptions.Environment = map[string]string{"LD_LIBRARY_PATH": versionRoot}
-	} else {
+	default:
 		return ErrPlatform
 	}
 

@@ -7,7 +7,7 @@ import (
 
 func TestBinfmt(t *testing.T) {
 	goPath, _ := exec.LookPath("go")
-	_, err := GetBinfmtEmulater(goPath)
+	_, err := ResolveBinfmt(goPath)
 	if err == ErrCannotFind || err == ErrNoSupportedPlatform {
 		return
 	} else if err != nil {

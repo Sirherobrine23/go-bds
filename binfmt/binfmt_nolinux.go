@@ -4,4 +4,4 @@
 package binfmt
 
 // List archs registred
-func Archs() ([]*Fmt, error) { return nil, ErrNoSupportedPlatform }
+func Archs() ([]Binfmt, error) { return nil, ErrNoSupportedPlatform }
