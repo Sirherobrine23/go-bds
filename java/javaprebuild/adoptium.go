@@ -6,7 +6,9 @@ package javaprebuild
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"runtime"
+	"strings"
 
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
@@ -42,11 +44,11 @@ func InstallLatest(featVersion uint, installPath string) error {
 				return res, ErrSystem
 			}
 		}
-		extractOptions := request.ExtractOptions{
-			Cwd:   installPath,
-			Strip: 1,
+		extractOptions := request.ExtractOptions{Cwd: installPath, Strip: 1}
+		if strings.ToLower(filepath.Ext(RequestURL)) == ".zip" {
+			return res, request.Zip(RequestURL, extractOptions, nil)
 		}
-		return res, request.Zip(RequestURL, extractOptions, nil)
+		return res, request.Tar(RequestURL, extractOptions, nil)
 	}
 
 	reqOpt.NotFollowRedirect = true

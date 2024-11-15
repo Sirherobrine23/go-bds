@@ -32,7 +32,7 @@ type Proc interface {
 
 // Write to many streamings and if closed remove from list
 type MultiWrite struct {
-	Std []io.Writer
+	Std    []io.Writer
 	Closed bool
 }
 

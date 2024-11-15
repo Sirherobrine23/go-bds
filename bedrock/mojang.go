@@ -41,21 +41,16 @@ type Mojang struct {
 	ServerProc   exec.Proc   // Server process
 
 	OverlayConfig *overlayfs.Overlayfs // Config to overlayfs, go-bds replace necesarys configs
-
-	ServerProc exec.Proc // Server process
 }
 
-func EmptyFolder(fpath string) (bool, error) {
-	if _, err := os.Stat(fpath); os.IsNotExist(err) {
-		return true, nil
-	} else if err != nil {
-		return false, err
+func checkCreate(folder string) error {
+	if _, err := os.Stat(folder); err != nil {
+		if os.IsNotExist(err) {
+			return os.MkdirAll(folder, 0777)
+		}
+		return err
 	}
-	entrys, err := os.ReadDir(fpath)
-	if err != nil {
-		return false, err
-	}
-	return len(entrys) == 0, nil
+	return nil
 }
 
 func (server *Mojang) Close() error {
@@ -75,9 +70,7 @@ func (server *Mojang) Close() error {
 	return nil
 }
 
-// Prepare the server and if it doesn't exist it will be downloaded and configured, and if overlayfs is available it will be used.
-//
-// If the server requires emulation, it will be checked whether any program is available on the system, such as qemu or box64
+// Start server and mount overlayfs if version not exists localy download
 func (server *Mojang) Start() error {
 	if server.Version == "" || server.Version == "latest" {
 		return fmt.Errorf("set valid Minecraft Bedrock version to run")
@@ -115,15 +108,24 @@ func (server *Mojang) Start() error {
 			return err
 		}
 
-		var target VersionPlatform
-		if version, ok := versions[server.Version]; !ok {
-			return fmt.Errorf("version not found in database")
-		} else if target, ok = version.Platforms[fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)]; !ok {
-			if ok, err = binfmt.Target("linux/amd64"); err != nil {
-				return err
-			} else if ok {
-				target, ok = version.Platforms["linux/amd64"]
+		// Golang target
+		osTarget := fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+
+		rootVersion, ok := versions[server.Version]
+		if !ok {
+			return ErrVersionNotFound
+		}
+
+		sysVer, ok := rootVersion.Platforms[osTarget]
+		if !ok {
+			// Check if avaible to emulate server
+			if slices.Contains([]string{"linux", "windows"}, runtime.GOOS) {
+				if archok, _ := binfmt.Target("amd64"); archok {
+					sysVer, ok = rootVersion.Platforms[fmt.Sprintf("%s/amd64", runtime.GOOS)]
+				}
 			}
+
+			// if not possible download to plaftorm and arch return 'ErrPlaftorm' because cannot emulate or another problems
 			if !ok {
 				return ErrPlatform
 			}
@@ -145,11 +147,11 @@ func (server *Mojang) Start() error {
 	var serverExecOptions exec.ProcExec
 
 	// Mount overlayfs if avaible
-	if err := server.OverlayConfig.Mount(); err == nil {
+	switch err := server.OverlayConfig.Mount(); err {
+	case nil:
 		serverExecOptions.Cwd = server.OverlayConfig.Target
-	} else if err == overlayfs.ErrNotOverlayAvaible {
+	case overlayfs.ErrNotOverlayAvaible:
 		serverExecOptions.Cwd = server.Path
-
 		exist := slices.ContainsFunc([]string{filepath.Join(server.Path, "bedrock_server"), filepath.Join(server.Path, "bedrock_server.exe")}, func(rpath string) bool { _, err := os.Stat(rpath); return err == nil })
 		if !exist { // Copy full server
 			if err := os.CopyFS(server.Path, os.DirFS(versionRoot)); err != nil {
@@ -221,12 +223,9 @@ func (server *Mojang) Start() error {
 				}
 			}
 		}
-	} else {
+	default:
 		return err
 	}
-
-	var serverExecOptions exec.ProcExec
-	serverExecOptions.Cwd = server.Path
 
 	switch runtime.GOOS {
 	case "windows":
@@ -236,24 +235,12 @@ func (server *Mojang) Start() error {
 		serverExecOptions.Arguments = []string{"bedrock_server.exe"}
 		server.ServerProc = &exec.Os{}
 	case "linux", "android":
-		if server.OverlayConfig != nil {
-			if server.OverlayConfig.Upper == "" || server.OverlayConfig.Workdir == "" {
-				return fmt.Errorf("bedrock,overlayfs: require Upper and Workdir to run with overlayfs")
-			}
-
-			server.OverlayConfig.Lower = append(server.OverlayConfig.Lower, versionRoot)
-			if err := server.OverlayConfig.Mount(); err != nil {
-				return err
-			}
-			serverExecOptions.Cwd = server.OverlayConfig.Target
-		}
-
-		useQemu, err := false, error(nil)
-		if useQemu, err = binfmt.RequireEmulate(filepath.Join(versionRoot, "bedrock_server")); err != nil {
+		emuluteX64, err := false, error(nil)
+		if emuluteX64, err = binfmt.RequireEmulate(filepath.Join(versionRoot, "bedrock_server")); err != nil {
 			return err
 		}
 
-		if useQemu {
+		if emuluteX64 {
 			var emulater binfmt.Binfmt
 			if emulater, err = binfmt.ResolveBinfmt(filepath.Join(versionRoot, "bedrock_server")); err != nil {
 				return err

@@ -1,6 +1,6 @@
 //go:build linux && arm
 
-package prebuild
+package javaprebuild
 
 import (
 	"fmt"
