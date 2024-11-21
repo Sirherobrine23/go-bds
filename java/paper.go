@@ -22,39 +22,36 @@ var (
 
 type PaperSearch struct {
 	ProjectTarget string
-	Versions      map[string]PaperVersion
+	Version       map[string]PaperVersion
 }
 
 type PaperVersion struct {
 	MCTarget  string
-	BuildDate time.Time
-	JVM       uint
+	JVM       uint // Java version
 	FileURL   []struct {
 		Type, Name, URL string
 	}
 }
 
-func (paper PaperSearch) Find(version string) (Version, error) {
-	if ver, ok := paper.Versions[version]; ok {
-		return ver, nil
+func listPaperProject(ProjectTarget string) (map[string]PaperVersion, error) {
+	if !slices.Contains(paperProjects, ProjectTarget) {
+		return nil, ErrNoFoundVersion
 	}
-	return nil, ErrNoFoundVersion
-}
-
-func (paper *PaperSearch) List() error {
-	if !slices.Contains(paperProjects, paper.ProjectTarget) {
-		return ErrNoFoundVersion
-	}
-	paper.Versions = make(map[string]PaperVersion)
 
 	var projectVersions struct {
 		Versions []string `json:"versions"`
 	}
-	_, err := request.JSONDo(fmt.Sprintf(paperProjectURL, paper.ProjectTarget), &projectVersions, nil)
+	_, err := request.JSONDo(fmt.Sprintf(paperProjectURL, ProjectTarget), &projectVersions, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	mcVersion, err := mojangList()
+	if err != nil {
+		return nil, err
+	}
+
+	Version := make(map[string]PaperVersion)
 	for _, version := range projectVersions.Versions {
 		var builds struct {
 			Builds []struct {
@@ -67,52 +64,69 @@ func (paper *PaperSearch) List() error {
 			} `json:"builds"`
 		}
 
-		if _, err = request.JSONDo(fmt.Sprintf(paperProjectBuildsURL, paper.ProjectTarget, version), &builds, nil); err != nil {
-			return err
+		if _, err = request.JSONDo(fmt.Sprintf(paperProjectBuildsURL, ProjectTarget, version), &builds, nil); err != nil {
+			return nil, err
 		}
 
 		latestBuild := builds.Builds[len(builds.Builds)-1]
 		root := PaperVersion{
 			MCTarget:  version,
-			BuildDate: latestBuild.BuildTime,
 			FileURL: []struct {
 				Type string
 				Name string
 				URL  string
 			}{},
 		}
+
+		if mcVer, ok := mcVersion[version]; ok {
+			root.JVM = mcVer.JVMVersion
+		} else {
+			switch {
+			case semver.New("1.12").LessThan(*semver.New(version)):
+				root.JVM = 8
+			case semver.New("1.16").LessThan(*semver.New(version)):
+				root.JVM = 11
+			case semver.New("1.17").LessThan(*semver.New(version)):
+				root.JVM = 16
+			case semver.New("1.20").LessThan(*semver.New(version)):
+				root.JVM = 17
+			default:
+				root.JVM = 21
+			}
+		}
+
 		for k, v := range latestBuild.Downloads {
 			root.FileURL = append(root.FileURL, struct {
 				Type string
 				Name string
 				URL  string
-			}{k, v.Name, fmt.Sprintf(paperProjectGetBuildsURL, paper.ProjectTarget, version, latestBuild.Build, v.Name)})
+			}{k, v.Name, fmt.Sprintf(paperProjectGetBuildsURL, ProjectTarget, version, latestBuild.Build, v.Name)})
 		}
-		paper.Versions[version] = root
+		Version[version] = root
 	}
 
-	return nil
+	return Version, nil
+}
+
+func (paper *PaperSearch) Find(version string) (_ Version, err error) {
+	if len(paper.Version) == 0 {
+		if paper.Version, err = listPaperProject(paper.ProjectTarget); err != nil {
+			return nil, err
+		}
+	}
+
+	if ver, ok := paper.Version[version]; ok {
+		return ver, nil
+	}
+	return nil, ErrNoFoundVersion
 }
 
 func (ver PaperVersion) SemverVersion() *semver.Version { return semver.New(ver.MCTarget) }
-func (ver PaperVersion) JavaVersion() uint {
-	switch {
-	case semver.New("1.12").LessThan(*ver.SemverVersion()):
-		return 8
-	case semver.New("1.16").LessThan(*ver.SemverVersion()):
-		return 11
-	case semver.New("1.17").LessThan(*ver.SemverVersion()):
-		return 16
-	case semver.New("1.20").LessThan(*ver.SemverVersion()):
-		return 17
-	default:
-		return 21
-	}
-}
+func (ver PaperVersion) JavaVersion() uint              { return ver.JVM }
 func (ver PaperVersion) Install(path string) error {
 	for _, asset := range ver.FileURL {
-		var name string
-		if name = asset.Name; asset.Type == "application" {
+		name := asset.Name
+		if asset.Type == "application" {
 			name = ServerMain
 		}
 		if _, err := request.SaveAs(asset.URL, filepath.Join(path, name), nil); err != nil {

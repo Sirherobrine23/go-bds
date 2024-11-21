@@ -19,7 +19,7 @@ import (
 
 var (
 	SpigotBuildToolsURL string        = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
-	_                   VersionSearch = SpigotSearch{}
+	_                   VersionSearch = &SpigotSearch{}
 	_                   Version       = &SpigotMC{}
 )
 
@@ -40,11 +40,11 @@ type SpigotMC struct {
 }
 
 // List all Spigot releases from hub.spigotmc.org
-func (versions *SpigotSearch) list() error {
+func spigotList() ([]SpigotMC, error) {
 	versionsURL := "https://hub.spigotmc.org/versions/"
 	res, err := request.Request(versionsURL, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 
@@ -53,29 +53,31 @@ func (versions *SpigotSearch) list() error {
 		Files []string `html:"body > pre > a = href"`
 	}
 	if err := gohtml.NewParse(res.Body, &urls); err != nil {
-		return err
+		return nil, err
 	}
 
 	urls.Files = slices.DeleteFunc(urls.Files, func(entry string) bool {
 		return !(strings.HasPrefix(entry, "1.") && strings.HasSuffix(entry, ".json"))
 	})
+
+	Version := []SpigotMC{}
 	for _, entry := range urls.Files {
 		var spigotRelease SpigotMC
 		if _, err := request.JSONDo(versionsURL+entry, &spigotRelease, nil); err != nil {
-			return err
+			return nil, err
 		}
 		spigotRelease.Version = strings.TrimSuffix(entry, ".json")
 		if len(spigotRelease.JavaVersions) == 0 {
 			spigotRelease.JavaVersions = []uint{52, 52}
 		}
-		versions.Version = append(versions.Version, spigotRelease)
+		Version = append(Version, spigotRelease)
 	}
-	semver.SortStruct(versions.Version)
-	return nil
+	semver.SortStruct(Version)
+	return Version, nil
 }
 
-func (versions SpigotSearch) Find(version string) (Version, error) {
-	if err := versions.list(); err != nil {
+func (versions *SpigotSearch) Find(version string) (_ Version, err error) {
+	if versions.Version, err = spigotList(); err != nil {
 		return nil, err
 	}
 

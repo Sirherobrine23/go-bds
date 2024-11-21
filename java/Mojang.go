@@ -22,12 +22,7 @@ type MojangSearch struct {
 	Version map[string]*MojangVersion
 }
 
-func (mojangSearch *MojangSearch) list() error {
-	if len(mojangSearch.Version) != 0 {
-		return nil
-	}
-	mojangSearch.Version = make(map[string]*MojangVersion)
-
+func mojangList() (map[string]*MojangVersion, error) {
 	type pistonInfo struct {
 		Latest   map[string]string `json:"latest"`
 		Versions []struct {
@@ -52,9 +47,10 @@ func (mojangSearch *MojangSearch) list() error {
 
 	data, _, err := request.JSON[pistonInfo]("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json", nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	Version := make(map[string]*MojangVersion)
 	for _, version := range data.Versions {
 		if version.Release != "release" {
 			continue
@@ -62,9 +58,9 @@ func (mojangSearch *MojangSearch) list() error {
 
 		releaseInfo, _, err := request.JSON[mojangPistonPackage](version.Url, nil)
 		if err != nil {
-			return err
+			return nil, err
 		} else if serverFile, ok := releaseInfo.FilesDownloads["server"]; ok {
-			mojangSearch.Version[releaseInfo.Version] = &MojangVersion{
+			Version[releaseInfo.Version] = &MojangVersion{
 				Version:    releaseInfo.Version,
 				JVMVersion: releaseInfo.Java.VersionMajor,
 				ServerURL:  serverFile.FileUrl,
@@ -72,13 +68,14 @@ func (mojangSearch *MojangSearch) list() error {
 		}
 	}
 
-	return nil
+	return Version, nil
 }
 
-func (mojangSearch MojangSearch) Find(version string) (Version, error) {
-	if err := mojangSearch.list(); err != nil {
+func (mojangSearch MojangSearch) Find(version string) (_ Version, err error) {
+	if mojangSearch.Version, err = mojangList(); err != nil {
 		return nil, err
-	} else if ver, ok := mojangSearch.Version[version]; ok {
+	}
+	if ver, ok := mojangSearch.Version[version]; ok {
 		return ver, nil
 	}
 	return nil, ErrNoFoundVersion

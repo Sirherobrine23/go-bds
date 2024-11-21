@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	_ VersionSearch = PurpurSearch{}
-	_ Version       = PurpurVersion{}
+	_ VersionSearch = &PurpurSearch{}
+	_ Version       = &PurpurVersion{}
 )
 
 type PurpurSearch struct {
@@ -23,8 +23,7 @@ type PurpurVersion struct {
 	FileURL   string `json:"fileUrl"`
 }
 
-func (purpur PurpurSearch) list() error {
-	purpur.Version = make(map[string]PurpurVersion)
+func purpurList() (map[string]PurpurVersion, error) {
 	type projectVersions struct {
 		Versions []string `json:"versions"`
 	}
@@ -38,13 +37,14 @@ func (purpur PurpurSearch) list() error {
 
 	versions, _, err := request.JSON[projectVersions]("https://api.purpurmc.org/v2/purpur", nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	Version := make(map[string]PurpurVersion)
 	for _, version := range versions.Versions {
 		buildInfo, _, err := request.JSON[projectBuilds](fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s", version), nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		resBuild, _, err := request.JSON[struct {
 			MCStarget string `json:"version"`
@@ -53,13 +53,13 @@ func (purpur PurpurSearch) list() error {
 			Build     string `json:"build"`
 		}](fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s", version, buildInfo.Builds.Latest), nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if strings.ToUpper(resBuild.Result) != "SUCCESS" {
 			for _, build := range buildInfo.Builds.All {
 				if _, err = request.JSONDo(fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s", version, build), &resBuild, nil); err != nil {
-					return err
+					return nil, err
 				}
 				if strings.ToUpper(resBuild.Result) == "SUCCESS" {
 					break
@@ -68,18 +68,18 @@ func (purpur PurpurSearch) list() error {
 		}
 
 		if strings.ToUpper(resBuild.Result) == "SUCCESS" {
-			purpur.Version[version] = PurpurVersion{
+			Version[version] = PurpurVersion{
 				MCStarget: resBuild.MCStarget,
 				FileURL:   fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s/download", version, resBuild.Build),
 			}
 		}
 	}
 
-	return nil
+	return Version, nil
 }
 
-func (purpur PurpurSearch) Find(Version string) (Version, error) {
-	if err := purpur.list(); err != nil {
+func (purpur *PurpurSearch) Find(Version string) (_ Version, err error) {
+	if purpur.Version, err = purpurList(); err != nil {
 		return nil, err
 	}
 
