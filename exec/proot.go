@@ -81,8 +81,10 @@ func (proc *Proot) DownloadUbuntuRootfs(Version, Arch string) error {
 		return err
 	}
 	defer gz.Close()
+	if err := os.MkdirAll(proc.Rootfs, 0700); err != nil {
+		return err
+	}
 
-	os.MkdirAll(proc.Rootfs, 0700)
 	tarball := tar.NewReader(gz)
 	for {
 		head, err := tarball.Next()
@@ -105,7 +107,12 @@ func (proc *Proot) DownloadUbuntuRootfs(Version, Arch string) error {
 		}
 
 		// Create folder if not exist to create file
-		os.MkdirAll(filepath.Dir(fullPath), 0666)
+		if _, err = os.Stat(filepath.Dir(fullPath)); os.IsNotExist(err) {
+			if err = os.MkdirAll(filepath.Dir(fullPath), 0666); err != nil {
+				return err
+			}
+		}
+
 		file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileinfo.Mode())
 		if err != nil {
 			return err

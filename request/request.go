@@ -316,7 +316,12 @@ func RequestHtmlLinks(opt RequestOptions) ([]string, *http.Response, error) {
 }
 
 func RequestGithub(Repo, Release, Root string) error {
-	os.MkdirAll(Root, os.FileMode(0o666))
+	if _, err := os.Stat(Root); os.IsNotExist(err) {
+		if err = os.MkdirAll(Root, 0666); err != nil {
+			return err
+		}
+	}
+
 	req := RequestOptions{HttpError: true, Url: fmt.Sprintf("https://github.com/%s/archive/%s.tar.gz", Repo, Release)}
 	res, err := req.Request()
 	if err != nil {

@@ -55,8 +55,9 @@ func checkCreate(folder string) error {
 
 func (server *Mojang) Close() error {
 	if server.ServerProc != nil {
-		server.ServerProc.Write([]byte("stop\n"))
-		if err := server.ServerProc.Close(); err != nil {
+		if _, err := server.ServerProc.Write([]byte("stop\n")); err != nil {
+			return err
+		} else if err := server.ServerProc.Close(); err != nil {
 			return err
 		}
 	}

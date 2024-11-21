@@ -187,8 +187,11 @@ func (merge Overlayfs) OpenFile(name string, flag int, perm fs.FileMode) (*os.Fi
 				if err != nil {
 					f1.Close()
 					return nil, err
+				} else if _, err = io.Copy(f2, f1); err != nil {
+					f1.Close()
+					f2.Close()
+					return nil, err
 				}
-				io.Copy(f2, f1)
 				f1.Close()
 				f2.Close()
 			}

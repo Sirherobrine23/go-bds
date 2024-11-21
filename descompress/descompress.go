@@ -16,12 +16,15 @@ type seekReader struct {
 }
 
 func (rs *seekReader) Read(p []byte) (int, error) {
+	n := 0
 	if len(rs.buff) > 0 {
-		n := copy(p, rs.buff)
-		rs.buff = rs.buff[n:]
-		return n, nil
+		n = copy(p, rs.buff)
+		if rs.buff = rs.buff[n:]; len(p[n:]) == 0 {
+			return n, nil
+		}
 	}
-	return rs.r.Read(p)
+	n1, err := rs.r.Read(p[n:])
+	return n + n1, err
 }
 
 // Auto descompress stream

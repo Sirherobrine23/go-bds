@@ -65,7 +65,9 @@ func (cli *Os) StdinFork() (io.WriteCloser, error) {
 		return nil, ErrNoRunning
 	}
 	r, w := io.Pipe()
-	go io.Copy(cli.stdin, r) // Write to stdin
+	// Write to stdin
+	//nolint:errcheck
+	go io.Copy(cli.stdin, r)
 	return w, nil
 }
 

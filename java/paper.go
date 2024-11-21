@@ -26,9 +26,9 @@ type PaperSearch struct {
 }
 
 type PaperVersion struct {
-	MCTarget  string
-	JVM       uint // Java version
-	FileURL   []struct {
+	MCTarget string
+	JVM      uint // Java version
+	FileURL  []struct {
 		Type, Name, URL string
 	}
 }
@@ -70,7 +70,7 @@ func listPaperProject(ProjectTarget string) (map[string]PaperVersion, error) {
 
 		latestBuild := builds.Builds[len(builds.Builds)-1]
 		root := PaperVersion{
-			MCTarget:  version,
+			MCTarget: version,
 			FileURL: []struct {
 				Type string
 				Name string

@@ -154,11 +154,11 @@ func (ver SpigotMC) Install(InstallPath string) error {
 	// Copy log to log file
 	if stderr, err := build.StderrFork(); err == nil {
 		defer stderr.Close()
-		go io.Copy(io.Discard, stderr)
+		go io.Copy(io.Discard, stderr) //nolint:errcheck
 	}
 	if stdout, err := build.StdoutFork(); err == nil {
 		defer stdout.Close()
-		go io.Copy(io.Discard, stdout)
+		go io.Copy(io.Discard, stdout) //nolint:errcheck
 	}
 
 	// Wait process end
