@@ -1,12 +1,10 @@
 package mclog
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
@@ -47,32 +45,20 @@ type Mclog struct {
 	FileID    string // LOG file ID if success upload
 }
 
-func (Log *Mclog) Upload(fileLogPath string) error {
+// Upload server log
+func (Log *Mclog) Upload(logStream io.Reader) error {
 	if len(Log.MclogApi) == 0 {
 		Log.MclogApi = MclogsApi
-	} else if _, err := url.Parse(Log.MclogApi); err != nil {
-		return err
 	}
 
-	// Open log file
-	logFile, err := os.Open(fileLogPath)
-	if err != nil {
-		return err
-	}
-
-	res, err := request.Request(fmt.Sprintf("%s/1/log", Log.MclogApi), &request.Options{Method: "POST", Body: logFile})
-	if err != nil {
-		return err
-	}
-
-	var UploadStatus struct {
+	type JSONResponseStatus struct {
 		Id           string `json:"id"`
 		Success      bool   `json:"success"`
 		ErrorMessage string `json:"error"`
 	}
 
-	defer res.Body.Close()
-	if err = json.NewDecoder(res.Body).Decode(&UploadStatus); err != nil {
+	UploadStatus, res, err := request.JSON[JSONResponseStatus](fmt.Sprintf("%s/1/log", Log.MclogApi), &request.Options{Method: "POST", Body: logStream})
+	if err != nil {
 		return err
 	} else if !UploadStatus.Success && len(UploadStatus.ErrorMessage) > 0 {
 		return errors.New(UploadStatus.ErrorMessage)
@@ -86,37 +72,30 @@ func (Log *Mclog) Upload(fileLogPath string) error {
 	return nil
 }
 
-func (Log *Mclog) Insights() (Insights, error) {
-	var logInsight Insights
+// Return log insights from API
+func (Log *Mclog) Insights() (*Insights, error) {
 	if len(Log.FileID) == 0 {
-		return logInsight, ErrNoId
+		return nil, ErrNoId
 	} else if len(Log.MclogApi) == 0 {
 		Log.MclogApi = MclogsApi
 	} else if _, err := url.Parse(Log.MclogApi); err != nil {
-		return logInsight, err
+		return nil, err
 	}
 
-	res, err := request.Request(fmt.Sprintf("%s/1/insights/%s", Log.MclogApi, Log.FileID), nil)
+	logInsight, res, err := request.JSON[Insights](fmt.Sprintf("%s/1/insights/%s", Log.MclogApi, Log.FileID), nil)
 	if err != nil {
-		return logInsight, err
-	}
-
-	defer res.Body.Close()
-	if err = json.NewDecoder(res.Body).Decode(&logInsight); err != nil {
-		return logInsight, err
+		return nil, err
 	} else if res.StatusCode == 404 {
-		return logInsight, ErrNoExists
+		return nil, ErrNoExists
 	}
-
-	return logInsight, nil
+	return &logInsight, nil
 }
 
+// Return raw minecraft log
 func (Log *Mclog) Raw() (io.ReadCloser, error) {
 	// Check to Valid url API
 	if len(Log.MclogApi) == 0 {
 		Log.MclogApi = MclogsApi
-	} else if _, err := url.Parse(Log.MclogApi); err != nil {
-		return nil, err
 	} else if len(Log.FileID) == 0 {
 		return nil, ErrNoId
 	}
