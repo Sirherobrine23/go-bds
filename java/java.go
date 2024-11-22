@@ -48,6 +48,26 @@ type JavaServer struct {
 	ServerProc exec.Proc // Interface to process running
 }
 
+// Create new JavaServer and set platform target
+//
+// Valid platforms: "paper", "folia", "velocity", "spigot", "purpur"
+//
+// Default is "mojang"
+func New(serverPlatform string) (*JavaServer, error) {
+	serverStruct := &JavaServer{}
+	switch serverPlatform {
+	case "paper", "folia", "velocity":
+		serverStruct.VersionsSearch = &PaperSearch{ProjectTarget: serverPlatform}
+	case "spigot":
+		serverStruct.VersionsSearch = &SpigotSearch{}
+	case "purpur":
+		serverStruct.VersionsSearch = &PurpurSearch{}
+	default:
+		serverStruct.VersionsSearch = &MojangSearch{}
+	}
+	return serverStruct, nil
+}
+
 // Start server
 func (server *JavaServer) Start() error {
 	if server.VersionsSearch == nil {
