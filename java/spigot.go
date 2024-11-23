@@ -122,7 +122,7 @@ func (ver SpigotMC) Install(InstallPath string) error {
 	if _, err := os.Stat(javaFromVersions); err == nil {
 		execOpt.Arguments[0] = javaFromVersions // Set installed java
 	} else if os.IsNotExist(err) {
-		if err := javaprebuild.InstallLatest(ver.JVM(), ver.JavaFolder); err != nil {
+		if err := javaprebuild.InstallLatest(ver.JVM(), filepath.Join(ver.JavaFolder, fmt.Sprint(ver.JVM()))); err != nil {
 			if err == javaprebuild.ErrSystem {
 				return fmt.Errorf("cannot build spigot server")
 			}

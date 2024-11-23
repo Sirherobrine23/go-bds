@@ -4,12 +4,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"sirherobrine23.com.br/go-bds/go-bds/bedrock"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
 // Default server name for file
 const ServerName string = "server.jar"
+
+// Version request not exists
+var ErrVersionNotExist = bedrock.ErrNoVersion
 
 type Version interface {
 	JVM() uint                      // Java version to Run server
