@@ -27,9 +27,10 @@ func TestSpigotBuild(t *testing.T) {
 }
 
 func TestListVersions(t *testing.T) {
-	for _, paperTarget := range paperProjects {
+	for _, paperTarget := range PaperProjects {
 		t.Run(paperTarget, func(t *testing.T) {
-			versions, err := listPaperProject(paperTarget)
+			call, _ := ListPaper(paperTarget)
+			versions, err := call()
 			if err != nil {
 				t.Error(err)
 				return
@@ -39,15 +40,7 @@ func TestListVersions(t *testing.T) {
 		})
 	}
 
-	if mcVersion, err := mojangList(); err != nil {
-		t.Error(err)
-		return
-	} else if len(mcVersion) == 0 {
-		t.Error("mojang return invalid versions list")
-		return
-	}
-
-	if mcVersion, err := spigotList(); err != nil {
+	if mcVersion, err := ListSpigot("")(); err != nil {
 		t.Error(err)
 		return
 	} else if len(mcVersion) == 0 {
@@ -55,7 +48,15 @@ func TestListVersions(t *testing.T) {
 		return
 	}
 
-	if mcVersion, err := purpurList(); err != nil {
+	if mcVersion, err := ListMojang(); err != nil {
+		t.Error(err)
+		return
+	} else if len(mcVersion) == 0 {
+		t.Error("mojang return invalid versions list")
+		return
+	}
+
+	if mcVersion, err := ListPurpur(); err != nil {
 		t.Error(err)
 		return
 	} else if len(mcVersion) == 0 {

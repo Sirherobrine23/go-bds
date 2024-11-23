@@ -2,28 +2,16 @@ package java
 
 import (
 	"fmt"
-	"path/filepath"
+	"maps"
+	"slices"
 	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
-var (
-	_ VersionSearch = &PurpurSearch{}
-	_ Version       = &PurpurVersion{}
-)
+var _ ListServer = ListPurpur
 
-type PurpurSearch struct {
-	Version map[string]PurpurVersion
-}
-
-type PurpurVersion struct {
-	MCStarget string `json:"version"`
-	FileURL   string `json:"fileUrl"`
-}
-
-func purpurList() (map[string]PurpurVersion, error) {
+func ListPurpur() (Versions, error) {
 	type projectVersions struct {
 		Versions []string `json:"versions"`
 	}
@@ -40,7 +28,7 @@ func purpurList() (map[string]PurpurVersion, error) {
 		return nil, err
 	}
 
-	Version := make(map[string]PurpurVersion)
+	Version := make(map[string]Version)
 	for _, version := range versions.Versions {
 		buildInfo, _, err := request.JSON[projectBuilds](fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s", version), nil)
 		if err != nil {
@@ -68,32 +56,20 @@ func purpurList() (map[string]PurpurVersion, error) {
 		}
 
 		if strings.ToUpper(resBuild.Result) == "SUCCESS" {
-			Version[version] = PurpurVersion{
-				MCStarget: resBuild.MCStarget,
-				FileURL:   fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s/download", version, resBuild.Build),
+			Version[version] = GenericVersion{
+				Version: resBuild.MCStarget,
+				URLs: []struct {
+					Name string
+					URL  string
+				}{
+					{
+						ServerName,
+						fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s/download", version, resBuild.Build),
+					},
+				},
 			}
 		}
 	}
 
-	return Version, nil
-}
-
-func (purpur *PurpurSearch) Find(Version string) (_ Version, err error) {
-	if purpur.Version, err = purpurList(); err != nil {
-		return nil, err
-	}
-
-	if ver, ok := purpur.Version[Version]; ok {
-		return ver, nil
-	}
-	return nil, ErrNoFoundVersion
-}
-
-func (ver PurpurVersion) JavaVersion() uint {
-	return PaperVersion{MCTarget: ver.MCStarget}.JavaVersion()
-}
-func (ver PurpurVersion) SemverVersion() *semver.Version { return semver.New(ver.MCStarget) }
-func (ver PurpurVersion) Install(path string) error {
-	_, err := request.SaveAs(ver.FileURL, filepath.Join(path, ServerMain), nil)
-	return err
+	return slices.Collect(maps.Values(Version)), nil
 }

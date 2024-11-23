@@ -18,20 +18,16 @@ import (
 )
 
 var (
-	SpigotBuildToolsURL string        = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
-	_                   VersionSearch = &SpigotSearch{}
-	_                   Version       = &SpigotMC{}
+	SpigotBuildToolsURL string  = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar"
+	_                   Version = &SpigotMC{}
 )
-
-type SpigotSearch struct {
-	Version []SpigotMC
-}
 
 type SpigotMC struct {
 	Version      string `json:"version"`                // Server version
 	Desc         string `json:"description"`            // Commit short description
 	ToolVersion  int64  `json:"toolsVersion,omitempty"` // Spigot BuildTools version required
 	JavaVersions []uint `json:"javaVersions,omitempty"` // Java major version range
+	JavaFolder   string `json:"-"`                      // Java folder with prebuild binarys
 	Ref          struct {
 		Spigot      string `json:"Spigot"`      // https://hub.spigotmc.org/stash/projects/SPIGOT/repos/spigot/commits/{ID}
 		Bukkit      string `json:"Bukkit"`      // https://hub.spigotmc.org/stash/projects/SPIGOT/repos/bukkit/commits/{ID}
@@ -40,65 +36,55 @@ type SpigotMC struct {
 }
 
 // List all Spigot releases from hub.spigotmc.org
-func spigotList() ([]SpigotMC, error) {
-	versionsURL := "https://hub.spigotmc.org/versions/"
-	res, err := request.Request(versionsURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	// Get all json files
-	var urls struct {
-		Files []string `html:"body > pre > a = href"`
-	}
-	if err := gohtml.NewParse(res.Body, &urls); err != nil {
-		return nil, err
-	}
-
-	urls.Files = slices.DeleteFunc(urls.Files, func(entry string) bool {
-		return !(strings.HasPrefix(entry, "1.") && strings.HasSuffix(entry, ".json"))
-	})
-
-	Version := []SpigotMC{}
-	for _, entry := range urls.Files {
-		var spigotRelease SpigotMC
-		if _, err := request.JSONDo(versionsURL+entry, &spigotRelease, nil); err != nil {
+func ListSpigot(JavaBinaryFolder string) ListServer {
+	return func() (Versions, error) {
+		versionsURL := "https://hub.spigotmc.org/versions/"
+		res, err := request.Request(versionsURL, nil)
+		if err != nil {
 			return nil, err
 		}
-		spigotRelease.Version = strings.TrimSuffix(entry, ".json")
-		if len(spigotRelease.JavaVersions) == 0 {
-			spigotRelease.JavaVersions = []uint{52, 52}
-		}
-		Version = append(Version, spigotRelease)
-	}
-	semver.SortStruct(Version)
-	return Version, nil
-}
+		defer res.Body.Close()
 
-func (versions *SpigotSearch) Find(version string) (_ Version, err error) {
-	if versions.Version, err = spigotList(); err != nil {
-		return nil, err
-	}
-
-	for _, ver := range versions.Version {
-		if ver.Version == version {
-			return ver, nil
+		// Get all json files
+		var urls struct {
+			Files []string `html:"body > pre > a = href"`
 		}
+		if err := gohtml.NewParse(res.Body, &urls); err != nil {
+			return nil, err
+		}
+
+		urls.Files = slices.DeleteFunc(urls.Files, func(entry string) bool {
+			return !(strings.HasPrefix(entry, "1.") && strings.HasSuffix(entry, ".json"))
+		})
+
+		Version := Versions{}
+		for _, entry := range urls.Files {
+			var spigotRelease SpigotMC
+			if _, err := request.JSONDo(versionsURL+entry, &spigotRelease, nil); err != nil {
+				return nil, err
+			}
+			spigotRelease.JavaFolder = JavaBinaryFolder
+			spigotRelease.Version = strings.TrimSuffix(entry, ".json")
+			if len(spigotRelease.JavaVersions) == 0 {
+				spigotRelease.JavaVersions = []uint{52, 52}
+			}
+			Version = append(Version, spigotRelease)
+		}
+		semver.SortStruct(Version)
+		return Version, nil
 	}
-	return nil, ErrNoFoundVersion
 }
 
 func (ver SpigotMC) SemverVersion() *semver.Version { return semver.New(ver.Version) }
 
 // Dirt function to get java version
-func (ver SpigotMC) JavaVersion() uint { return ver.JavaVersions[len(ver.JavaVersions)-1] - 44 }
+func (ver SpigotMC) JVM() uint { return ver.JavaVersions[len(ver.JavaVersions)-1] - 44 }
 
 // Build Spigot localy
 //
 // If InstallPath already has java in the path "InstallPath + bin/java", this version will be used
 func (ver SpigotMC) Install(InstallPath string) error {
-	if _, err := os.Stat(filepath.Join(InstallPath, ServerMain)); err == nil {
+	if _, err := os.Stat(filepath.Join(InstallPath, ServerName)); err == nil {
 		filesEntrys, _ := os.ReadDir(InstallPath)
 		for _, file := range filesEntrys {
 			if !file.IsDir() && strings.HasSuffix(file.Name(), ".jar") {
@@ -128,22 +114,23 @@ func (ver SpigotMC) Install(InstallPath string) error {
 		Arguments: []string{"java", "-jar", "SpigotBuildTools.jar", "--rev", ver.Version, "--output-dir", InstallPath},
 	}
 
-	preInstalledJava := filepath.Join(InstallPath, "bin/java")
-	if _, err := os.Stat(preInstalledJava); err == nil {
-		execOpt.Arguments[0] = preInstalledJava // Set installed java
-	} else if !exec.LocalBinExist(execOpt) {
-		javaFolder := filepath.Join(BuildDir, "java")
-		if execOpt.Arguments[0] = filepath.Join(javaFolder, "bin/java"); runtime.GOOS == "windows" {
-			execOpt.Arguments[0] += ".exe"
-		}
-		if _, err := os.Stat(execOpt.Arguments[0]); os.IsNotExist(err) {
-			if err := javaprebuild.InstallLatest(ver.JavaVersion(), javaFolder); err != nil {
-				if err == javaprebuild.ErrSystem {
-					return fmt.Errorf("cannot build spigot server")
-				}
-				return err
+	javaFromVersions := filepath.Join(ver.JavaFolder, fmt.Sprint(ver.JVM()), "bin/java")
+	if runtime.GOOS == "windows" {
+		javaFromVersions += ".exe"
+	}
+
+	if _, err := os.Stat(javaFromVersions); err == nil {
+		execOpt.Arguments[0] = javaFromVersions // Set installed java
+	} else if os.IsNotExist(err) {
+		if err := javaprebuild.InstallLatest(ver.JVM(), ver.JavaFolder); err != nil {
+			if err == javaprebuild.ErrSystem {
+				return fmt.Errorf("cannot build spigot server")
 			}
+			return err
 		}
+		execOpt.Arguments[0] = javaFromVersions // Set installed java
+	} else if !exec.LocalBinExist(execOpt) {
+		return fmt.Errorf("cannot build spigot server")
 	}
 
 	build := exec.Os{}
@@ -168,7 +155,7 @@ func (ver SpigotMC) Install(InstallPath string) error {
 
 	if entrys, err := os.ReadDir(InstallPath); err == nil {
 		if fileIndex := slices.IndexFunc(entrys, func(entry fs.DirEntry) bool { return strings.Contains(entry.Name(), "spigot") }); fileIndex >= 0 {
-			if err := os.Rename(filepath.Join(InstallPath, entrys[fileIndex].Name()), filepath.Join(InstallPath, ServerMain)); err != nil {
+			if err := os.Rename(filepath.Join(InstallPath, entrys[fileIndex].Name()), filepath.Join(InstallPath, ServerName)); err != nil {
 				return err
 			}
 		}

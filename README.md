@@ -21,16 +21,21 @@ This is just a base package, without cli or even http api, for this you must cre
 
 ## System
 
-|    System     | Overlayfs/Mergefs  |   Bedrock Server   |    Java Server     |
-| :-----------: | :----------------: | :----------------: | :----------------: |
-|    Windows    |        :x:         | :heavy_check_mark: | :heavy_check_mark: |
-|     Linux     | :heavy_check_mark: |     :warning:      | :heavy_check_mark: |
-|     MacOS     |  :traffic_light:   |        :x:         | :heavy_check_mark: |
-|  *BSD Family  |  :traffic_light:   |        :x:         |  :traffic_light:   |
-| Solaris/SunOS |        :x:         |        :x:         |  :traffic_light:   |
+Summary of systems and their variants
 
-1. The Linux server will be emulated if possible if the architecture is different from amd64/x86_64
-2. BSD Family require tests for Java server
+| System           | Overlayfs/Mergefs  |   Bedrock Server   |    Java Server     |
+| :--------------- | :----------------: | :----------------: | :----------------: |
+| Linux            | :heavy_check_mark: |     :warning:*     | :heavy_check_mark: |
+| Windows          |        :x:         | :heavy_check_mark: | :heavy_check_mark: |
+| MacOS            |  :traffic_light:   |        :x:         | :heavy_check_mark: |
+| ** BSD Family    |  :traffic_light:   |        :x:         |  :traffic_light:   |
+| ** Solaris/SunOS |        :x:         |        :x:         |  :traffic_light:   |
+
+- ** Require tests for Java server
+- \* Minecraft bedrock
+  - Processors with 64-bit support will look for `box64` instead of `qemu-x86_64`
+  - **The Linux server will be emulated if possible if the architecture is different from amd64/x86_64**
+  - ***In my experience, it is not recommended to use 32-bit ARM processors as they are very slow and it takes a long time to load the first chunks (more than 1 hour, 4CPU cores and 1Gb of ram)***
 
 ## System packages
 
