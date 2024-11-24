@@ -123,8 +123,7 @@ func recursivelyParseDoc(doc *goquery.Selection, structure any, extractor conten
 	// handle primitive types
 	htmlValue, err := extractor.GetContent(doc)
 	if err != nil {
-		fmt.Println(err)
-		htmlValue = ""
+		return err
 	}
 
 	valuePtr := value.Elem()

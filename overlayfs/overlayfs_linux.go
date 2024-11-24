@@ -4,8 +4,11 @@
 package overlayfs
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -30,8 +33,11 @@ func (overlay *Overlayfs) Mount() error {
 	if overlay.Workdir != "" && overlay.Upper != "" {
 		flags = fmt.Sprintf("upperdir=%s,workdir=%s,lowerdir=%s", overlay.Upper, overlay.Workdir, strings.Join(overlay.Lower, ":"))
 	}
-	fmt.Println(flags)
-	return unix.Mount("overlay", overlay.Target, "overlay", 0, flags)
+	err := unix.Mount("overlay", overlay.Target, "overlay", 0, flags)
+	if errors.Is(err, syscall.Errno(1)) {
+		err = fs.ErrPermission
+	}
+	return err
 }
 
 // Unmount overlayfs same `unmount`

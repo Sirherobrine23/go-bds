@@ -2,7 +2,10 @@ package java
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 )
 
 // Test spigot build to install server
@@ -12,6 +15,7 @@ func TestSpigotBuild(t *testing.T) {
 		Version:      "1.21.1",
 		ToolVersion:  181,
 		JavaVersions: []uint{65, 67},
+		JavaFolder:   filepath.Join(t.TempDir(), "javacs"),
 		Ref: struct {
 			Spigot      string `json:"Spigot"`
 			Bukkit      string `json:"Bukkit"`
@@ -61,6 +65,35 @@ func TestListVersions(t *testing.T) {
 		return
 	} else if len(mcVersion) == 0 {
 		t.Error("purpur project return invalid versions list")
+		return
+	}
+}
+
+func TestStartServer(t *testing.T) {
+	MojangServer, _ := New("mojang", filepath.Join(t.TempDir(), "javacs"))
+
+	MojangServer.VersionsPath = filepath.Join(t.TempDir(), "versions")
+	MojangServer.WorkdirPath = filepath.Join(t.TempDir(), "workdir")
+	MojangServer.UpperPath = filepath.Join(t.TempDir(), "upper")
+	MojangServer.Path = filepath.Join(t.TempDir(), "runServer")
+
+	ver, _ := MojangServer.ListVersions()
+	semver.SortStruct(ver)
+	slices.Reverse(ver)
+	MojangServer.Version = ver[0].SemverVersion().String()
+	t.Logf("Server version %q", MojangServer.Version)
+
+	if err := MojangServer.Start(); err != nil {
+		t.Error(err)
+		return
+	}
+	defer MojangServer.Close()
+
+	if _, err := MojangServer.ServerProc.Write([]byte("stop\n")); err != nil {
+		t.Error(err)
+		return
+	} else if err = MojangServer.ServerProc.Wait(); err != nil {
+		t.Error(err)
 		return
 	}
 }

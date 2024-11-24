@@ -2,8 +2,10 @@ package java
 
 import (
 	"archive/tar"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -111,14 +113,8 @@ func (javac *Java) Start() error {
 		},
 	}
 
-	if err := javac.OverlayConfig.Mount(); err != nil && err == overlayfs.ErrNotOverlayAvaible {
+	if err := javac.OverlayConfig.Mount(); err != nil && (err == overlayfs.ErrNotOverlayAvaible || errors.Is(err, fs.ErrPermission)) {
 		newJavaPath := filepath.Join(javac.Path, "java")
-		if _, err = os.Stat(newJavaPath); err == nil {
-			if err = os.RemoveAll(newJavaPath); err != nil {
-				return err
-			}
-		}
-
 		versionFiles, _ := os.ReadDir(versionFolder)
 		for _, file := range versionFiles {
 			if err = os.RemoveAll(filepath.Join(javac.Path, file.Name())); err != nil && !os.IsNotExist(err) {

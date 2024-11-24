@@ -3,6 +3,7 @@ package java
 import (
 	"os"
 	"path/filepath"
+	"slices"
 
 	"sirherobrine23.com.br/go-bds/go-bds/bedrock"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
@@ -38,6 +39,8 @@ type Versions []Version
 
 // Generic interface to find Version in array list
 func (versions Versions) Find(version string) Version {
+	semver.SortStruct(versions)
+	slices.Reverse(versions)
 	for _, ver := range versions {
 		if ver.SemverVersion().String() == version {
 			return ver
