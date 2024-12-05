@@ -27,5 +27,8 @@ jobs:
     - name: Download packages
       run: go get ./...
 
-    - name: test
+    - name: Mount tmpfs
+      run: sudo mount -t tmpfs tmpfs /tmp
+
+    - name: Test
       run: go test -timeout 0 -v ./...
