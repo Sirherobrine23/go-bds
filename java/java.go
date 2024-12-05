@@ -2,13 +2,11 @@ package java
 
 import (
 	"archive/tar"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/java/javaprebuild"
@@ -56,10 +54,12 @@ func (javac *Java) Close() error {
 		javac.ServerProc = nil
 	}
 	if javac.OverlayConfig != nil {
-		if err := javac.OverlayConfig.Unmount(); err != nil {
+		switch err := javac.OverlayConfig.Unmount(); err {
+		case nil, overlayfs.ErrNoCGOAvaible, overlayfs.ErrNotOverlayAvaible:
+			javac.OverlayConfig = nil
+		default:
 			return err
 		}
-		javac.OverlayConfig = nil
 	}
 	return nil
 }
@@ -77,65 +77,105 @@ func (javac *Java) Start() error {
 		return ErrVersionNotExist
 	}
 
+	versionFolder, jvmFolder := filepath.Join(javac.VersionsPath, version.SemverVersion().String()), filepath.Join(javac.JVMPath, fmt.Sprint(version.JVM()))
+
 	var processConfig exec.ProcExec
 	processConfig.Cwd = javac.Path
-	processConfig.Arguments = []string{"java", "-jar", ServerName, "-nogui"}
+	processConfig.Arguments = []string{javaprebuild.JavaBinName, "-jar", ServerName, "-nogui"}
 
-	prebuildJavaPath := filepath.Join(javac.JVMPath, fmt.Sprint(version.JVM()))
-	if _, err := os.Stat(prebuildJavaPath); os.IsNotExist(err) {
-		err = javaprebuild.InstallLatest(version.JVM(), prebuildJavaPath)
-		if err != nil && err != javaprebuild.ErrSystem {
+	if _, err := os.Stat(javac.Path); os.IsNotExist(err) {
+		if err = os.MkdirAll(javac.Path, 0777); err != nil {
 			return err
 		}
 	}
 
-	if processConfig.Arguments[0] = filepath.Join(prebuildJavaPath, "bin/java"); runtime.GOOS == "windows" {
-		processConfig.Arguments[0] += ".exe"
-	} else if !exec.LocalBinExist(processConfig) {
-		processConfig.Arguments[0] = "java"
-		prebuildJavaPath = ""
+	if _, err := os.Stat(filepath.Join(jvmFolder, "bin", javaprebuild.JavaBinName)); err == nil {
+		processConfig.Arguments[0] = filepath.Join(jvmFolder, "bin", javaprebuild.JavaBinName)
+	} else if os.IsNotExist(err) {
+		if err = javaprebuild.InstallLatest(version.JVM(), jvmFolder); err == nil {
+			processConfig.Arguments[0] = filepath.Join(jvmFolder, "bin", javaprebuild.JavaBinName)
+		} else if err != javaprebuild.ErrSystem {
+			return err
+		} else {
+			jvmFolder = ""
+		}
 	}
 
-	versionFolder := filepath.Join(javac.VersionsPath, version.SemverVersion().String())
-	if _, err := os.Stat(versionFolder); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(versionFolder, ServerName)); os.IsNotExist(err) {
 		if err = version.Install(versionFolder); err != nil {
 			return err
 		}
 	}
 
-	javac.OverlayConfig = &overlayfs.Overlayfs{
-		Target:  javac.Path,
-		Upper:   javac.UpperPath,
-		Workdir: javac.WorkdirPath,
-		Lower: []string{
-			prebuildJavaPath,
-			versionFolder,
-		},
-	}
+	copyServer := func() error {
+		CopyFS := func(dir string, fsys fs.FS) error {
+			return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
 
-	if err := javac.OverlayConfig.Mount(); err != nil && (err == overlayfs.ErrNotOverlayAvaible || errors.Is(err, fs.ErrPermission)) {
-		newJavaPath := filepath.Join(javac.Path, "java")
-		versionFiles, _ := os.ReadDir(versionFolder)
-		for _, file := range versionFiles {
-			if err = os.RemoveAll(filepath.Join(javac.Path, file.Name())); err != nil && !os.IsNotExist(err) {
-				return err
-			}
+				fpath, err := filepath.Localize(path)
+				if err != nil {
+					return err
+				}
+				newPath := filepath.Join(dir, fpath)
+				if d.IsDir() {
+					return os.MkdirAll(newPath, 0777)
+				} else if !d.Type().IsRegular() {
+					return nil
+				}
+
+				r, err := fsys.Open(path)
+				if err != nil {
+					return err
+				}
+				defer r.Close()
+				info, err := r.Stat()
+				if err != nil {
+					return err
+				}
+				w, err := os.OpenFile(newPath, os.O_CREATE|os.O_EXCL|os.O_TRUNC|os.O_WRONLY, 0666|info.Mode()&0777)
+				if err != nil {
+					return err
+				}
+
+				if _, err := io.Copy(w, r); err != nil {
+					w.Close()
+					return &fs.PathError{Op: "Copy", Path: newPath, Err: err}
+				}
+				return w.Close()
+			})
 		}
-
-		if err = os.CopyFS(javac.Path, os.DirFS(versionFolder)); err != nil {
+		if err := CopyFS(javac.Path, os.DirFS(versionFolder)); err != nil {
 			return err
 		}
+		return nil
+	}
 
-		if prebuildJavaPath != "" {
-			if err = os.CopyFS(newJavaPath, os.DirFS(prebuildJavaPath)); err != nil {
+	if jvmFolder == "" {
+		if err := copyServer(); err != nil {
+			return err
+		}
+	} else {
+		javac.OverlayConfig = &overlayfs.Overlayfs{
+			Target:  javac.Path,
+			Workdir: javac.WorkdirPath,
+			Upper:   javac.UpperPath,
+			Lower: []string{
+				jvmFolder,
+				versionFolder,
+			},
+		}
+
+		if err := javac.OverlayConfig.Mount(); err == nil {
+			processConfig.Arguments[0] = filepath.Join("./bin", javaprebuild.JavaBinName)
+		} else if err != javaprebuild.ErrSystem {
+			return err
+		} else {
+			if err := copyServer(); err != nil {
 				return err
 			}
-			if processConfig.Arguments[0] = filepath.Join(newJavaPath, "bin/java"); runtime.GOOS == "windows" {
-				processConfig.Arguments[0] += ".exe"
-			}
 		}
-	} else if err != nil {
-		return err
 	}
 
 	javac.ServerProc = &exec.Os{}

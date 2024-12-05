@@ -4,14 +4,73 @@
 package overlayfs
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 )
+
+const expectedNumFieldsPerLine = 6 // Number of fields per line in /proc/mounts as per the fstab man page.
+
+type mountPoint struct {
+	Device string
+	Path   string
+	Type   string
+	Opts   []string // Opts may contain sensitive mount options (like passwords) and MUST be treated as such (e.g. not logged).
+	Freq   int
+	Pass   int
+}
+
+func parseProcMounts() ([]mountPoint, error) {
+	mountProc, err := os.Open("/proc/mounts")
+	if err != nil {
+		return nil, err
+	}
+
+	out := []mountPoint{}
+	buff := bufio.NewScanner(mountProc)
+	for buff.Scan() {
+		line := buff.Text()
+
+		if line == "" {
+			// the last split() item is empty string following the last \n
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) != expectedNumFieldsPerLine {
+			// Do not log line in case it contains sensitive Mount options
+			return nil, fmt.Errorf("wrong number of fields (expected %d, got %d)", expectedNumFieldsPerLine, len(fields))
+		}
+
+		mp := mountPoint{
+			Device: fields[0],
+			Path:   fields[1],
+			Type:   fields[2],
+			Opts:   strings.Split(fields[3], ","),
+		}
+
+		freq, err := strconv.Atoi(fields[4])
+		if err != nil {
+			return nil, err
+		}
+		mp.Freq = freq
+
+		pass, err := strconv.Atoi(fields[5])
+		if err != nil {
+			return nil, err
+		}
+		mp.Pass = pass
+
+		out = append(out, mp)
+	}
+	return out, nil
+}
 
 // Mount overlayfs same `mount -t overlay overlay`:
 //
@@ -28,6 +87,16 @@ func (overlay *Overlayfs) Mount() error {
 		return fmt.Errorf("set workdir to user Upperdir")
 	}
 
+	for _, folderPath := range append(overlay.Lower, overlay.Target, overlay.Upper, overlay.Workdir) {
+		if folderPath == "" {
+			continue
+		} else if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+			if err = os.MkdirAll(folderPath, 0777); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Flags to mount overlay
 	flags := "lowerdir=" + strings.Join(overlay.Lower, ":")
 	if overlay.Workdir != "" && overlay.Upper != "" {
@@ -42,5 +111,17 @@ func (overlay *Overlayfs) Mount() error {
 
 // Unmount overlayfs same `unmount`
 func (overlay *Overlayfs) Unmount() error {
-	return unix.Unmount(overlay.Target, unix.MNT_DETACH)
+	mountedParts, err := parseProcMounts()
+	if err != nil {
+		return err
+	}
+
+	for _, target := range mountedParts {
+		if target.Path == overlay.Target {
+			if err = unix.Unmount(overlay.Target, unix.MNT_DETACH); errors.Is(err, syscall.Errno(22)) {
+				err = nil
+			}
+		}
+	}
+	return err
 }

@@ -1,6 +1,8 @@
 package java
 
 import (
+	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -70,12 +72,13 @@ func TestListVersions(t *testing.T) {
 }
 
 func TestStartServer(t *testing.T) {
-	MojangServer, _ := New("mojang", filepath.Join(t.TempDir(), "javacs"))
+	tempDir := t.TempDir()
+	MojangServer, _ := New("mojang", filepath.Join(tempDir, "javacs"))
 
-	MojangServer.VersionsPath = filepath.Join(t.TempDir(), "versions")
-	MojangServer.WorkdirPath = filepath.Join(t.TempDir(), "workdir")
-	MojangServer.UpperPath = filepath.Join(t.TempDir(), "upper")
-	MojangServer.Path = filepath.Join(t.TempDir(), "runServer")
+	MojangServer.VersionsPath = filepath.Join(tempDir, "versions")
+	MojangServer.WorkdirPath = filepath.Join(tempDir, "workdir")
+	MojangServer.UpperPath = filepath.Join(tempDir, "upper")
+	MojangServer.Path = filepath.Join(tempDir, "runServer")
 
 	ver, _ := MojangServer.ListVersions()
 	semver.SortStruct(ver)
@@ -89,6 +92,11 @@ func TestStartServer(t *testing.T) {
 	}
 	defer MojangServer.Close()
 
+	stdout, _ := MojangServer.ServerProc.StdoutFork()
+	stderr, _ := MojangServer.ServerProc.StderrFork()
+	go io.Copy(os.Stdout, stdout)
+	go io.Copy(os.Stderr, stderr)
+
 	if _, err := MojangServer.ServerProc.Write([]byte("stop\n")); err != nil {
 		t.Error(err)
 		return
@@ -96,4 +104,5 @@ func TestStartServer(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	MojangServer.Close()
 }
