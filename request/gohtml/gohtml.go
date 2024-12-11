@@ -91,17 +91,23 @@ func recursivelyParseDoc(doc *goquery.Selection, structure any, extractor conten
 			case reflect.Struct:
 				// create a new struct pointer and recursively extract data from it
 				nestedStruct := reflect.New(fieldPointer.Type()).Interface()
-				recursivelyParseDoc(targetNode, nestedStruct, nodeContentExtractor)
+				if err := recursivelyParseDoc(targetNode, nestedStruct, nodeContentExtractor); err != nil {
+					return err
+				}
 				fieldPointer.Set(reflect.ValueOf(nestedStruct).Elem())
 			case reflect.Slice:
 				// first get the Type of the children
 				childType := fieldPointer.Type().Elem()
 				// then loop through each matched elements and set the data
-				targetNode.Each(func(i int, selection *goquery.Selection) {
+				htmlNodes := []*goquery.Selection{}
+				targetNode.Each(func(_ int, selection *goquery.Selection) { htmlNodes = append(htmlNodes, selection) })
+				for _, selection := range htmlNodes {
 					element := reflect.New(childType).Interface()
-					recursivelyParseDoc(selection, element, nodeContentExtractor)
+					if err := recursivelyParseDoc(selection, element, nodeContentExtractor); err != nil {
+						return err
+					}
 					fieldPointer.Set(reflect.Append(fieldPointer, reflect.ValueOf(element).Elem()))
-				})
+				}
 			default:
 				newValue := reflect.New(fieldPointer.Type()).Interface()
 				err := recursivelyParseDoc(targetNode, newValue, nodeContentExtractor)
@@ -117,8 +123,7 @@ func recursivelyParseDoc(doc *goquery.Selection, structure any, extractor conten
 	// handle primitive types
 	htmlValue, err := extractor.GetContent(doc)
 	if err != nil {
-		fmt.Println(err)
-		htmlValue = ""
+		return err
 	}
 
 	valuePtr := value.Elem()

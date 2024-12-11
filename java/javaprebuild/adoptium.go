@@ -1,13 +1,14 @@
 //go:build (aix && ppc64) || darwin || (windows && amd64) || (linux && (amd64 || arm64 || riscv64 || ppc64le || s390x)) || (solaris && (amd64 || sparcv9))
 
-// Pre build openjdk
-package adoptium
+// Download java with builds from adoptium
+package javaprebuild
 
 import (
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
@@ -43,23 +44,11 @@ func InstallLatest(featVersion uint, installPath string) error {
 				return res, ErrSystem
 			}
 		}
-		extractOptions := request.ExtractOptions{
-			Cwd:   installPath,
-			Strip: 1,
-		}
-		switch filepath.Ext(RequestURL) {
-		case ".zip":
+		extractOptions := request.ExtractOptions{Cwd: installPath, Strip: 1}
+		if strings.ToLower(filepath.Ext(RequestURL)) == ".zip" {
 			return res, request.Zip(RequestURL, extractOptions, nil)
-		case ".tar":
-			return res, request.Tar(RequestURL, extractOptions, nil)
-		case ".tgz", ".tar.gz", ".gz":
-			extractOptions.Gzip = true
-			return res, request.Tar(RequestURL, extractOptions, nil)
-		case ".txz", ".tar.xz":
-			extractOptions.Xz = true
-			return res, request.Tar(RequestURL, extractOptions, nil)
 		}
-		return res, ErrSystem
+		return res, request.Tar(RequestURL, extractOptions, nil)
 	}
 
 	reqOpt.NotFollowRedirect = true

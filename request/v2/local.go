@@ -17,7 +17,9 @@ func SaveAs(Url, OnSave string, Option *Options) (*http.Response, error) {
 
 	// Create folder if not exists
 	if _, err := os.Stat(filepath.Dir(OnSave)); os.IsNotExist(err) {
-		os.MkdirAll(filepath.Dir(OnSave), 0600)
+		if err = os.MkdirAll(filepath.Dir(OnSave), 0600); err != nil {
+			return res, err
+		}
 	}
 
 	file, err := os.Create(OnSave)

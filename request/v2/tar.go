@@ -2,23 +2,19 @@ package request
 
 import (
 	"archive/tar"
-	"compress/bzip2"
-	"compress/gzip"
-	"compress/zlib"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/ulikunitz/xz"
+	"sirherobrine23.com.br/go-bds/go-bds/descompress"
 )
 
 type ExtractOptions struct {
-	Strip                 int    // Remove n components from file extraction
-	Cwd                   string // Folder output
-	PreserveOwners        bool   // Preserver user and group
-	Gzip, Bzip2, Zlib, Xz bool   // Uncompress
+	Strip          int    // Remove n components from file extraction
+	Cwd            string // Folder output
+	PreserveOwners bool   // Preserver user and group
 }
 
 func stripPath(fpath string, st int) string {
@@ -38,26 +34,14 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 	}
 	defer res.Body.Close()
 
-	var tarball io.Reader = res.Body
-	if TarOption.Gzip || strings.Contains(res.Header.Get("Content-Type"), "application/gzip") {
-		if tarball, err = gzip.NewReader(res.Body); err != nil {
-			return err
-		}
-		defer tarball.(*gzip.Reader).Close()
-	} else if TarOption.Xz || strings.Contains(res.Header.Get("Content-Type"), "application/x-xz") {
-		if tarball, err = xz.NewReader(res.Body); err != nil {
-			return err
-		}
-	} else if TarOption.Zlib || strings.Contains(res.Header.Get("Content-Type"), "application/zlib") {
-		if tarball, err = zlib.NewReader(res.Body); err != nil {
-			return err
-		}
-		defer tarball.(io.ReadCloser).Close()
-	} else if TarOption.Bzip2 || strings.Contains(res.Header.Get("Content-Type"), "application/bzip2") || strings.Contains(res.Header.Get("Content-Type"), "application/x-bzip2") {
-		tarball = bzip2.NewReader(res.Body)
+	descompressed, err := descompress.NewDescompress(res.Body)
+	if err != nil {
+		return err
+	} else if closer, ok := descompressed.(io.Closer); ok {
+		defer closer.Close()
 	}
 
-	tarReader := tar.NewReader(tarball)
+	tarReader := tar.NewReader(descompressed)
 	for {
 		head, err := tarReader.Next()
 		if err != nil {
@@ -68,27 +52,26 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 		}
 
 		rootFile := filepath.Join(TarOption.Cwd, stripPath(head.Name, TarOption.Strip))
-		if rootFile == TarOption.Cwd {
+		if rootFile == TarOption.Cwd || head.FileInfo().IsDir() || !head.FileInfo().Mode().IsRegular() {
 			continue
 		}
 
-		fsInfo := head.FileInfo()
-		mode := fsInfo.Mode()
-		if fsInfo.IsDir() {
-			if err := os.MkdirAll(rootFile, mode.Perm()); err != nil {
+		if _, err := os.Stat(filepath.Dir(rootFile)); err != nil && os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(rootFile), 0777); err != nil {
 				return err
 			}
-			continue
-		} else if !mode.IsRegular() {
-			continue
 		}
-		localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode.Perm())
+
+		// Open file or create
+		localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0777)
 		if err != nil {
 			return err
-		} else if _, err := io.CopyN(localFile, tarReader, head.Size); err != nil {
-			localFile.Close() // Close file
+		}
+
+		_, err = io.CopyN(localFile, tarReader, head.Size) // Copy data
+		localFile.Close()                                  // Close file
+		if err != nil {
 			return err
 		}
-		localFile.Close() // Close file
 	}
 }
