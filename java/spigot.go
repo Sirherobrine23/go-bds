@@ -12,7 +12,7 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
-	"sirherobrine23.com.br/go-bds/go-bds/java/adoptium"
+	"sirherobrine23.com.br/go-bds/go-bds/java/javaprebuild"
 	"sirherobrine23.com.br/go-bds/go-bds/request/gohtml"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
@@ -127,8 +127,8 @@ func (ver SpigotMC) Install(InstallPath string) error {
 			execOpt.Arguments[0] += ".exe"
 		}
 		if _, err := os.Stat(execOpt.Arguments[0]); os.IsNotExist(err) {
-			if err := adoptium.InstallLatest(ver.JavaVersion(), javaFolder); err != nil {
-				if err == adoptium.ErrSystem {
+			if err := javaprebuild.InstallLatest(ver.JavaVersion(), javaFolder); err != nil {
+				if err == javaprebuild.ErrSystem {
 					return fmt.Errorf("cannot build spigot server")
 				}
 				return err
