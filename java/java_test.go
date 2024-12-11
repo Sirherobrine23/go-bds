@@ -1,57 +1,9 @@
 package java
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 )
-
-// List all targets java versions and return Count
-func TestListVersions(t *testing.T) {
-	var (
-		Mojang MojangSearch
-		Spigot SpigotSearch
-		Purpur PurpurSearch
-	)
-
-	// Mojang
-	t.Log("Getting versions to Mojang server")
-	if err := Mojang.list(); err != nil {
-		t.Error(err)
-		return
-	}
-	t.Logf("Mojang releases counting: %d", len(Mojang.Version))
-
-	// Spigot
-	t.Log("Getting versions to Spigot server")
-	if err := Spigot.list(); err != nil {
-		t.Error(err)
-		return
-	}
-	t.Logf("Spigot releases counting: %d", len(Spigot.Version))
-
-	// Purpur
-	t.Log("Getting versions to Purpur server")
-	if err := Purpur.list(); err != nil {
-		t.Error(err)
-		return
-	}
-	t.Logf("Purpur releases counting: %d", len(Purpur.Version))
-
-	// Paper
-	for _, PaperProject := range paperProjects {
-		t.Run(fmt.Sprintf("Paper, project %q", PaperProject), func(t *testing.T) {
-			var Paper PaperSearch
-			Paper.ProjectTarget = PaperProject
-			t.Logf("Getting versions to %s server", Paper.ProjectTarget)
-			if err := Purpur.list(); err != nil {
-				t.Error(err)
-				return
-			}
-			t.Logf("%s releases counting: %d", Paper.ProjectTarget, len(Purpur.Version))
-		})
-	}
-}
 
 // Test spigot build to install server
 func TestSpigotBuild(t *testing.T) {
@@ -60,6 +12,7 @@ func TestSpigotBuild(t *testing.T) {
 		Version:      "1.21.1",
 		ToolVersion:  181,
 		JavaVersions: []uint{65, 67},
+		JavaFolder:   filepath.Join(t.TempDir(), "javacs"),
 		Ref: struct {
 			Spigot      string `json:"Spigot"`
 			Bukkit      string `json:"Bukkit"`
@@ -70,6 +23,45 @@ func TestSpigotBuild(t *testing.T) {
 	// Build and install server
 	if err := version.Install(filepath.Join(t.TempDir(), "spigotBuild")); err != nil {
 		t.Error(err)
+		return
+	}
+}
+
+func TestListVersions(t *testing.T) {
+	for _, paperTarget := range PaperProjects {
+		t.Run(paperTarget, func(t *testing.T) {
+			call, _ := ListPaper(paperTarget)
+			versions, err := call()
+			if err != nil {
+				t.Error(err)
+				return
+			} else if len(versions) == 0 {
+				t.Errorf("cannot get versions to %s in paper", paperTarget)
+			}
+		})
+	}
+
+	if mcVersion, err := ListSpigot("")(); err != nil {
+		t.Error(err)
+		return
+	} else if len(mcVersion) == 0 {
+		t.Error("spigotmc return invalid versions list")
+		return
+	}
+
+	if mcVersion, err := ListMojang(); err != nil {
+		t.Error(err)
+		return
+	} else if len(mcVersion) == 0 {
+		t.Error("mojang return invalid versions list")
+		return
+	}
+
+	if mcVersion, err := ListPurpur(); err != nil {
+		t.Error(err)
+		return
+	} else if len(mcVersion) == 0 {
+		t.Error("purpur project return invalid versions list")
 		return
 	}
 }

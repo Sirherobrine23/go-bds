@@ -26,7 +26,10 @@ func (server *Pocketmine) Start() (exec.Proc, error) {
 			"--enable-ansi",
 		},
 	}
-	var os exec.Os
-	os.Start(opts)
-	return &os, nil
+
+	os := &exec.Os{}
+	if err := os.Start(opts); err != nil {
+		return nil, err
+	}
+	return os, nil
 }

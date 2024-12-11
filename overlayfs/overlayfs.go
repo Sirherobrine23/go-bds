@@ -3,13 +3,12 @@ package overlayfs
 import (
 	"errors"
 	"io/fs"
-
-	"sirherobrine23.com.br/go-bds/go-bds/overlayfs/mergefs"
 )
 
 var (
-	ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")
-	ErrNoCGOAvaible      error = errors.New("cgo is disabled to process syscall's")
+	ErrNotOverlayAvaible error = errors.New("overlayfs not avaible")                // Current system ou another variables cannot mount merge filesystem or similar
+	ErrNoCGOAvaible      error = errors.New("cgo is disabled to process syscall's") // Cannot mount mergefs/overlayfs with cgo disabled
+	ErrMounted           error = errors.New("current path is mounted")              // Path target current as mounted
 )
 
 type Overlayfs struct {
@@ -17,7 +16,12 @@ type Overlayfs struct {
 	Upper   string   // Folder to write modifications, blank to read-only
 	Lower   []string // Folders layers, read-only
 	Workdir string   // Folder to write temporary files, only linux required
+
+	ProcessInternal any
 }
+
+// Get new [io/fs.FS] from layers with MergeFS style directly from Golang
+func (overlay *Overlayfs) MergeFS() fs.FS { return NewFS(overlay) }
 
 // Return new Overlayfs
 //
@@ -33,9 +37,4 @@ func NewOverlayFS(TargetFolder, TopLayer, Workdir string, LowLayers ...string) *
 		Upper:   TopLayer,
 		Workdir: Workdir,
 	}
-}
-
-// Get new [io/fs.FS] from layers with MergeFS style directly from Golang
-func (w Overlayfs) MergeFS() fs.FS {
-	return mergefs.NewFS(mergefs.NewMergefs(w.Upper, w.Lower...))
 }

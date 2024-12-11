@@ -22,17 +22,18 @@ var (
 
 	MojangHeaders = map[string]string{
 		// "Accept-Encoding":           "gzip, deflate",
-		"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
 		"Accept-Language":           "en-US;q=0.9,en;q=0.8",
-		"Sec-Ch-Ua":                 `"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123\"`,
+		"Host":                      "httpbin.org",
+		"Priority":                  "u=0, i",
+		"Sec-Ch-Ua":                 "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
 		"Sec-Ch-Ua-Mobile":          "?0",
-		"Sec-Ch-Ua-Platform":        `"Windows"`,
+		"Sec-Ch-Ua-Platform":        "\"Linux\"",
 		"Sec-Fetch-Dest":            "document",
 		"Sec-Fetch-Mode":            "navigate",
 		"Sec-Fetch-Site":            "none",
 		"Sec-Fetch-User":            "?1",
 		"Upgrade-Insecure-Requests": "1",
-		"User-Agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+		"User-Agent":                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 	}
 )
 
@@ -92,7 +93,7 @@ func (version VersionPlatform) Download(serverPath string) error {
 	if version.TarFile != "" { // Not require to check file signature
 		return request.Tar(version.TarFile, extractOptions, nil)
 	}
-	return request.Zip(version.ZipFile, request.ExtractOptions{Cwd: serverPath}, nil)
+	return request.Zip(version.ZipFile, extractOptions, nil)
 }
 
 // Get new versions from minecraft.net/en-us/download/server/bedrock
@@ -132,7 +133,7 @@ func FetchFromWebsite() (*MojangHTML, error) {
 
 func GetLatest(a Versions) string {
 	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
-		return !v.IsPreview
+		return v.IsPreview
 	})
 	semver.SortStruct(k)
 	return k[len(k)-1].ServerVersion
@@ -140,7 +141,7 @@ func GetLatest(a Versions) string {
 
 func GetLatestPreview(a Versions) string {
 	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
-		return v.IsPreview
+		return !v.IsPreview
 	})
 	semver.SortStruct(k)
 	return k[len(k)-1].ServerVersion

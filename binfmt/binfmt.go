@@ -59,8 +59,9 @@ func ResolveBinfmt(binPath string) (Binfmt, error) {
 				continue
 			}
 			return nil, err
+		} else if _, err := bin.Seek(0, 0); err != nil {
+			return nil, err
 		}
-		bin.Seek(0, 0)
 		continue
 	}
 
