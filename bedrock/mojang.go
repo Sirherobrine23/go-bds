@@ -27,19 +27,6 @@ type Mojang struct {
 	ServerProc exec.Proc // Server process
 }
 
-func EmptyFolder(fpath string) (bool, error) {
-	if _, err := os.Stat(fpath); os.IsNotExist(err) {
-		return true, nil
-	} else if err != nil {
-		return false, err
-	}
-	entrys, err := os.ReadDir(fpath)
-	if err != nil {
-		return false, err
-	}
-	return len(entrys) == 0, nil
-}
-
 func (server *Mojang) Close() error {
 	if server.ServerProc != nil {
 		server.ServerProc.Write([]byte("stop\n"))
@@ -67,7 +54,7 @@ func (server *Mojang) Start() error {
 		if err != nil {
 			return err
 		}
-		server.Version = GetLatest(versions)
+		server.Version = versions.GetLatest()
 	}
 
 	// Version folder
@@ -90,7 +77,7 @@ func (server *Mojang) Start() error {
 		}
 
 		var target VersionPlatform
-		if version, ok := versions[server.Version]; !ok {
+		if version, ok := versions.Get(server.Version); !ok {
 			return fmt.Errorf("version not found in database")
 		} else if target, ok = version.Platforms[fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)]; !ok {
 			if ok, err = binfmt.Target("linux/amd64"); err != nil {

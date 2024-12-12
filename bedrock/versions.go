@@ -1,9 +1,15 @@
 package bedrock
 
 import (
+	"archive/zip"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/internal/regex"
@@ -54,32 +60,66 @@ type VersionPlatform struct {
 	ReleaseDate time.Time `json:"releaseDate"` // Platform release/build day
 }
 
-type Versions map[string]Version
+type OldVersions map[string]Version
+type Versions []Version
 type Version struct {
-	IsPreview   bool                       `json:"preview"`          // Preview server
-	DockerImage map[string]string          `json:"images,omitempty"` // Docker images
-	Platforms   map[string]VersionPlatform `json:"platforms"`        // Golang platforms target
+	ServerVersion string                     `json:"version"`
+	IsPreview     bool                       `json:"preview"`          // Preview server
+	DockerImage   map[string]string          `json:"images,omitempty"` // Docker images
+	Platforms     map[string]VersionPlatform `json:"platforms"`        // Golang platforms target
 }
 
-type WithVersion struct {
-	ServerVersion string `json:"version"`
-	Version
+func (version Version) SemverVersion() *semver.Version { return semver.New(version.ServerVersion) }
+
+func (old OldVersions) Migrate() (new Versions) {
+	new = make(Versions, 0)
+	for versionStr, versionStruct := range old {
+		versionStruct.ServerVersion = versionStr // Add version to struct
+		new = append(new, versionStruct)
+	}
+	return
 }
 
-func (ver WithVersion) SemverVersion() *semver.Version { return semver.New(ver.ServerVersion) }
+// Check if version exists in slice
+func (versions Versions) Has(ver string) (exit bool) {
+	for _, versionStruct := range versions {
+		if exit = (versionStruct.ServerVersion == ver); exit {
+			break
+		}
+	}
+	return
+}
+
+// Return version if exists in slice
+func (versions Versions) Get(ver string) (version Version, ok bool) {
+	for _, versionStruct := range versions {
+		if ok = (versionStruct.ServerVersion == ver); ok {
+			version = versionStruct
+			break
+		}
+	}
+	return
+}
 
 // Get versions from cached versions
 func FromVersions() (Versions, error) {
 	versions, _, err := request.JSON[Versions](VersionsRemote, nil)
+	semver.SortStruct(versions)
 	return versions, err
 }
 
-func (ver Versions) Slices() []WithVersion {
-	var dd []WithVersion
-	for vv, entry := range ver {
-		dd = append(dd, WithVersion{vv, entry})
-	}
-	return dd
+// Get latest stable release version
+func (versions Versions) GetLatest() string {
+	releasesVersions := slices.DeleteFunc(versions, func(v Version) bool { return !v.IsPreview })
+	semver.SortStruct(releasesVersions)
+	return releasesVersions[len(releasesVersions)-1].ServerVersion
+}
+
+// Get latest preview release version
+func (versions Versions) GetLatestPreview() string {
+	previewVersions := slices.DeleteFunc(versions, func(v Version) bool { return v.IsPreview })
+	semver.SortStruct(previewVersions)
+	return previewVersions[len(previewVersions)-1].ServerVersion
 }
 
 // Download and Extract server to folder
@@ -89,10 +129,10 @@ func (version VersionPlatform) Download(serverPath string) error {
 	}
 
 	extractOptions := request.ExtractOptions{Cwd: serverPath}
-	if version.TarFile != "" { // Not require to check file signature
+	if version.TarFile != "" { // Not check file signature
 		return request.Tar(version.TarFile, extractOptions, nil)
 	}
-	return request.Zip(version.ZipFile, request.ExtractOptions{Cwd: serverPath}, nil)
+	return request.Zip(version.ZipFile, extractOptions, nil)
 }
 
 // Get new versions from minecraft.net/en-us/download/server/bedrock
@@ -130,18 +170,71 @@ func FetchFromWebsite() (*MojangHTML, error) {
 	return &body, nil
 }
 
-func GetLatest(a Versions) string {
-	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
-		return !v.IsPreview
-	})
-	semver.SortStruct(k)
-	return k[len(k)-1].ServerVersion
-}
+// Convert to versions and fill ReleaseDate, ZipFile and ZipSHA1
+func (mojangWeb MojangHTML) ConvertToVersions() (Versions, error) {
+	versions := make(Versions, 0)
+	for _, WebVersion := range mojangWeb.Versions {
+		if !versions.Has(WebVersion.Version) {
+			versions = append(versions, Version{
+				ServerVersion: WebVersion.Version,
+				IsPreview:     WebVersion.Preview,
+				DockerImage:   make(map[string]string),
+				Platforms:     make(map[string]VersionPlatform),
+			})
+		}
 
-func GetLatestPreview(a Versions) string {
-	k := slices.DeleteFunc(a.Slices(), func(v WithVersion) bool {
-		return v.IsPreview
-	})
-	semver.SortStruct(k)
-	return k[len(k)-1].ServerVersion
+		for appendedIndex := range versions {
+			if versions[appendedIndex].ServerVersion != WebVersion.Version {
+				continue
+			}
+
+			// Save file localy
+			localFile, _, err := request.SaveTmp(WebVersion.URL, nil)
+			if err != nil {
+				if localFile != nil {
+					os.Remove(localFile.Name())
+				}
+				return versions, err
+			}
+
+			stat, _ := localFile.Stat()
+			zipFile, err := zip.NewReader(localFile, stat.Size())
+			if err != nil {
+				os.Remove(localFile.Name())
+				return versions, err
+			}
+
+			// Create new struct
+			plaftormRelease := VersionPlatform{ZipFile: WebVersion.URL}
+
+			// Find file server to get build date
+			for _, file := range zipFile.File {
+				if strings.HasPrefix(file.FileInfo().Name(), "bedrock_server") {
+					plaftormRelease.ReleaseDate = file.Modified
+					break
+				}
+			}
+
+			// Create sha1 from zip file
+			if _, err = localFile.Seek(0, 0); err != nil {
+				os.Remove(localFile.Name())
+				return versions, err
+			}
+			sha1 := sha1.New()
+			go io.Copy(sha1, localFile)
+			plaftormRelease.ZipSHA1 = hex.EncodeToString(sha1.Sum(nil))
+
+			// Delete zip file
+			if err = os.Remove(localFile.Name()); err != nil {
+				return versions, err
+			}
+
+			// Append to versions again
+			ver := versions[appendedIndex]
+			ver.Platforms[WebVersion.Platform] = plaftormRelease
+			versions[appendedIndex] = ver
+		}
+	}
+	semver.SortStruct(versions)
+	return versions, nil
 }
