@@ -8,9 +8,9 @@ import (
 	"runtime"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/java/javaprebuild"
 	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
+	"sirherobrine23.com.br/go-bds/go-bds/semver"
 )
 
 var (

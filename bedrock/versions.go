@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal/regex"
-	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
+	"sirherobrine23.com.br/go-bds/go-bds/regex"
 	"sirherobrine23.com.br/go-bds/go-bds/request/gohtml"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
+	"sirherobrine23.com.br/go-bds/go-bds/semver"
 )
 
 var (

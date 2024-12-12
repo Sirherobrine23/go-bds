@@ -3,8 +3,8 @@ package java
 import (
 	"path/filepath"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
+	"sirherobrine23.com.br/go-bds/go-bds/semver"
 )
 
 var (
@@ -13,8 +13,8 @@ var (
 )
 
 type MojangVersion struct {
-	Version   string // Server version
-	ServerURL string // Server URL
+	Version    string // Server version
+	ServerURL  string // Server URL
 	JVMVersion uint   // Java version
 }
 
@@ -65,9 +65,9 @@ func (mojangSearch *MojangSearch) list() error {
 			return err
 		} else if serverFile, ok := releaseInfo.FilesDownloads["server"]; ok {
 			mojangSearch.Version[releaseInfo.Version] = &MojangVersion{
-				Version:   releaseInfo.Version,
+				Version:    releaseInfo.Version,
 				JVMVersion: releaseInfo.Java.VersionMajor,
-				ServerURL: serverFile.FileUrl,
+				ServerURL:  serverFile.FileUrl,
 			}
 		}
 	}

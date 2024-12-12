@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/internal/regex"
+	"sirherobrine23.com.br/go-bds/go-bds/regex"
 )
 
 const (
