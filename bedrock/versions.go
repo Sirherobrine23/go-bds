@@ -189,7 +189,7 @@ func (mojangWeb MojangHTML) ConvertToVersions() (Versions, error) {
 			}
 
 			// Save file localy
-			localFile, _, err := request.SaveTmp(WebVersion.URL, nil)
+			localFile, _, err := request.SaveTmp(WebVersion.URL, &request.Options{Header: MojangHeaders})
 			if err != nil {
 				if localFile != nil {
 					os.Remove(localFile.Name())
