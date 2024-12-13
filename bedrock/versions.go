@@ -100,14 +100,14 @@ func FromVersions() (Versions, error) {
 
 // Get latest stable release version
 func (versions Versions) GetLatest() string {
-	releasesVersions := slices.DeleteFunc(versions, func(v Version) bool { return !v.IsPreview })
+	releasesVersions := slices.DeleteFunc(slices.Clone(versions), func(v Version) bool { return !v.IsPreview })
 	semver.SortStruct(releasesVersions)
 	return releasesVersions[len(releasesVersions)-1].ServerVersion
 }
 
 // Get latest preview release version
 func (versions Versions) GetLatestPreview() string {
-	previewVersions := slices.DeleteFunc(versions, func(v Version) bool { return v.IsPreview })
+	previewVersions := slices.DeleteFunc(slices.Clone(versions), func(v Version) bool { return v.IsPreview })
 	semver.SortStruct(previewVersions)
 	return previewVersions[len(previewVersions)-1].ServerVersion
 }
