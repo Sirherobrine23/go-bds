@@ -1,16 +1,23 @@
 package exec
 
-import "testing"
+import (
+	"os/exec"
+	"testing"
+)
 
 func TestOs(t *testing.T) {
-	var osExec = new(Os)
-	if err := osExec.Start(ProcExec{Arguments: []string{"echo", "hello world"}}); err != nil {
-		t.Fatal(err)
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		t.Skipf("cannot get go version, %s", err.Error())
 		return
 	}
 
-	if err := osExec.Wait(); err != nil {
-		t.Fatal(err)
+	sysProc := &Os{}
+	if err = sysProc.Start(ProcExec{Arguments: []string{goPath, "version"}}); err != nil {
+		t.Error(err)
+		return
+	} else if err = sysProc.Wait(); err != nil {
+		t.Error(err)
 		return
 	}
 }

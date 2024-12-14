@@ -12,12 +12,14 @@ import (
 	"sirherobrine23.com.br/go-bds/go-bds/request"
 )
 
+var _ Proc = &Proot{}
+
 // Mount rootfs and run command insider in proot
 //
 // if network not resolve names add nameserver to /etc/resolv.conf (`(echo 'nameserver 1.1.1.1'; echo 'nameserver 8.8.8.8') > /etc/resolv.conf`)
 type Proot struct {
-	Rootfs string `json:"rootfs"` // Rootfs to mount to run proot
-	Qemu   string `json:"qemu"`   // Execute guest programs through QEMU, exp: "qemu-x86_64" or "qemu-x86_64-static"
+	Rootfs string // Rootfs to mount to run proot
+	Qemu   string // Execute guest programs through QEMU, exp: "qemu-x86_64" or "qemu-x86_64-static"
 	*Os
 }
 
@@ -39,18 +41,19 @@ func (pr *Proot) AddNameservers(aadrs ...net.IP) error {
 
 // Mount proot and Execute process
 func (pr *Proot) Start(options ProcExec) error {
-	pr.Os = new(Os)
-	var exec ProcExec
-	exec.Environment = options.Environment
+	pr.Os = &Os{}
 
-	// proot -r ./rootfs -q qemu-x86_64 -0 -w / -b /dev -b /proc -b /sys
-	exec.Arguments = []string{
-		"proot",
-		fmt.Sprintf("--rootfs=%s", pr.Rootfs),
-		"--bind=/dev",
-		"--bind=/proc",
-		"--bind=/sys",
-		"-0", // Root ID
+	exec := ProcExec{
+		Environment: options.Environment,
+		// proot -r ./rootfs -q qemu-x86_64 -0 -w / -b /dev -b /proc -b /sys
+		Arguments: []string{
+			"proot",
+			fmt.Sprintf("--rootfs=%s", pr.Rootfs),
+			"--bind=/dev",
+			"--bind=/proc",
+			"--bind=/sys",
+			"-0", // Root ID
+		},
 	}
 
 	if pr.Qemu != "" {
@@ -78,8 +81,10 @@ func (proc *Proot) DownloadUbuntuRootfs(Version, Arch string) error {
 		return err
 	}
 	defer gz.Close()
+	if err := os.MkdirAll(proc.Rootfs, 0700); err != nil {
+		return err
+	}
 
-	os.MkdirAll(proc.Rootfs, 0700)
 	tarball := tar.NewReader(gz)
 	for {
 		head, err := tarball.Next()
@@ -102,7 +107,12 @@ func (proc *Proot) DownloadUbuntuRootfs(Version, Arch string) error {
 		}
 
 		// Create folder if not exist to create file
-		os.MkdirAll(filepath.Dir(fullPath), 0666)
+		if _, err = os.Stat(filepath.Dir(fullPath)); os.IsNotExist(err) {
+			if err = os.MkdirAll(filepath.Dir(fullPath), 0666); err != nil {
+				return err
+			}
+		}
+
 		file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileinfo.Mode())
 		if err != nil {
 			return err
