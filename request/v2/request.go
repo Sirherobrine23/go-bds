@@ -24,11 +24,24 @@ func (err errResponseCode) Error() string {
 	return fmt.Sprintf("cannot process request, response code %d", err.Response.StatusCode)
 }
 
+type Header map[string]string
+
+func (head Header) Merge(head2 Header) Header {
+	if head == nil {
+		head = map[string]string{}
+	}
+	n1 := maps.Clone(head)
+	for key, val := range head2 {
+		n1[key] = val
+	}
+	return n1
+}
+
 // Request options
 type Options struct {
 	Method            string               // Request method, example, Get, Post
 	Body              any                  // Struct or io.Reader, if is Struct convert to json
-	Header            map[string]string    // Extra request Headers
+	Header            Header               // Extra request Headers
 	CodeProcess       map[int]CodeCallback // Process request with callback, -1 call any other status code
 	NotFollowRedirect bool                 // Watcher requests redirects
 	Jar               http.CookieJar

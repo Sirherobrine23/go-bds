@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/PuerkitoBio/goquery v1.9.2
+	github.com/google/uuid v1.6.0
 	github.com/gookit/properties v0.3.0
 	github.com/klauspost/compress v1.17.11
 	github.com/ulikunitz/xz v0.5.12
