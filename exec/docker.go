@@ -11,6 +11,8 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
+var _ Proc = &DockerContainer{}
+
 type DockerContainer struct {
 	DockerClient *client.Client
 
@@ -20,6 +22,23 @@ type DockerContainer struct {
 
 	containerID string
 	statusExit  *container.WaitResponse
+}
+
+// Create Docker client connection and return new DockerContainer with "debian:latest" image
+func NewDockerDefault() (*DockerContainer, error) {
+	client, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DockerContainer{
+		DockerClient: client,
+		Image:        "debian:lates",
+		containerID:  "",
+		statusExit:   nil,
+		Volumes:      []string{},
+		Ports:        []nat.Port{},
+	}, nil
 }
 
 func (docker *DockerContainer) Kill() error {
