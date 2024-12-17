@@ -25,7 +25,7 @@ A module that brings together many functions to manage your Minecraft server eff
 - [Aternos Mclog](https://mclo.gs/) ([Git repo](https://github.com/aternosorg/mclogs))
    - Server handler
    - Client
-- [playit proxy client](playit.gg)
+- [playit proxy client](https://playit.gg)
    - Add generic client to UDP and TCP packets
 - binfmt: Attempt check file exec info and more
 - Mount overlay: overlayfs or similar in platforms supported
