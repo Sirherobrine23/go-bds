@@ -1,3 +1,4 @@
+// Start system process a any platform example host, proot/chroot, docker/podman, etc... and return standardized struct
 package exec
 
 import (
