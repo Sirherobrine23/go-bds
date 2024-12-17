@@ -10,17 +10,20 @@ var (
 	MclogsApi  string = "https://api.mclo.gs"
 	MclogsBase string = "https://mclo.gs"
 
-	ErrNoImplemented error = errors.New("function not implemented")
-	ErrNoExists      error = errors.New("log no exists")      // id request not exists
-	ErrNoId          error = errors.New("require mclo.gs id") // Require uploaded log to view
+	ErrNoImplemented   error = errors.New("function not implemented")    // Cannot use function
+	ErrInvalidPlaftorm error = errors.New("cannot process log platform") // Cannot detect platform to process log
+	ErrNoExists        error = errors.New("log no exists")               // id request not exists
+	ErrNoId            error = errors.New("require mclo.gs id")          // Require uploaded log to view
 )
 
 const (
-	LogProblem LogLevel = "problems"
-	LogInfo    LogLevel = "information"
-
 	DefaultMaxLength int64 = 10485760
 	DefaultMaxLines  int64 = 25000
+
+	LogUnknown LogLevel = "unknown"
+	LogInfo    LogLevel = "information"
+	LogProblem LogLevel = "problems"
+	LogWarn    LogLevel = "warning"
 )
 
 type LogLevel string
@@ -66,4 +69,4 @@ type Insights struct {
 	Analysis map[LogLevel][]InsightsAnalysis `json:"analysis"`
 }
 
-func (insights *Insights) ParseLogFile(r io.Reader) error { return ErrNoImplemented }
+func (insights *Insights) ParseStream(r io.Reader) error { return ErrNoImplemented }
