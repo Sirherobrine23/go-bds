@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,45 +17,62 @@ import (
 
 type Storage interface {
 	fs.FS
-	Save(name string, body io.Reader) (int64, error) // Save file in storage
-	Remove(name string) error                        // Remove file from storage
+	Create(name string) (io.WriteCloser, error) // Save file in storage
+	Remove(name string) error                   // Remove file from storage
+}
+
+func writeJSON(w io.Writer, obj any) {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	enc.Encode(obj)
+}
+
+func writeErr(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	if errors.Is(err, fs.ErrNotExist) {
+		w.WriteHeader(404)
+		writeJSON(w, MclogResponseStatus{Success: false, ErrorMessage: ErrNoExists.Error()})
+		return
+	}
+	w.WriteHeader(500)
+	writeJSON(w, MclogResponseStatus{Success: false, ErrorMessage: err.Error()})
 }
 
 func NewHandler(serverLimits Limits, storage Storage) *http.ServeMux {
 	control := http.NewServeMux()
 
+	// Return server limits to process logs
 	control.HandleFunc("GET /1/limits", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		enc.Encode(Limits{
-			StorageTime: serverLimits.StorageTime / time.Second,
+		writeJSON(w, Limits{
+			StorageTime: serverLimits.StorageTime / time.Second, // return only seconds
 			MaxLength:   serverLimits.MaxLength,
 			MaxLines:    serverLimits.MaxLines,
 		})
 	})
 
+	// Get log stream
 	control.HandleFunc("GET /1/raw/{id}", func(w http.ResponseWriter, r *http.Request) {
 		logId := r.PathValue("id")
 		body, err := storage.Open(logId)
-		if err != nil && errors.Is(err, fs.ErrNotExist) {
-			w.WriteHeader(404)
-			enc := json.NewEncoder(w)
-			enc.SetIndent("", "  ")
-			enc.Encode(MclogResponseStatus{
-				Success:      false,
-				ErrorMessage: "Log file not exists",
-			})
-			return // Close function
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				w.WriteHeader(404)
+				writeJSON(w, MclogResponseStatus{Success: false, ErrorMessage: ErrNoExists.Error()})
+				return
+			}
+			w.WriteHeader(500)
+			writeJSON(w, MclogResponseStatus{Success: false, ErrorMessage: err.Error()})
+			return
 		}
 		defer body.Close()
 
-		w.Header().Set("Content-Type", "application/octet-stream") // Set file stream
+		w.Header().Set("Content-Type", "text/plain") // Set file stream
 		if stat, err := body.Stat(); err == nil {
-			w.Header().Set("Content-Type", "text/plain")
 			w.Header().Set("content-length", strconv.FormatInt(stat.Size(), 10))
 		}
 
+		// Response
 		w.WriteHeader(200)
 		go io.Copy(w, body)
 	})
@@ -65,136 +83,95 @@ func NewHandler(serverLimits Limits, storage Storage) *http.ServeMux {
 		// Open log file
 		logBody, err := storage.Open(logId)
 		if err != nil {
-			// Return if log not exists
-			if errors.Is(err, fs.ErrNotExist) {
-				w.WriteHeader(404)
-				enc := json.NewEncoder(w)
-				enc.SetIndent("", "  ")
-				enc.Encode(MclogResponseStatus{
-					Success:      false,
-					ErrorMessage: "log not exists",
-				})
-				return // close function
-			}
-
-			// Return sys error
-			w.WriteHeader(500)
-			enc := json.NewEncoder(w)
-			enc.SetIndent("", "  ")
-			enc.Encode(MclogResponseStatus{
-				Success:      false,
-				ErrorMessage: err.Error(),
-			})
-			return // close function
+			writeErr(w, err)
+			return
 		}
 		defer logBody.Close()
 
 		// Parse log body
 		var logInsight Insights
-		if err := logInsight.ParseLogFile(logBody); err != nil {
-			w.WriteHeader(500)
-			enc := json.NewEncoder(w)
-			enc.SetIndent("", "  ")
-			enc.Encode(MclogResponseStatus{
-				Success:      false,
-				ErrorMessage: err.Error(),
-			})
+		if err := logInsight.ParseStream(logBody); err != nil {
+			writeErr(w, err)
 			return
 		}
 
 		// return log insight
 		w.WriteHeader(200)
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		enc.Encode(logInsight)
+		writeJSON(w, logInsight)
 	})
 
 	control.HandleFunc("POST /1/log", func(w http.ResponseWriter, r *http.Request) {
-		var randomId string
-		for randomId == "" {
-			buff := make([]byte, 8)
-			if _, err := rand.Read(buff); err != nil && !errors.Is(err, io.EOF) {
-				w.WriteHeader(500)
-				enc := json.NewEncoder(w)
-				enc.SetIndent("", "  ")
-				enc.Encode(MclogResponseStatus{
-					Success:      false,
-					ErrorMessage: "cannot make log id",
-				})
-				return
-			}
-			randomId = hex.EncodeToString(buff)
-			if f, err := storage.Open(randomId); err == nil {
-				f.Close()
-				randomId = ""
-			}
+		// Close body after run function
+		defer r.Body.Close()
+
+		// Set only reader type
+		logStream := io.Reader(r.Body)
+		if serverLimits.MaxLength > 0 {
+			logStream = io.LimitReader(r.Body, serverLimits.MaxLength) // Set max body lenght from limits
 		}
 
-		if slices.Contains(r.Header.Values("Content-Type"), "application/x-www-form-urlencoded") {
-			if err := r.ParseForm(); err != nil {
-				w.WriteHeader(500)
-				enc := json.NewEncoder(w)
-				enc.SetIndent("", "  ")
-				enc.Encode(MclogResponseStatus{
-					Success:      false,
-					ErrorMessage: err.Error(),
-				})
+		switch {
+		case slices.Contains(r.Header.Values("Content-Type"), "application/octet-stream"):
+			// noop, only reader body from logStream
+		case slices.Contains(r.Header.Values("Content-Type"), "application/x-www-form-urlencoded"):
+			// Read all body
+			body, err := io.ReadAll(logStream)
+			if err != nil {
+				writeErr(w, err)
+				return
+			}
+
+			// Parse body
+			form, err := url.ParseQuery(string(body))
+			if err != nil {
+				writeErr(w, err)
 				return
 			}
 
 			// Check if body have "content"
-			if !r.Form.Has("content") {
+			if !form.Has("content") {
 				w.WriteHeader(400)
-				enc := json.NewEncoder(w)
-				enc.SetIndent("", "  ")
-				enc.Encode(MclogResponseStatus{
-					Success:      false,
-					ErrorMessage: "require the 'content' in body",
-				})
+				writeJSON(w, MclogResponseStatus{Success: false, ErrorMessage: "require the 'content' in body"})
 				return
 			}
 
 			// Attemp write log file
-			if _, err := storage.Save(randomId, strings.NewReader(r.Form.Get("content"))); err != nil {
-				w.WriteHeader(500)
-				enc := json.NewEncoder(w)
-				enc.SetIndent("", "  ")
-				enc.Encode(MclogResponseStatus{
-					Success:      false,
-					ErrorMessage: err.Error(),
-				})
+			logStream = strings.NewReader(form.Get("content"))
+		default:
+			w.WriteHeader(400)
+			writeJSON(w, MclogResponseStatus{Success: false, ErrorMessage: "Require 'application/x-www-form-urlencoded' or raw stream/'application/octet-stream'"})
+			return
+		}
+
+		var randomId string
+		for randomId == "" {
+			buff := make([]byte, 8)
+			if _, err := rand.Read(buff); err != nil {
+				writeErr(w, err)
 				return
 			}
-		} else {
-			// Close body after run function
-			defer r.Body.Close()
-
-			logStream := io.Reader(r.Body)
-			if serverLimits.MaxLength > 0 {
-				logStream = io.LimitReader(r.Body, serverLimits.MaxLength)
+			randomId = hex.EncodeToString(buff)
+			if f, err := storage.Open(randomId); err == nil {
+				f.Close() // Close file
+				randomId = ""
 			}
+		}
 
-			// Attemp write log file
-			if _, err := storage.Save(randomId, logStream); err != nil {
-				w.WriteHeader(500)
-				enc := json.NewEncoder(w)
-				enc.SetIndent("", "  ")
-				enc.Encode(MclogResponseStatus{
-					Success:      false,
-					ErrorMessage: err.Error(),
-				})
-				return
-			}
+		// Attemp write log file
+		file, err := storage.Create(randomId)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		defer file.Close()
+		if _, err = io.Copy(file, logStream); err != nil {
+			writeErr(w, err)
+			return
 		}
 
 		// Write success log id
 		w.WriteHeader(201)
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		enc.Encode(MclogResponseStatus{
-			Success: true,
-			Id:      randomId,
-		})
+		writeJSON(w, MclogResponseStatus{Success: true, Id: randomId})
 	})
 
 	return control
