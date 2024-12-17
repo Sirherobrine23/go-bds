@@ -1,8 +1,6 @@
 # Go Bds Maneger
 
-Maneger Minecraft server easy and more eficient
-
-This is just a base package, without cli or even http api, for this you must create a go project and import this module, if not use one of our ready-made projects here on the server
+A module that brings together many functions to manage your Minecraft server efficiently, including several tools.
 
 ## Server suports
 
@@ -19,23 +17,18 @@ This is just a base package, without cli or even http api, for this you must cre
       - `folia`
       - `velocity`
 
-## System
+1. Minecraft Java run in any platform and architecture on java avaible.
+1. The official Minecraft bedrock server ***CANNOT*** run on all platforms and CPU architectures, this tool tries as many ways to run this server as efficiently as possible.
 
-|    System     | Overlayfs/Mergefs  |   Bedrock Server   |    Java Server     |
-| :-----------: | :----------------: | :----------------: | :----------------: |
-|    Windows    |        :x:         | :heavy_check_mark: | :heavy_check_mark: |
-|     Linux     | :heavy_check_mark: |     :warning:      | :heavy_check_mark: |
-|     MacOS     |  :traffic_light:   |        :x:         | :heavy_check_mark: |
-|  *BSD Family  |  :traffic_light:   |        :x:         |  :traffic_light:   |
-| Solaris/SunOS |        :x:         |        :x:         |  :traffic_light:   |
+## Tools
 
-1. The Linux server will be emulated if possible if the architecture is different from amd64/x86_64
-2. BSD Family require tests for Java server
-
-## System packages
-
-We implement system calls to set up filesystems of the type or similar to Linux's OverlayFS on possible platforms and in a way that is mostly compatible with servers, and another tools to maneger server easyly.
-
-1. Binfmt
-1. OverlayFS - Filesystem implementation
-   1. MergeFS - Golang Overlayfs implementations
+- [Aternos Mclog](https://mclo.gs/) ([Git repo](https://github.com/aternosorg/mclogs))
+   - Server handler
+   - Client
+- [playit proxy client](playit.gg)
+   - Add generic client to UDP and TCP packets
+- binfmt: Attempt check file exec info and more
+- Mount overlay: overlayfs or similar in platforms supported
+   - Linux
+   - MacOS (soon)
+   - Windows (soon)
