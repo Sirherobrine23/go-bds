@@ -9,7 +9,9 @@
   },
   "gopls": {
     "analyses": {
-      "unsafeptr": false
+      "unsafeptr": false,
+      "nilderef": false,
+      "nilness": false,
     }
   }
 }

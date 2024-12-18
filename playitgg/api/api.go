@@ -1,21 +1,10 @@
-// API to playit.gg
 package api
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"slices"
-
-	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
 var (
-	PlayitAPI       string = "https://api.playit.gg" // Playit API
-	GoPlayitVersion string = "0.17.1"                // playtit.gg agent version
-
 	ErrInvalidAuth            error = errors.New("cannot process api request because return not auth")
 	ErrTooMenyRequest         error = errors.New("wait seconds to make new request")
 	ErrNotFound               error = errors.New("path request not found")
@@ -38,31 +27,35 @@ var (
 )
 
 const (
-	TunnelTypeMCBedrock TunnelType = iota + 1 // Minecraft Bedrock server
-	TunnelTypeMCJava                          // Minecraft java server
-	TunnelTypeValheim                         // valheim
-	TunnelTypeTerraria                        // Terraria multiplayer
-	TunnelTypeStarbound                       // starbound
-	TunnelTypeRust                            // Rust (No programmer language)
-	TunnelType7Days                           // 7days
-	TunnelTypeUnturned                        // unturned
+	GoPlayitVersion string = "0.17.1"
+	PlayitAPI       string = "https://api.playit.gg" // Playit API
 )
 
 const (
-	PortTypeBoth PortType = iota // Tunnel support tcp and udp protocol
-	PortTypeTcp                  // Tunnel support only tcp protocol
-	PortTypeUdp                  // Tunnel support only udp protocol
+	TunnelTypeMinecraftBedrock TunnelType = iota + 1 // Minecraft Bedrock server
+	TunnelTypeMinecraftJava                          // Minecraft java server
+	TunnelTypeValheim                                // valheim
+	TunnelTypeTerraria                               // Terraria multiplayer
+	TunnelTypeStarbound                              // starbound
+	TunnelTypeRust                                   // Rust (No programmer language)
+	TunnelType7Days                                  // 7days
+	TunnelTypeUnturned                               // unturned
 )
 
-// Default regions to allocate or allocated
 const (
-	RegionGlobal       AllocationRegion = iota + 1 // Free account and premium
-	RegionSmartGlobal                              // Require premium account
-	RegionNorthAmerica                             // Require premium account
-	RegionEurope                                   // Require premium account
-	RegionAsia                                     // Require premium account
-	RegionIndia                                    // Require premium account
-	RegionSouthAmerica                             // Require premium account
+	PortTypeBoth PortProto = iota // Tunnel support tcp and udp protocol
+	PortTypeTcp                   // Tunnel support only tcp protocol
+	PortTypeUdp                   // Tunnel support only udp protocol
+)
+
+const (
+	RegionGlobal       Region = iota + 1 // Free account and premium
+	RegionSmartGlobal                    // Require premium account
+	RegionNorthAmerica                   // Require premium account
+	RegionEurope                         // Require premium account
+	RegionAsia                           // Require premium account
+	RegionIndia                          // Require premium account
+	RegionSouthAmerica                   // Require premium account
 )
 
 type errStatus struct {
@@ -115,47 +108,234 @@ func (err errStatus) Error() error {
 			return ErrTotpRequred
 		}
 	}
+	return errors.New(err.Data.Message)
+}
+
+type Api struct {
+	Code   string // Claim code
+	Secret string // Agent Secret
+}
+
+const (
+	_                      AccountStatus = iota
+	StatusReady                          // "ready"
+	StatusGuest                          // "guest"
+	StatusBanned                         // "banned"
+	StatusEmailNotVerified               // "email-not-verified"
+	StatusHasMessage                     // "has-message"
+	StatusDelete                         // "account-delete-scheduled"
+	StatusOverLimit                      // "agent-over-limit"
+	StatusDisabled                       // "agent-disabled"
+)
+
+type AccountStatus int
+
+func (account *AccountStatus) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "ready":
+		*account = StatusReady
+	case "guest":
+		*account = StatusGuest
+	case "banned":
+		*account = StatusBanned
+	case "email-not-verified":
+		*account = StatusEmailNotVerified
+	case "has-message":
+		*account = StatusHasMessage
+	case "account-delete-scheduled":
+		*account = StatusDelete
+	case "agent-over-limit":
+		*account = StatusOverLimit
+	case "agent-disabled":
+		*account = StatusDisabled
+	}
 	return nil
 }
 
-type Map map[string]any
-
-func postRequest[T any](path, authToken string, body any, options *request.Options) (T, error) {
-	if options == nil {
-		options = &request.Options{}
+func (account AccountStatus) MarshalText() ([]byte, error) {
+	switch account {
+	case StatusReady:
+		return []byte("ready"), nil
+	case StatusGuest:
+		return []byte("guest"), nil
+	case StatusBanned:
+		return []byte("banned"), nil
+	case StatusEmailNotVerified:
+		return []byte("email-not-verified"), nil
+	case StatusHasMessage:
+		return []byte("has-message"), nil
+	case StatusDelete:
+		return []byte("account-delete-scheduled"), nil
+	case StatusOverLimit:
+		return []byte("agent-over-limit"), nil
+	case StatusDisabled:
+		return []byte("agent-disabled"), nil
 	}
+	return []byte{}, nil
+}
 
-	res, err := request.Request(fmt.Sprintf("%s/%s", PlayitAPI, path), &request.Options{
-		Method: "POST",
-		Body:   body,
-		Header: options.Header.Merge(map[string]string{"authorization": authToken}),
-		CodeProcess: map[int]request.CodeCallback{
-			429: func(res *http.Response) (*http.Response, error) { return nil, ErrTooMenyRequest },
-			401: func(res *http.Response) (*http.Response, error) { return nil, ErrInvalidAuth },
-			-1:  func(res *http.Response) (*http.Response, error) { return res, nil },
-		},
-	})
-	if err != nil {
-		return *(*T)(nil), err
-	}
-	defer res.Body.Close()
+type PortProto int
 
-	fullBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		return *(*T)(nil), err
+func (port PortProto) MarshalText() ([]byte, error) {
+	switch port {
+	case PortTypeTcp:
+		return []byte("tcp"), nil
+	case PortTypeUdp:
+		return []byte("udp"), nil
+	default:
+		return []byte("both"), nil
 	}
+}
+func (port *PortProto) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "tcp":
+		*port = PortTypeTcp
+	case "udp":
+		*port = PortTypeUdp
+	default:
+		*port = PortTypeBoth
+	}
+	return nil
+}
 
-	if slices.Contains([]int{200, 201}, res.StatusCode) {
-		var n T
-		if err = json.Unmarshal(fullBody, &n); err != nil {
-			return *(*T)(nil), err
-		}
-		return n, nil
-	}
+type TunnelType int
 
-	var errorStr errStatus
-	if err = json.Unmarshal(fullBody, &errorStr); err != nil {
-		return *(*T)(nil), err
+func (tun TunnelType) MarshalText() ([]byte, error) {
+	switch tun {
+	case TunnelTypeMinecraftBedrock:
+		return []byte("minecraft-bedrock"), nil
+	case TunnelTypeMinecraftJava:
+		return []byte("minecraft-java"), nil
+	case TunnelTypeValheim:
+		return []byte("valheim"), nil
+	case TunnelTypeTerraria:
+		return []byte("terraria"), nil
+	case TunnelTypeStarbound:
+		return []byte("starbound"), nil
+	case TunnelTypeRust:
+		return []byte("rust"), nil
+	case TunnelType7Days:
+		return []byte("7days"), nil
+	case TunnelTypeUnturned:
+		return []byte("unturned"), nil
+	default:
+		return []byte(""), nil
 	}
-	return *(*T)(nil), errorStr.Error()
+}
+func (tun *TunnelType) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "minecraft-bedrock":
+		*tun = TunnelTypeMinecraftBedrock
+	case "minecraft-java":
+		*tun = TunnelTypeMinecraftJava
+	case "valheim":
+		*tun = TunnelTypeValheim
+	case "terraria":
+		*tun = TunnelTypeTerraria
+	case "starbound":
+		*tun = TunnelTypeStarbound
+	case "rust":
+		*tun = TunnelTypeRust
+	case "7days":
+		*tun = TunnelType7Days
+	case "unturned":
+		*tun = TunnelTypeUnturned
+	default:
+		*tun = 0
+	}
+	return nil
+}
+
+type Region int
+
+func (region Region) MarshalText() ([]byte, error) {
+	switch region {
+	case RegionSmartGlobal:
+		return []byte("smart-global"), nil
+	case RegionNorthAmerica:
+		return []byte("north-america"), nil
+	case RegionEurope:
+		return []byte("europe"), nil
+	case RegionAsia:
+		return []byte("asia"), nil
+	case RegionIndia:
+		return []byte("india"), nil
+	case RegionSouthAmerica:
+		return []byte("south-america"), nil
+	default:
+		return []byte("global"), nil
+	}
+}
+func (region *Region) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "smart-global":
+		*region = RegionSmartGlobal
+	case "north-america":
+		*region = RegionNorthAmerica
+	case "europe":
+		*region = RegionEurope
+	case "asia":
+		*region = RegionAsia
+	case "india":
+		*region = RegionIndia
+	case "south-america":
+		*region = RegionSouthAmerica
+	default:
+		*region = RegionGlobal
+	}
+	return nil
+}
+
+const (
+	ProxyProtocolV1 ProxyProtocol = iota
+	ProxyProtocolV2
+)
+
+type ProxyProtocol int
+
+func (proxy *ProxyProtocol) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "proxy-protocol-v1":
+		*proxy = ProxyProtocolV1
+	case "proxy-protocol-v2":
+		*proxy = ProxyProtocolV2
+	}
+	return nil
+}
+
+func (proxy ProxyProtocol) MarshalText() ([]byte, error) {
+	switch proxy {
+	case ProxyProtocolV1:
+		return []byte("proxy-protocol-v1"), nil
+	case ProxyProtocolV2:
+		return []byte("proxy-protocol-v2"), nil
+	}
+	return []byte{}, nil
+}
+
+const (
+	AgentTunnelDisabledByUser AgentTunnelDisabled = iota
+	AgentTunnelDisabledBySystem
+)
+
+type AgentTunnelDisabled int
+
+func (tun *AgentTunnelDisabled) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "0", "ByUser":
+		*tun = AgentTunnelDisabledByUser
+	case "1", "BySystem":
+		*tun = AgentTunnelDisabledBySystem
+	}
+	return nil
+}
+
+func (tun AgentTunnelDisabled) MarshalText() ([]byte, error) {
+	switch tun {
+	case AgentTunnelDisabledByUser:
+		return []byte("ByUser"), nil
+	case AgentTunnelDisabledBySystem:
+		return []byte("BySystem"), nil
+	}
+	return []byte{}, nil
 }

@@ -30,6 +30,9 @@ func (head Header) Merge(head2 Header) Header {
 	if head == nil {
 		head = map[string]string{}
 	}
+	if head2 == nil {
+		head2 = map[string]string{}
+	}
 	n1 := maps.Clone(head)
 	for key, val := range head2 {
 		n1[key] = val
