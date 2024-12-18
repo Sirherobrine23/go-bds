@@ -43,7 +43,8 @@ const (
 )
 
 const (
-	PortTypeBoth PortProto = iota // Tunnel support tcp and udp protocol
+	_            PortProto = iota // Tunnel support tcp and udp protocol
+	PortTypeBoth                  // Tunnel support tcp and udp protocol
 	PortTypeTcp                   // Tunnel support only tcp protocol
 	PortTypeUdp                   // Tunnel support only udp protocol
 )
@@ -112,8 +113,8 @@ func (err errStatus) Error() error {
 }
 
 type Api struct {
-	Code   string // Claim code
-	Secret string // Agent Secret
+	Code   string `json:"-"`                // Claim code
+	Secret string `json:"secret,omitempty"` // Agent Secret
 }
 
 const (
@@ -182,9 +183,10 @@ func (port PortProto) MarshalText() ([]byte, error) {
 		return []byte("tcp"), nil
 	case PortTypeUdp:
 		return []byte("udp"), nil
-	default:
+	case PortTypeBoth:
 		return []byte("both"), nil
 	}
+	return []byte{}, nil
 }
 func (port *PortProto) UnmarshalText(text []byte) error {
 	switch string(text) {
@@ -192,7 +194,7 @@ func (port *PortProto) UnmarshalText(text []byte) error {
 		*port = PortTypeTcp
 	case "udp":
 		*port = PortTypeUdp
-	default:
+	case "both":
 		*port = PortTypeBoth
 	}
 	return nil
@@ -338,4 +340,66 @@ func (tun AgentTunnelDisabled) MarshalText() ([]byte, error) {
 		return []byte("BySystem"), nil
 	}
 	return []byte{}, nil
+}
+
+const (
+	_                       Platform = iota
+	PlatformUnknown                  // unknown
+	PlatformLinux                    // linux
+	PlatformFreebsd                  // freebsd
+	PlatformWindows                  // windows
+	PlatformMacos                    // macos
+	PlatformAndroid                  // android
+	PlatformIos                      // ios
+	PlatformDocker                   // docker
+	PlatformMinecraftPlugin          // minecraft-plugin
+)
+
+type Platform int
+
+func (plat *Platform) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "linux":
+		*plat = PlatformLinux
+	case "freebsd":
+		*plat = PlatformFreebsd
+	case "windows":
+		*plat = PlatformWindows
+	case "macos":
+		*plat = PlatformMacos
+	case "android":
+		*plat = PlatformAndroid
+	case "ios":
+		*plat = PlatformIos
+	case "docker":
+		*plat = PlatformDocker
+	case "minecraft-plugin":
+		*plat = PlatformMinecraftPlugin
+	default:
+		*plat = PlatformUnknown
+	}
+	return nil
+}
+
+func (plat Platform) MarshalText() ([]byte, error) {
+	switch plat {
+	case PlatformLinux:
+		return []byte("linux"), nil
+	case PlatformFreebsd:
+		return []byte("freebsd"), nil
+	case PlatformWindows:
+		return []byte("windows"), nil
+	case PlatformMacos:
+		return []byte("macos"), nil
+	case PlatformAndroid:
+		return []byte("android"), nil
+	case PlatformIos:
+		return []byte("ios"), nil
+	case PlatformDocker:
+		return []byte("docker"), nil
+	case PlatformMinecraftPlugin:
+		return []byte("minecraft-plugin"), nil
+	default:
+		return []byte("unknown"), nil
+	}
 }

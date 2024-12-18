@@ -63,6 +63,7 @@ func (udp *UDP) process() {
 				status.LastUpdate = time.Now()
 				cloneBuff := bytes.Clone(bufferReader[:bytesRead])
 				go status.ConnWrite.Write(cloneBuff)
+				status.LastUpdate = time.Now()
 				udp.clientsLocker.Unlock() // Unlocker
 				continue
 			}
@@ -81,8 +82,8 @@ func (udp *UDP) process() {
 			} else if _, err := udp.UDPConn.WriteToUDP(buff[:n], from); err != nil {
 				return
 			}
+			newClient.LastUpdate = time.Now()
 		}()
-
 		udp.clientsLocker.Unlock() // unlock
 	}
 }

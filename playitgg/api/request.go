@@ -16,10 +16,19 @@ type playitResponse[T any] struct {
 
 // Process requests to api.playit.gg
 func requestAPI[T any](w Api, Path string, Body any, headers request.Header) (T, *http.Response, error) {
+	if Body == nil {
+		Body = struct{}{}
+	}
+
+	n := request.Header{}
+	if w.Secret != "" {
+		n["Authorization"] = fmt.Sprintf("Agent-Key %s", w.Secret)
+	}
+
 	res, err := request.Request(fmt.Sprintf("%s%s", PlayitAPI, Path), &request.Options{
 		Method: "POST",
 		Body:   Body,
-		Header: headers.Merge(request.Header{"Authorization": fmt.Sprintf("Agent-Key %s", w.Secret)}),
+		Header: headers.Merge(n),
 		CodeProcess: map[int]request.CodeCallback{
 			200: func(res *http.Response) (*http.Response, error) { return res, nil },
 			201: func(res *http.Response) (*http.Response, error) { return res, nil },
@@ -34,12 +43,12 @@ func requestAPI[T any](w Api, Path string, Body any, headers request.Header) (T,
 		},
 	})
 	if err != nil {
-		return *(*T)(nil), res, err
+		return *new(T), res, err
 	}
 	defer res.Body.Close()
 	var bodyProcess playitResponse[T]
 	if err := json.NewDecoder(res.Body).Decode(&bodyProcess); err != nil {
-		return *(*T)(nil), nil, err
+		return *new(T), nil, err
 	}
 	return bodyProcess.Data, res, nil
 }

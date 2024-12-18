@@ -73,13 +73,14 @@ func (w *Api) AgentRoutings(AgentID *uuid.UUID) (*AgentRouting, error) {
 }
 
 type AgentVersion struct {
-	Platform string `json:"platform,omitempty"` // linux, freebsd, windows, macos, android, ios, minecraft-plugin, unknown
-	Version  string `json:"version"`
+	Platform Platform `json:"platform,omitempty"`
+	Version  string   `json:"version"`
+	Expired  bool     `json:"has_expired,omitempty"`
 }
 
 type PlayitAgentVersion struct {
 	Official       bool         `json:"official"`
-	DetailsWebsite string       `json:"details_website"`
+	DetailsWebsite string       `json:"details_website,omitempty"`
 	Version        AgentVersion `json:"version"`
 }
 
@@ -94,6 +95,20 @@ func (w Api) ProtoRegisterRegister(Client, Tunnel netip.AddrPort) (string, error
 		Key string `json:"key"`
 	}
 
+	Platform := PlatformUnknown
+	switch runtime.GOOS {
+	case "linux":
+		Platform = PlatformLinux
+	case "android":
+		Platform = PlatformAndroid
+	case "windows":
+		Platform = PlatformWindows
+	case "darwin":
+		Platform = PlatformMacos
+	case "freebsd", "openbsd":
+		Platform = PlatformFreebsd
+	}
+
 	code, _, err := requestAPI[Response](w, "/proto/register", ProtoRegister{
 		ClientAddr: &Client,
 		TunnelAddr: &Tunnel,
@@ -102,7 +117,7 @@ func (w Api) ProtoRegisterRegister(Client, Tunnel netip.AddrPort) (string, error
 			DetailsWebsite: "https://sirherobrine23.com.br/go-bds/go-bds",
 			Version: AgentVersion{
 				Version:  GoPlayitVersion,
-				Platform: runtime.GOOS,
+				Platform: Platform,
 			},
 		},
 	}, nil)

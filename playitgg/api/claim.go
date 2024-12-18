@@ -1,10 +1,8 @@
 package api
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"time"
@@ -40,7 +38,7 @@ func (agent *Agent) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (w *Api) AiisgnClaimCode() (err error) {
+func (w *Api) CreateClaimCode() (err error) {
 	if len(w.Code) > 0 {
 		return nil
 	}
@@ -61,7 +59,7 @@ func (w *Api) ClaimUrl() string {
 	return fmt.Sprintf("https://playit.gg/claim/%s", url.PathEscape(w.Code))
 }
 
-func (w *Api) ClaimAgentSecret(AgentType string) error {
+func (w *Api) SetupSecret(AgentType Agent) error {
 	if w.Code == "" {
 		return fmt.Errorf("assign claim code")
 	} else if w.Secret != "" {
@@ -70,7 +68,7 @@ func (w *Api) ClaimAgentSecret(AgentType string) error {
 
 	type Claim struct {
 		Code    string `json:"code"`       // Claim code
-		Agent   string `json:"agent_type"` // "default" | "assignable" | "self-managed"
+		Agent   Agent  `json:"agent_type"` // "default" | "assignable" | "self-managed"
 		Version string `json:"version"`    // Project version
 	}
 	type Code struct {
@@ -78,18 +76,15 @@ func (w *Api) ClaimAgentSecret(AgentType string) error {
 		SecretKey string `json:"secret_key,omitempty"`
 	}
 
-	assignSecretRequestBody, err := json.Marshal(Claim{
+	assignSecretRequest := Claim{
 		Code:    w.Code,
 		Agent:   AgentType,
 		Version: fmt.Sprintf("go-playit %s", GoPlayitVersion),
-	})
-	if err != nil {
-		return err
 	}
 
 	for {
-		var waitUser string
-		if waitUser, _, err = requestAPI[string](*w, "/claim/setup", bytes.NewReader(assignSecretRequestBody[:]), nil); err != nil {
+		waitUser, _, err := requestAPI[string](*w, "/claim/setup", assignSecretRequest, nil);
+		if err != nil {
 			return err
 		}
 

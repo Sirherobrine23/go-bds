@@ -83,32 +83,26 @@ func (req RequestRoot) MakeRequest() (*http.Response, error) {
 	}
 
 	var methodRequest string
-	if methodRequest = strings.ToUpper(req.Options.Method); methodRequest != "" {
+	if methodRequest = strings.ToUpper(req.Options.Method); methodRequest == "" {
 		methodRequest = "GET"
 	}
 
 	var err error
 	var body io.Reader
 	if req.Options.Body != nil {
-		if dbody, ok := req.Options.Body.(io.Reader); ok {
-			body = dbody
-		} else {
-			if data, ok := req.Options.Body.([]byte); ok {
-				req.Options.Body = bytes.NewReader(data)
-			} else if req.Options.Body != nil {
-				var data []byte
-				if data, err = json.Marshal(req.Options.Body); err != nil {
-					return nil, err
-				}
-				req.Options.Body = bytes.NewReader(data)
-
-				if req.Options.Header == nil {
-					req.Options.Header = make(map[string]string)
-				}
-				if (&http.Header{"Content-Type": {req.Options.Header["Content-Type"]}, "content-type": {req.Options.Header["content-type"]}}).Get("Content-Type") == "" {
-					req.Options.Header["Content-Type"] = "application/json"
-				}
+		switch v := req.Options.Body.(type) {
+		case nil:
+		case []byte:
+			body = bytes.NewReader(v)
+		case io.Reader:
+			body = v
+		default:
+			data, err := json.MarshalIndent(req.Options.Body, "", "  ")
+			if err != nil {
+				return nil, err
 			}
+			fmt.Println(string(data))
+			body = bytes.NewReader(data)
 		}
 	}
 

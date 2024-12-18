@@ -43,7 +43,7 @@ type UseAllocPortAlloc struct {
 }
 
 type UseRegion struct {
-	Region string `json:"region"`
+	Region Region `json:"region"`
 }
 
 type TunnelCreateUseAllocationDetails struct {
@@ -81,8 +81,8 @@ type TunnelCreateUseAllocation struct {
 type Tunnel struct {
 	ID         *uuid.UUID                 `json:"tunnel_id,omitempty"`   // Tunnel UUID
 	Name       string                     `json:"name,omitempty"`        // Tunnel name
-	TunnelType string                     `json:"tunnel_type,omitempty"` // Tunnel type from TunnelType const's
-	PortType   PortProto                  `json:"port_type"`             // tcp, udp or both
+	TunnelType TunnelType                 `json:"tunnel_type,omitempty"` // Tunnel type from TunnelType const's
+	PortType   PortProto                  `json:"port_type,omitempty"`   // tcp, udp or both
 	PortCount  uint16                     `json:"port_count"`            // Port count to assign to connect
 	Origin     TunnelOriginCreate         `json:"origin"`
 	Enabled    bool                       `json:"enabled"`
