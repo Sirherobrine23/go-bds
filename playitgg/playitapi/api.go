@@ -1,121 +1,9 @@
-package api
-
-import (
-	"errors"
-)
+package playitapi
 
 var (
-	ErrInvalidAuth            error = errors.New("cannot process api request because return not auth")
-	ErrTooMenyRequest         error = errors.New("wait seconds to make new request")
-	ErrNotFound               error = errors.New("path request not found")
-	ErrAuthRequired           error = errors.New("auth required")
-	ErrInvalidHeader          error = errors.New("invalid header")
-	ErrInvalidSignature       error = errors.New("invalid signature")
-	ErrInvalidTimestamp       error = errors.New("invalid timestamp")
-	ErrInvalidApiKey          error = errors.New("invalid api key")
-	ErrInvalidAgentKey        error = errors.New("invalid agent key")
-	ErrSessionExpired         error = errors.New("session expired")
-	ErrInvalidAuthType        error = errors.New("invalid auth type")
-	ErrScopeNotAllowed        error = errors.New("scope not allowed")
-	ErrNoLongerValid          error = errors.New("no longer valid")
-	ErrGuestAccountNotAllowed error = errors.New("guest account not allowed")
-	ErrEmailMustBeVerified    error = errors.New("email must be verified")
-	ErrAccountDoesNotExist    error = errors.New("account does not exist")
-	ErrAdminOnly              error = errors.New("admin only")
-	ErrInvalidToken           error = errors.New("invalid token")
-	ErrTotpRequred            error = errors.New("totp requred")
+	PlayitAPI     string = "https://api.playit.gg" // Playit API
+	PlayitVersion string = "0.17.0"                // Playit API version
 )
-
-const (
-	GoPlayitVersion string = "0.17.1"
-	PlayitAPI       string = "https://api.playit.gg" // Playit API
-)
-
-const (
-	TunnelTypeMinecraftBedrock TunnelType = iota + 1 // Minecraft Bedrock server
-	TunnelTypeMinecraftJava                          // Minecraft java server
-	TunnelTypeValheim                                // valheim
-	TunnelTypeTerraria                               // Terraria multiplayer
-	TunnelTypeStarbound                              // starbound
-	TunnelTypeRust                                   // Rust (No programmer language)
-	TunnelType7Days                                  // 7days
-	TunnelTypeUnturned                               // unturned
-)
-
-const (
-	_            PortProto = iota // Tunnel support tcp and udp protocol
-	PortTypeBoth                  // Tunnel support tcp and udp protocol
-	PortTypeTcp                   // Tunnel support only tcp protocol
-	PortTypeUdp                   // Tunnel support only udp protocol
-)
-
-const (
-	RegionGlobal       Region = iota + 1 // Free account and premium
-	RegionSmartGlobal                    // Require premium account
-	RegionNorthAmerica                   // Require premium account
-	RegionEurope                         // Require premium account
-	RegionAsia                           // Require premium account
-	RegionIndia                          // Require premium account
-	RegionSouthAmerica                   // Require premium account
-)
-
-type errStatus struct {
-	Status string `json:"status"`
-	Data   struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	} `json:"data"`
-}
-
-func (err errStatus) Error() error {
-	switch err.Data.Type {
-	case "internal", "validation":
-		return errors.New(err.Data.Message)
-	case "path-not-found":
-		return ErrNotFound
-	case "auth":
-		switch err.Data.Message {
-		case "AuthRequired":
-			return ErrAuthRequired
-		case "InvalidHeader":
-			return ErrInvalidHeader
-		case "InvalidSignature":
-			return ErrInvalidSignature
-		case "InvalidTimestamp":
-			return ErrInvalidTimestamp
-		case "InvalidApiKey":
-			return ErrInvalidApiKey
-		case "InvalidAgentKey":
-			return ErrInvalidAgentKey
-		case "SessionExpired":
-			return ErrSessionExpired
-		case "InvalidAuthType":
-			return ErrInvalidAuthType
-		case "ScopeNotAllowed":
-			return ErrScopeNotAllowed
-		case "NoLongerValid":
-			return ErrNoLongerValid
-		case "GuestAccountNotAllowed":
-			return ErrGuestAccountNotAllowed
-		case "EmailMustBeVerified":
-			return ErrEmailMustBeVerified
-		case "AccountDoesNotExist":
-			return ErrAccountDoesNotExist
-		case "AdminOnly":
-			return ErrAdminOnly
-		case "InvalidToken":
-			return ErrInvalidToken
-		case "TotpRequred":
-			return ErrTotpRequred
-		}
-	}
-	return errors.New(err.Data.Message)
-}
-
-type Api struct {
-	Code   string `json:"-"`                // Claim code
-	Secret string `json:"secret,omitempty"` // Agent Secret
-}
 
 const (
 	_                      AccountStatus = iota
@@ -129,6 +17,7 @@ const (
 	StatusDisabled                       // "agent-disabled"
 )
 
+// API Account status
 type AccountStatus int
 
 func (account *AccountStatus) UnmarshalText(text []byte) error {
@@ -175,9 +64,16 @@ func (account AccountStatus) MarshalText() ([]byte, error) {
 	return []byte{}, nil
 }
 
-type PortProto int
+const (
+	_            PortType = iota
+	PortTypeBoth          // Support both Protocols
+	PortTypeTcp           // Only support TCP
+	PortTypeUdp           // Only support UDP
+)
 
-func (port PortProto) MarshalText() ([]byte, error) {
+type PortType int
+
+func (port PortType) MarshalText() ([]byte, error) {
 	switch port {
 	case PortTypeTcp:
 		return []byte("tcp"), nil
@@ -188,7 +84,7 @@ func (port PortProto) MarshalText() ([]byte, error) {
 	}
 	return []byte{}, nil
 }
-func (port *PortProto) UnmarshalText(text []byte) error {
+func (port *PortType) UnmarshalText(text []byte) error {
 	switch string(text) {
 	case "tcp":
 		*port = PortTypeTcp
@@ -200,14 +96,27 @@ func (port *PortProto) UnmarshalText(text []byte) error {
 	return nil
 }
 
+const (
+	_                          TunnelType = iota << 3
+	TunnelTypeMinecraftJava               // Minecraft java server
+	TunnelTypeMinecraftBedrock            // Minecraft Bedrock server
+	TunnelTypeValheim                     // valheim
+	TunnelTypeTerraria                    // Terraria multiplayer
+	TunnelTypeStarbound                   // starbound
+	TunnelTypeRust                        // Rust (No programmer language)
+	TunnelType7Days                       // 7days
+	TunnelTypeUnturned                    // unturned
+)
+
+// Set tunnel type to playit.gg
 type TunnelType int
 
 func (tun TunnelType) MarshalText() ([]byte, error) {
 	switch tun {
-	case TunnelTypeMinecraftBedrock:
-		return []byte("minecraft-bedrock"), nil
 	case TunnelTypeMinecraftJava:
 		return []byte("minecraft-java"), nil
+	case TunnelTypeMinecraftBedrock:
+		return []byte("minecraft-bedrock"), nil
 	case TunnelTypeValheim:
 		return []byte("valheim"), nil
 	case TunnelTypeTerraria:
@@ -248,26 +157,37 @@ func (tun *TunnelType) UnmarshalText(text []byte) error {
 	return nil
 }
 
+const (
+	RegionGlobal       Region = iota << 1 // Free account and premium
+	RegionSmartGlobal                     // Require premium account
+	RegionNorthAmerica                    // Require premium account
+	RegionEurope                          // Require premium account
+	RegionAsia                            // Require premium account
+	RegionIndia                           // Require premium account
+	RegionSouthAmerica                    // Require premium account
+)
+
 type Region int
 
-func (region Region) MarshalText() ([]byte, error) {
+func (region Region) String() string {
 	switch region {
 	case RegionSmartGlobal:
-		return []byte("smart-global"), nil
+		return "smart-global"
 	case RegionNorthAmerica:
-		return []byte("north-america"), nil
+		return "north-america"
 	case RegionEurope:
-		return []byte("europe"), nil
+		return "europe"
 	case RegionAsia:
-		return []byte("asia"), nil
+		return "asia"
 	case RegionIndia:
-		return []byte("india"), nil
+		return "india"
 	case RegionSouthAmerica:
-		return []byte("south-america"), nil
+		return "south-america"
 	default:
-		return []byte("global"), nil
+		return "global"
 	}
 }
+func (region Region) MarshalText() ([]byte, error) { return []byte(region.String()), nil }
 func (region *Region) UnmarshalText(text []byte) error {
 	switch string(text) {
 	case "smart-global":
@@ -343,16 +263,15 @@ func (tun AgentTunnelDisabled) MarshalText() ([]byte, error) {
 }
 
 const (
-	_                       Platform = iota
-	PlatformUnknown                  // unknown
-	PlatformLinux                    // linux
-	PlatformFreebsd                  // freebsd
-	PlatformWindows                  // windows
-	PlatformMacos                    // macos
-	PlatformAndroid                  // android
-	PlatformIos                      // ios
-	PlatformDocker                   // docker
-	PlatformMinecraftPlugin          // minecraft-plugin
+	PlatformUnknown         Platform = iota // unknown
+	PlatformLinux                           // linux
+	PlatformFreebsd                         // freebsd
+	PlatformWindows                         // windows
+	PlatformMacos                           // macos
+	PlatformAndroid                         // android
+	PlatformIos                             // ios
+	PlatformDocker                          // docker
+	PlatformMinecraftPlugin                 // minecraft-plugin
 )
 
 type Platform int
@@ -365,7 +284,7 @@ func (plat *Platform) UnmarshalText(text []byte) error {
 		*plat = PlatformFreebsd
 	case "windows":
 		*plat = PlatformWindows
-	case "macos":
+	case "macos", "darwin":
 		*plat = PlatformMacos
 	case "android":
 		*plat = PlatformAndroid
@@ -402,4 +321,103 @@ func (plat Platform) MarshalText() ([]byte, error) {
 	default:
 		return []byte("unknown"), nil
 	}
+}
+
+const (
+	_ AgentType = iota
+	AgentTypeDefault
+	AgentTypeAssignable
+	AgentTypeSelfManaged
+)
+
+type AgentType int
+
+func (agent AgentType) MarshalText() ([]byte, error) {
+	switch agent {
+	case AgentTypeDefault:
+		return []byte("default"), nil
+	case AgentTypeAssignable:
+		return []byte("assignable"), nil
+	case AgentTypeSelfManaged:
+		return []byte("self-managed"), nil
+	}
+	return []byte{}, nil
+}
+
+func (agent *AgentType) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "default":
+		*agent = AgentTypeDefault
+	case "assignable":
+		*agent = AgentTypeAssignable
+	case "self-managed":
+		*agent = AgentTypeSelfManaged
+	}
+	return nil
+}
+
+type TunnelDomainSource int
+
+const (
+	_                             TunnelDomainSource = iota
+	TunnelDomainSourceFromIP                         // from-ip
+	TunnelDomainSourceFromTunnel                     // from-tunnel
+	TunnelDomainSourceFromAgentIP                    // from-agent-ip
+)
+
+func (source *TunnelDomainSource) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "from-ip":
+		*source = TunnelDomainSourceFromIP
+	case "from-tunnel":
+		*source = TunnelDomainSourceFromTunnel
+	case "from-agent-ip":
+		*source = TunnelDomainSourceFromAgentIP
+	}
+	return nil
+}
+
+func (source TunnelDomainSource) MarshalText() ([]byte, error) {
+	switch source {
+	case TunnelDomainSourceFromIP:
+		return []byte("from-ip"), nil
+	case TunnelDomainSourceFromTunnel:
+		return []byte("from-tunnel"), nil
+	case TunnelDomainSourceFromAgentIP:
+		return []byte("from-agent-ip"), nil
+	}
+	return []byte{}, nil
+}
+
+type DisablesReason int
+
+const (
+	_                             DisablesReason = iota
+	DisablesReasonRequiresPremium                // requires-premium
+	DisablesReasonOverPortLimit                  // over-port-limit
+	DisablesReasonIPUsedInGRE                    // ip-used-in-gre
+)
+
+func (reason *DisablesReason) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "requires-premium":
+		*reason = DisablesReasonRequiresPremium
+	case "over-port-limit":
+		*reason = DisablesReasonOverPortLimit
+	case "ip-used-in-gre":
+		*reason = DisablesReasonIPUsedInGRE
+	}
+	return nil
+}
+
+func (reason DisablesReason) MarshalText() ([]byte, error) {
+	switch reason {
+	case DisablesReasonRequiresPremium:
+		return []byte("requires-premium"), nil
+	case DisablesReasonOverPortLimit:
+		return []byte("over-port-limit"), nil
+	case DisablesReasonIPUsedInGRE:
+		return []byte("ip-used-in-gre"), nil
+	}
+	return []byte{}, nil
 }

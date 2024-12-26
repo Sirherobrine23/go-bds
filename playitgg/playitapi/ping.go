@@ -1,4 +1,4 @@
-package api
+package playitapi
 
 import "net/netip"
 
@@ -6,7 +6,7 @@ func (w Api) GetPings() ([]Ping, error) {
 	type pings struct {
 		Pings []Ping `json:"experiments"`
 	}
-	pingsData, _, err := requestAPI[pings](w, "/ping/get", nil, nil)
+	pingsData, _, err := RequestAPI[pings](w.Secret, "/ping/get", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -17,7 +17,7 @@ func (w Api) PingSubmit(Pings ...PingSubmit) error {
 	type send struct {
 		Results []PingSubmit `json:"results"`
 	}
-	_, _, err := requestAPI[any](w, "/ping/submit", send{Pings}, nil)
+	_, _, err := RequestAPI[any](w.Secret, "/ping/submit", send{Pings}, nil)
 	return err
 }
 

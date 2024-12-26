@@ -1,0 +1,2252 @@
+openapi: 3.0.0
+info:
+  title: playit.gg's api
+  version: unstable
+servers:
+- url: https://api.playit.gg
+paths:
+  /tunnels/create:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqTunnelsCreate'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - ApiKey: []
+      - AgentKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+  /tunnels/delete:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqTunnelsDelete'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_delete_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_delete_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - ApiKey: []
+      - AgentKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+  /claim/details:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqClaimDetails'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_details_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_details_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - ApiKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+  /claim/setup:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqClaimSetup'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_setup_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_setup_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      x-content-type: application/json
+      x-accepts: application/json
+  /claim/exchange:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqClaimExchange'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_exchange_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_exchange_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      x-content-type: application/json
+      x-accepts: application/json
+  /claim/accept:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqClaimAccept'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_accept_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_accept_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - ApiKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+  /claim/reject:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqClaimReject'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_delete_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_claim_reject_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - ApiKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+  /proto/register:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqProtoRegister'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_proto_register_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_delete_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - AgentKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+  /login/guest:
+    post:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_login_guest_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_delete_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - AgentKey: []
+      x-accepts: application/json
+  /agents/routing/get:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqAgentsRoutingGet'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_agents_routing_get_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_agents_routing_get_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - ApiKey: []
+      - AgentKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+  /agents/rundata:
+    post:
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_agents_rundata_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_delete_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - AgentKey: []
+      x-accepts: application/json
+  /tunnels/list:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReqTunnelsList'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_list_post_200_response'
+          description: ""
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_delete_post_400_response'
+          description: ""
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_401_response'
+          description: ""
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/_tunnels_create_post_500_response'
+          description: ""
+      security:
+      - ApiKey: []
+      - AgentKey: []
+      x-content-type: application/json
+      x-accepts: application/json
+components:
+  responses:
+    AppInternalError:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/_tunnels_create_post_500_response'
+      description: ""
+    AuthError:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/_tunnels_create_post_401_response'
+      description: ""
+  schemas:
+    ReqLoginGuest:
+      type: object
+    DateTimeUtc:
+      type: string
+    TunnelDomain:
+      example:
+        parent: parent
+        name: name
+        is_external: true
+        id: id
+        source: null
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        is_external:
+          type: boolean
+        parent:
+          type: string
+        source:
+          $ref: '#/components/schemas/TunnelDomainSource'
+      required:
+      - id
+      - is_external
+      - name
+      - source
+      type: object
+    SignedEpoch:
+      properties:
+        epoch_sec:
+          type: number
+      required:
+      - epoch_sec
+      type: object
+    TunnelType:
+      enum:
+      - minecraft-java
+      - minecraft-bedrock
+      - valheim
+      - terraria
+      - starbound
+      - rust
+      - 7days
+      - unturned
+      type: string
+    WebSession:
+      example:
+        auth:
+          account_id: 6.027456183070403
+          totp_status:
+            epoch_sec: 5.962133916683182
+            status: signed
+          admin_id: 5.637376656633329
+          update_version: 0.8008281904610115
+          account_status: null
+          timestamp: 1.4658129805029452
+        session_key: session_key
+      properties:
+        session_key:
+          type: string
+        auth:
+          $ref: '#/components/schemas/WebAuth'
+      required:
+      - auth
+      - session_key
+      type: object
+    TunnelCreateError:
+      enum:
+      - AgentIdRequired
+      - AgentNotFound
+      - InvalidAgentId
+      - DedicatedIpNotFound
+      - DedicatedIpPortNotAvailable
+      - DedicatedIpNotEnoughSpace
+      - PortAllocNotFound
+      - InvalidIpHostname
+      - ManagedMissingAgentId
+      type: string
+    ReqTunnelsCreate:
+      example:
+        port_type: null
+        firewall_id: firewall_id
+        origin:
+          data:
+            local_ip: local_ip
+            local_port: 6.027456183070403
+          type: default
+        name: name
+        port_count: 0.8008281904610115
+        alloc:
+          details:
+            port: 1.4658129805029452
+            ip_hostname: ip_hostname
+          type: dedicated-ip
+        tunnel_type: null
+        enabled: true
+      properties:
+        name:
+          type: string
+        tunnel_type:
+          $ref: '#/components/schemas/TunnelType'
+        port_type:
+          $ref: '#/components/schemas/PortType'
+        port_count:
+          type: number
+        origin:
+          $ref: '#/components/schemas/TunnelOriginCreate'
+        enabled:
+          type: boolean
+        alloc:
+          $ref: '#/components/schemas/TunnelCreateUseAllocation'
+        firewall_id:
+          type: string
+      required:
+      - enabled
+      - origin
+      - port_count
+      - port_type
+      type: object
+    ReqClaimDetails:
+      example:
+        code: code
+      properties:
+        code:
+          type: string
+      required:
+      - code
+      type: object
+    AgentType:
+      enum:
+      - default
+      - assignable
+      - self-managed
+      type: string
+    AllocationRegion:
+      enum:
+      - smart-global
+      - global
+      - north-america
+      - europe
+      - asia
+      - india
+      - south-america
+      type: string
+    ReqClaimReject:
+      example:
+        code: code
+      properties:
+        code:
+          type: string
+      required:
+      - code
+      type: object
+    WebAuth:
+      example:
+        account_id: 6.027456183070403
+        totp_status:
+          epoch_sec: 5.962133916683182
+          status: signed
+        admin_id: 5.637376656633329
+        update_version: 0.8008281904610115
+        account_status: null
+        timestamp: 1.4658129805029452
+      properties:
+        update_version:
+          type: number
+        account_id:
+          type: number
+        timestamp:
+          type: number
+        account_status:
+          $ref: '#/components/schemas/AccountStatus'
+        totp_status:
+          $ref: '#/components/schemas/TotpStatus'
+        admin_id:
+          type: number
+      required:
+      - account_id
+      - account_status
+      - timestamp
+      - totp_status
+      - update_version
+      type: object
+    u32:
+      type: number
+    TunnelDisabledReason:
+      enum:
+      - requires-premium
+      - over-port-limit
+      - ip-used-in-gre
+      type: string
+    ReqAgentsRoutingGet:
+      example:
+        agent_id: agent_id
+      properties:
+        agent_id:
+          type: string
+      type: object
+    UseAllocDedicatedIp:
+      example:
+        port: 1.4658129805029452
+        ip_hostname: ip_hostname
+      properties:
+        ip_hostname:
+          type: string
+        port:
+          type: number
+      required:
+      - ip_hostname
+      type: object
+    ReqClaimExchange:
+      example:
+        code: code
+      properties:
+        code:
+          type: string
+      required:
+      - code
+      type: object
+    ReqTunnelsDelete:
+      example:
+        tunnel_id: tunnel_id
+      properties:
+        tunnel_id:
+          type: string
+      required:
+      - tunnel_id
+      type: object
+    ClaimSetupError:
+      enum:
+      - InvalidCode
+      - CodeExpired
+      - VersionTextTooLong
+      type: string
+    u64:
+      type: number
+    AgentSecretKey:
+      example:
+        secret_key: secret_key
+      properties:
+        secret_key:
+          type: string
+      required:
+      - secret_key
+      type: object
+    AgentPendingTunnel:
+      example:
+        proto: null
+        is_disabled: true
+        name: name
+        id: id
+        port_count: 2.3021358869347655
+        tunnel_type: tunnel_type
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        proto:
+          $ref: '#/components/schemas/PortType'
+        port_count:
+          type: number
+        tunnel_type:
+          type: string
+        is_disabled:
+          type: boolean
+      required:
+      - id
+      - is_disabled
+      - port_count
+      - proto
+      type: object
+    TunnelAssignment:
+      oneOf:
+      - $ref: '#/components/schemas/TunnelAssignment_oneOf'
+      - $ref: '#/components/schemas/TunnelAssignment_oneOf_1'
+    AssignedManaged:
+      properties:
+        agent_id:
+          type: string
+        agent_name:
+          type: string
+      required:
+      - agent_id
+      - agent_name
+      type: object
+    TotpStatus:
+      oneOf:
+      - $ref: '#/components/schemas/TotpStatus_oneOf'
+    ClaimAcceptError:
+      enum:
+      - InvalidCode
+      - AgentNotReady
+      - CodeNotFound
+      - InvalidAgentType
+      - ClaimAlreadyAccepted
+      - ClaimRejected
+      - CodeExpired
+      - InvalidName
+      type: string
+    ClaimRejectError:
+      enum:
+      - InvalidCode
+      - CodeNotFound
+      - ClaimAccepted
+      - ClaimAlreadyRejected
+      type: string
+    Platform:
+      enum:
+      - linux
+      - freebsd
+      - windows
+      - macos
+      - android
+      - ios
+      - minecraft-plugin
+      - unknown
+      type: string
+    AssignedDefaultCreate:
+      example:
+        local_ip: local_ip
+        local_port: 6.027456183070403
+      properties:
+        local_ip:
+          type: string
+        local_port:
+          type: number
+      required:
+      - local_ip
+      type: object
+    TunnelDomainSource:
+      enum:
+      - from-ip
+      - from-tunnel
+      - from-agent-ip
+      type: string
+    TunnelExpireNotice:
+      example:
+        remove_at: 2000-01-23T04:56:07.000+00:00
+        disable_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        disable_at:
+          format: date-time
+          type: string
+        remove_at:
+          format: date-time
+          type: string
+      required:
+      - disable_at
+      - remove_at
+      type: object
+    u16:
+      type: number
+    ClaimExchangeError:
+      enum:
+      - CodeNotFound
+      - CodeExpired
+      - UserRejected
+      - NotAccepted
+      - NotSetup
+      type: string
+    PortRange:
+      example:
+        from: 1.4658129805029452
+        to: 5.962133916683182
+      properties:
+        from:
+          type: number
+        to:
+          type: number
+      required:
+      - from
+      - to
+      type: object
+    IpAddr:
+      type: string
+    ClaimDetailsError:
+      enum:
+      - AlreadyClaimed
+      - AlreadyRejected
+      - ClaimExpired
+      - DifferentOwner
+      - WaitingForAgent
+      - InvalidCode
+      type: string
+    TunnelDisabled:
+      example:
+        reason: null
+      properties:
+        reason:
+          $ref: '#/components/schemas/TunnelDisabledReason'
+      required:
+      - reason
+      type: object
+    AssignedAgent:
+      properties:
+        agent_id:
+          type: string
+        agent_name:
+          type: string
+        local_ip:
+          type: string
+        local_port:
+          type: number
+      required:
+      - agent_id
+      - agent_name
+      - local_ip
+      type: object
+    AgentRunData:
+      example:
+        agent_type: null
+        tunnels:
+        - local_ip: local_ip
+          port:
+            from: 1.4658129805029452
+            to: 5.962133916683182
+          local_port: 5.637376656633329
+          proto: null
+          name: name
+          disabled: null
+          id: id
+          region_num: 6.027456183070403
+          assigned_domain: assigned_domain
+          ip_num: 0.8008281904610115
+          tunnel_type: tunnel_type
+          custom_domain: custom_domain
+        - local_ip: local_ip
+          port:
+            from: 1.4658129805029452
+            to: 5.962133916683182
+          local_port: 5.637376656633329
+          proto: null
+          name: name
+          disabled: null
+          id: id
+          region_num: 6.027456183070403
+          assigned_domain: assigned_domain
+          ip_num: 0.8008281904610115
+          tunnel_type: tunnel_type
+          custom_domain: custom_domain
+        agent_id: agent_id
+        pending:
+        - proto: null
+          is_disabled: true
+          name: name
+          id: id
+          port_count: 2.3021358869347655
+          tunnel_type: tunnel_type
+        - proto: null
+          is_disabled: true
+          name: name
+          id: id
+          port_count: 2.3021358869347655
+          tunnel_type: tunnel_type
+        account_status: null
+      properties:
+        agent_id:
+          type: string
+        agent_type:
+          $ref: '#/components/schemas/AgentType'
+        account_status:
+          $ref: '#/components/schemas/AgentAccountStatus'
+        tunnels:
+          items:
+            $ref: '#/components/schemas/AgentTunnel'
+          type: array
+        pending:
+          items:
+            $ref: '#/components/schemas/AgentPendingTunnel'
+          type: array
+      required:
+      - account_status
+      - agent_id
+      - agent_type
+      - pending
+      - tunnels
+      type: object
+    Ipv6Addr:
+      type: string
+    ClaimSetupResponse:
+      enum:
+      - WaitingForUserVisit
+      - WaitingForUser
+      - UserAccepted
+      - UserRejected
+      type: string
+    PlayitAgentVersion:
+      example:
+        official: true
+        details_website: details_website
+        version:
+          version: version
+          platform: null
+      properties:
+        version:
+          $ref: '#/components/schemas/AgentVersion'
+        official:
+          type: boolean
+        details_website:
+          type: string
+      required:
+      - official
+      - version
+      type: object
+    AccountTunnel:
+      example:
+        ratelimit:
+          bytes_per_second: 2.3021358869347655
+          packets_per_second: 7.061401241503109
+        port_type: null
+        firewall_id: firewall_id
+        origin:
+          data:
+            local_ip: local_ip
+            local_port: 5.637376656633329
+          type: default
+        created_at: 2000-01-23T04:56:07.000+00:00
+        active: true
+        disabled_reason: null
+        expire_notice:
+          remove_at: 2000-01-23T04:56:07.000+00:00
+          disable_at: 2000-01-23T04:56:07.000+00:00
+        domain:
+          parent: parent
+          name: name
+          is_external: true
+          id: id
+          source: null
+        name: name
+        id: id
+        port_count: 5.962133916683182
+        alloc:
+          data:
+            reason: null
+          status: disabled
+        region: null
+        tunnel_type: null
+      properties:
+        id:
+          type: string
+        tunnel_type:
+          $ref: '#/components/schemas/TunnelType'
+        created_at:
+          format: date-time
+          type: string
+        name:
+          type: string
+        port_type:
+          $ref: '#/components/schemas/PortType'
+        port_count:
+          type: number
+        alloc:
+          $ref: '#/components/schemas/AccountTunnelAllocation'
+        origin:
+          $ref: '#/components/schemas/TunnelOrigin'
+        domain:
+          $ref: '#/components/schemas/TunnelDomain'
+        firewall_id:
+          type: string
+        ratelimit:
+          $ref: '#/components/schemas/Ratelimit'
+        active:
+          type: boolean
+        disabled_reason:
+          $ref: '#/components/schemas/TunnelDisabledReason'
+        region:
+          $ref: '#/components/schemas/AllocationRegion'
+        expire_notice:
+          $ref: '#/components/schemas/TunnelExpireNotice'
+      required:
+      - active
+      - alloc
+      - created_at
+      - id
+      - origin
+      - port_count
+      - port_type
+      - ratelimit
+      type: object
+    SubscriptionId:
+      properties:
+        sub_id:
+          type: string
+      required:
+      - sub_id
+      type: object
+    TunnelDedicatedIp:
+      properties:
+        sub_id:
+          type: string
+        region:
+          $ref: '#/components/schemas/AllocationRegion'
+      required:
+      - region
+      - sub_id
+      type: object
+    DateTime:
+      format: date-time
+      type: string
+    AgentTunnelDisabled:
+      enum:
+      - ByUser
+      - BySystem
+      type: string
+    AgentRoutingGetError:
+      enum:
+      - MissingAgentId
+      - AgentIdNotSupported
+      - InvalidAgentId
+      type: string
+    Ipv4Addr:
+      type: string
+    AssignedDefault:
+      example:
+        local_ip: local_ip
+        local_port: 5.637376656633329
+      properties:
+        local_ip:
+          type: string
+        local_port:
+          type: number
+      required:
+      - local_ip
+      type: object
+    SocketAddr:
+      type: string
+    SignedAgentKey:
+      example:
+        key: key
+      properties:
+        key:
+          type: string
+      required:
+      - key
+      type: object
+    AgentClaimDetails:
+      example:
+        agent_type: null
+        remote_ip: remote_ip
+        name: name
+        version: version
+      properties:
+        name:
+          type: string
+        remote_ip:
+          type: string
+        agent_type:
+          $ref: '#/components/schemas/AgentType'
+        version:
+          type: string
+      required:
+      - agent_type
+      - name
+      - remote_ip
+      - version
+      type: object
+    AccountTunnels:
+      example:
+        tunnels:
+        - ratelimit:
+            bytes_per_second: 2.3021358869347655
+            packets_per_second: 7.061401241503109
+          port_type: null
+          firewall_id: firewall_id
+          origin:
+            data:
+              local_ip: local_ip
+              local_port: 5.637376656633329
+            type: default
+          created_at: 2000-01-23T04:56:07.000+00:00
+          active: true
+          disabled_reason: null
+          expire_notice:
+            remove_at: 2000-01-23T04:56:07.000+00:00
+            disable_at: 2000-01-23T04:56:07.000+00:00
+          domain:
+            parent: parent
+            name: name
+            is_external: true
+            id: id
+            source: null
+          name: name
+          id: id
+          port_count: 5.962133916683182
+          alloc:
+            data:
+              reason: null
+            status: disabled
+          region: null
+          tunnel_type: null
+        - ratelimit:
+            bytes_per_second: 2.3021358869347655
+            packets_per_second: 7.061401241503109
+          port_type: null
+          firewall_id: firewall_id
+          origin:
+            data:
+              local_ip: local_ip
+              local_port: 5.637376656633329
+            type: default
+          created_at: 2000-01-23T04:56:07.000+00:00
+          active: true
+          disabled_reason: null
+          expire_notice:
+            remove_at: 2000-01-23T04:56:07.000+00:00
+            disable_at: 2000-01-23T04:56:07.000+00:00
+          domain:
+            parent: parent
+            name: name
+            is_external: true
+            id: id
+            source: null
+          name: name
+          id: id
+          port_count: 5.962133916683182
+          alloc:
+            data:
+              reason: null
+            status: disabled
+          region: null
+          tunnel_type: null
+        tcp_alloc:
+          desired: 1.4658129805029452
+          allowed: 0.8008281904610115
+          claimed: 6.027456183070403
+        udp_alloc:
+          desired: 1.4658129805029452
+          allowed: 0.8008281904610115
+          claimed: 6.027456183070403
+      properties:
+        tcp_alloc:
+          $ref: '#/components/schemas/AllocatedPorts'
+        udp_alloc:
+          $ref: '#/components/schemas/AllocatedPorts'
+        tunnels:
+          items:
+            $ref: '#/components/schemas/AccountTunnel'
+          type: array
+      required:
+      - tcp_alloc
+      - tunnels
+      - udp_alloc
+      type: object
+    AllocatedPorts:
+      example:
+        desired: 1.4658129805029452
+        allowed: 0.8008281904610115
+        claimed: 6.027456183070403
+      properties:
+        allowed:
+          type: number
+        claimed:
+          type: number
+        desired:
+          type: number
+      required:
+      - allowed
+      - claimed
+      - desired
+      type: object
+    AccountStatus:
+      enum:
+      - guest
+      - email-not-verified
+      - verified
+      type: string
+    ObjectId:
+      example:
+        id: id
+      properties:
+        id:
+          type: string
+      required:
+      - id
+      type: object
+    AgentAccountStatus:
+      enum:
+      - account-delete-scheduled
+      - banned
+      - has-message
+      - email-not-verified
+      - guest
+      - ready
+      - agent-over-limit
+      - agent-disabled
+      type: string
+    bool:
+      type: boolean
+    String:
+      type: string
+    DeleteError:
+      enum:
+      - TunnelNotFound
+      type: string
+    ReqClaimAccept:
+      example:
+        agent_type: null
+        code: code
+        name: name
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        agent_type:
+          $ref: '#/components/schemas/AgentType'
+      required:
+      - agent_type
+      - code
+      - name
+      type: object
+    AgentAccepted:
+      example:
+        agent_id: agent_id
+      properties:
+        agent_id:
+          type: string
+      required:
+      - agent_id
+      type: object
+    AuthError:
+      enum:
+      - AuthRequired
+      - InvalidHeader
+      - InvalidSignature
+      - InvalidTimestamp
+      - InvalidApiKey
+      - InvalidAgentKey
+      - SessionExpired
+      - InvalidAuthType
+      - ScopeNotAllowed
+      - NoLongerValid
+      - GuestAccountNotAllowed
+      - EmailMustBeVerified
+      - AccountDoesNotExist
+      - AdminOnly
+      - InvalidToken
+      - TotpRequred
+      type: string
+    GuestLoginError:
+      enum:
+      - AccountIsNotGuest
+      type: string
+    AgentTunnel:
+      example:
+        local_ip: local_ip
+        port:
+          from: 1.4658129805029452
+          to: 5.962133916683182
+        local_port: 5.637376656633329
+        proto: null
+        name: name
+        disabled: null
+        id: id
+        region_num: 6.027456183070403
+        assigned_domain: assigned_domain
+        ip_num: 0.8008281904610115
+        tunnel_type: tunnel_type
+        custom_domain: custom_domain
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        ip_num:
+          type: number
+        region_num:
+          type: number
+        port:
+          $ref: '#/components/schemas/PortRange'
+        proto:
+          $ref: '#/components/schemas/PortType'
+        local_ip:
+          type: string
+        local_port:
+          type: number
+        tunnel_type:
+          type: string
+        assigned_domain:
+          type: string
+        custom_domain:
+          type: string
+        disabled:
+          $ref: '#/components/schemas/AgentTunnelDisabled'
+      required:
+      - assigned_domain
+      - id
+      - ip_num
+      - local_ip
+      - local_port
+      - port
+      - proto
+      - region_num
+      type: object
+    AssignedAgentCreate:
+      properties:
+        agent_id:
+          type: string
+        local_ip:
+          type: string
+        local_port:
+          type: number
+      required:
+      - agent_id
+      - local_ip
+      type: object
+    Ratelimit:
+      example:
+        bytes_per_second: 2.3021358869347655
+        packets_per_second: 7.061401241503109
+      properties:
+        bytes_per_second:
+          type: number
+        packets_per_second:
+          type: number
+      type: object
+    TunnelCreateUseAllocation:
+      oneOf:
+      - $ref: '#/components/schemas/TunnelCreateUseAllocation_oneOf'
+      - $ref: '#/components/schemas/TunnelCreateUseAllocation_oneOf_1'
+      - $ref: '#/components/schemas/TunnelCreateUseAllocation_oneOf_2'
+    AgentVersion:
+      example:
+        version: version
+        platform: null
+      properties:
+        platform:
+          $ref: '#/components/schemas/Platform'
+        version:
+          type: string
+      required:
+      - platform
+      - version
+      type: object
+    AccountTunnelAllocation:
+      oneOf:
+      - $ref: '#/components/schemas/AccountTunnelAllocation_oneOf'
+      - $ref: '#/components/schemas/AccountTunnelAllocation_oneOf_1'
+    TunnelOriginCreate:
+      oneOf:
+      - $ref: '#/components/schemas/TunnelOriginCreate_oneOf'
+      - $ref: '#/components/schemas/TunnelOriginCreate_oneOf_1'
+      - $ref: '#/components/schemas/TunnelOriginCreate_oneOf_2'
+    AgentRouting:
+      example:
+        agent_id: agent_id
+        targets4:
+        - null
+        - null
+        targets6:
+        - null
+        - null
+      properties:
+        agent_id:
+          type: string
+        targets4:
+          items:
+            $ref: '#/components/schemas/Ipv4Addr'
+          type: array
+        targets6:
+          items:
+            $ref: '#/components/schemas/Ipv6Addr'
+          type: array
+      required:
+      - agent_id
+      - targets4
+      - targets6
+      type: object
+    PortType:
+      enum:
+      - tcp
+      - udp
+      - both
+      type: string
+    UseRegion:
+      properties:
+        region:
+          $ref: '#/components/schemas/AllocationRegion'
+      required:
+      - region
+      type: object
+    IpType:
+      enum:
+      - both
+      - ip4
+      - ip6
+      type: string
+    AssignedManagedCreate:
+      properties:
+        agent_id:
+          type: string
+      type: object
+    UseAllocPortAlloc:
+      properties:
+        alloc_id:
+          type: string
+      required:
+      - alloc_id
+      type: object
+    Uuid:
+      type: string
+    ReqAgentsRundata:
+      type: object
+    TunnelOrigin:
+      oneOf:
+      - $ref: '#/components/schemas/TunnelOrigin_oneOf'
+      - $ref: '#/components/schemas/TunnelOrigin_oneOf_1'
+      - $ref: '#/components/schemas/TunnelOrigin_oneOf_2'
+    ReqClaimSetup:
+      example:
+        agent_type: null
+        code: code
+        version: version
+      properties:
+        code:
+          type: string
+        agent_type:
+          $ref: '#/components/schemas/AgentType'
+        version:
+          type: string
+      required:
+      - agent_type
+      - code
+      - version
+      type: object
+    TunnelAllocated:
+      properties:
+        id:
+          type: string
+        ip_hostname:
+          type: string
+        static_ip4:
+          type: string
+        assigned_domain:
+          type: string
+        assigned_srv:
+          type: string
+        tunnel_ip:
+          type: string
+        port_start:
+          type: number
+        port_end:
+          type: number
+        assignment:
+          $ref: '#/components/schemas/TunnelAssignment'
+        ip_type:
+          $ref: '#/components/schemas/IpType'
+        region:
+          $ref: '#/components/schemas/AllocationRegion'
+      required:
+      - assigned_domain
+      - assignment
+      - id
+      - ip_hostname
+      - ip_type
+      - port_end
+      - port_start
+      - region
+      - tunnel_ip
+      type: object
+    ReqProtoRegister:
+      example:
+        agent_version:
+          official: true
+          details_website: details_website
+          version:
+            version: version
+            platform: null
+        client_addr: client_addr
+        tunnel_addr: tunnel_addr
+      properties:
+        agent_version:
+          $ref: '#/components/schemas/PlayitAgentVersion'
+        client_addr:
+          type: string
+        tunnel_addr:
+          type: string
+      required:
+      - agent_version
+      - client_addr
+      - tunnel_addr
+      type: object
+    ReqTunnelsList:
+      example:
+        tunnel_id: tunnel_id
+        agent_id: agent_id
+      properties:
+        tunnel_id:
+          type: string
+        agent_id:
+          type: string
+      type: object
+    _tunnels_create_post_200_response:
+      example:
+        data:
+          id: id
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/ObjectId'
+      required:
+      - data
+      - status
+      type: object
+    _tunnels_create_post_400_response_oneOf_data:
+      example:
+        type: validation
+        message: message
+      properties:
+        type:
+          enum:
+          - validation
+          type: string
+        message:
+          type: string
+      required:
+      - message
+      - type
+      type: object
+    _tunnels_create_post_400_response_oneOf:
+      example:
+        data:
+          type: validation
+          message: message
+        status: error
+      properties:
+        status:
+          enum:
+          - error
+          type: string
+        data:
+          $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf_data'
+      required:
+      - data
+      - status
+      type: object
+    _tunnels_create_post_400_response_oneOf_1:
+      properties:
+        status:
+          enum:
+          - fail
+          type: string
+        data:
+          $ref: '#/components/schemas/TunnelCreateError'
+      required:
+      - data
+      - status
+      type: object
+    _tunnels_create_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf_1'
+    _tunnels_create_post_401_response_data:
+      example:
+        type: auth
+        message: null
+      properties:
+        type:
+          enum:
+          - auth
+          type: string
+        message:
+          $ref: '#/components/schemas/AuthError'
+      required:
+      - message
+      - type
+      type: object
+    _tunnels_create_post_401_response:
+      example:
+        data:
+          type: auth
+          message: null
+        status: error
+      properties:
+        status:
+          enum:
+          - error
+          type: string
+        data:
+          $ref: '#/components/schemas/_tunnels_create_post_401_response_data'
+      required:
+      - data
+      - status
+      type: object
+    _tunnels_create_post_500_response_data:
+      example:
+        type: internal
+      properties:
+        type:
+          enum:
+          - internal
+          type: string
+      required:
+      - type
+      type: object
+    _tunnels_create_post_500_response:
+      example:
+        data:
+          type: internal
+        status: error
+      properties:
+        status:
+          enum:
+          - error
+          type: string
+        data:
+          $ref: '#/components/schemas/_tunnels_create_post_500_response_data'
+      required:
+      - data
+      - status
+      type: object
+    _tunnels_delete_post_200_response:
+      example:
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+      required:
+      - status
+      type: object
+    _tunnels_delete_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+    _claim_details_post_200_response:
+      example:
+        data:
+          agent_type: null
+          remote_ip: remote_ip
+          name: name
+          version: version
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentClaimDetails'
+      required:
+      - data
+      - status
+      type: object
+    _claim_details_post_400_response_oneOf:
+      properties:
+        status:
+          enum:
+          - fail
+          type: string
+        data:
+          $ref: '#/components/schemas/ClaimDetailsError'
+      required:
+      - data
+      - status
+      type: object
+    _claim_details_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+      - $ref: '#/components/schemas/_claim_details_post_400_response_oneOf'
+    _claim_setup_post_200_response:
+      example:
+        data: null
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/ClaimSetupResponse'
+      required:
+      - data
+      - status
+      type: object
+    _claim_setup_post_400_response_oneOf:
+      properties:
+        status:
+          enum:
+          - fail
+          type: string
+        data:
+          $ref: '#/components/schemas/ClaimSetupError'
+      required:
+      - data
+      - status
+      type: object
+    _claim_setup_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+      - $ref: '#/components/schemas/_claim_setup_post_400_response_oneOf'
+    _claim_exchange_post_200_response:
+      example:
+        data:
+          secret_key: secret_key
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentSecretKey'
+      required:
+      - data
+      - status
+      type: object
+    _claim_exchange_post_400_response_oneOf:
+      properties:
+        status:
+          enum:
+          - fail
+          type: string
+        data:
+          $ref: '#/components/schemas/ClaimExchangeError'
+      required:
+      - data
+      - status
+      type: object
+    _claim_exchange_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+      - $ref: '#/components/schemas/_claim_exchange_post_400_response_oneOf'
+    _claim_accept_post_200_response:
+      example:
+        data:
+          agent_id: agent_id
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentAccepted'
+      required:
+      - data
+      - status
+      type: object
+    _claim_accept_post_400_response_oneOf:
+      properties:
+        status:
+          enum:
+          - fail
+          type: string
+        data:
+          $ref: '#/components/schemas/ClaimAcceptError'
+      required:
+      - data
+      - status
+      type: object
+    _claim_accept_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+      - $ref: '#/components/schemas/_claim_accept_post_400_response_oneOf'
+    _claim_reject_post_400_response_oneOf:
+      properties:
+        status:
+          enum:
+          - fail
+          type: string
+        data:
+          $ref: '#/components/schemas/ClaimRejectError'
+      required:
+      - data
+      - status
+      type: object
+    _claim_reject_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+      - $ref: '#/components/schemas/_claim_reject_post_400_response_oneOf'
+    _proto_register_post_200_response:
+      example:
+        data:
+          key: key
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/SignedAgentKey'
+      required:
+      - data
+      - status
+      type: object
+    _login_guest_post_200_response:
+      example:
+        data:
+          auth:
+            account_id: 6.027456183070403
+            totp_status:
+              epoch_sec: 5.962133916683182
+              status: signed
+            admin_id: 5.637376656633329
+            update_version: 0.8008281904610115
+            account_status: null
+            timestamp: 1.4658129805029452
+          session_key: session_key
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/WebSession'
+      required:
+      - data
+      - status
+      type: object
+    _agents_routing_get_post_200_response:
+      example:
+        data:
+          agent_id: agent_id
+          targets4:
+          - null
+          - null
+          targets6:
+          - null
+          - null
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentRouting'
+      required:
+      - data
+      - status
+      type: object
+    _agents_routing_get_post_400_response_oneOf:
+      properties:
+        status:
+          enum:
+          - fail
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentRoutingGetError'
+      required:
+      - data
+      - status
+      type: object
+    _agents_routing_get_post_400_response:
+      oneOf:
+      - $ref: '#/components/schemas/_tunnels_create_post_400_response_oneOf'
+      - $ref: '#/components/schemas/_agents_routing_get_post_400_response_oneOf'
+    _agents_rundata_post_200_response:
+      example:
+        data:
+          agent_type: null
+          tunnels:
+          - local_ip: local_ip
+            port:
+              from: 1.4658129805029452
+              to: 5.962133916683182
+            local_port: 5.637376656633329
+            proto: null
+            name: name
+            disabled: null
+            id: id
+            region_num: 6.027456183070403
+            assigned_domain: assigned_domain
+            ip_num: 0.8008281904610115
+            tunnel_type: tunnel_type
+            custom_domain: custom_domain
+          - local_ip: local_ip
+            port:
+              from: 1.4658129805029452
+              to: 5.962133916683182
+            local_port: 5.637376656633329
+            proto: null
+            name: name
+            disabled: null
+            id: id
+            region_num: 6.027456183070403
+            assigned_domain: assigned_domain
+            ip_num: 0.8008281904610115
+            tunnel_type: tunnel_type
+            custom_domain: custom_domain
+          agent_id: agent_id
+          pending:
+          - proto: null
+            is_disabled: true
+            name: name
+            id: id
+            port_count: 2.3021358869347655
+            tunnel_type: tunnel_type
+          - proto: null
+            is_disabled: true
+            name: name
+            id: id
+            port_count: 2.3021358869347655
+            tunnel_type: tunnel_type
+          account_status: null
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/AgentRunData'
+      required:
+      - data
+      - status
+      type: object
+    _tunnels_list_post_200_response:
+      example:
+        data:
+          tunnels:
+          - ratelimit:
+              bytes_per_second: 2.3021358869347655
+              packets_per_second: 7.061401241503109
+            port_type: null
+            firewall_id: firewall_id
+            origin:
+              data:
+                local_ip: local_ip
+                local_port: 5.637376656633329
+              type: default
+            created_at: 2000-01-23T04:56:07.000+00:00
+            active: true
+            disabled_reason: null
+            expire_notice:
+              remove_at: 2000-01-23T04:56:07.000+00:00
+              disable_at: 2000-01-23T04:56:07.000+00:00
+            domain:
+              parent: parent
+              name: name
+              is_external: true
+              id: id
+              source: null
+            name: name
+            id: id
+            port_count: 5.962133916683182
+            alloc:
+              data:
+                reason: null
+              status: disabled
+            region: null
+            tunnel_type: null
+          - ratelimit:
+              bytes_per_second: 2.3021358869347655
+              packets_per_second: 7.061401241503109
+            port_type: null
+            firewall_id: firewall_id
+            origin:
+              data:
+                local_ip: local_ip
+                local_port: 5.637376656633329
+              type: default
+            created_at: 2000-01-23T04:56:07.000+00:00
+            active: true
+            disabled_reason: null
+            expire_notice:
+              remove_at: 2000-01-23T04:56:07.000+00:00
+              disable_at: 2000-01-23T04:56:07.000+00:00
+            domain:
+              parent: parent
+              name: name
+              is_external: true
+              id: id
+              source: null
+            name: name
+            id: id
+            port_count: 5.962133916683182
+            alloc:
+              data:
+                reason: null
+              status: disabled
+            region: null
+            tunnel_type: null
+          tcp_alloc:
+            desired: 1.4658129805029452
+            allowed: 0.8008281904610115
+            claimed: 6.027456183070403
+          udp_alloc:
+            desired: 1.4658129805029452
+            allowed: 0.8008281904610115
+            claimed: 6.027456183070403
+        status: success
+      properties:
+        status:
+          enum:
+          - success
+          type: string
+        data:
+          $ref: '#/components/schemas/AccountTunnels'
+      required:
+      - data
+      - status
+      type: object
+    TunnelAssignment_oneOf:
+      properties:
+        type:
+          enum:
+          - dedicated-ip
+          type: string
+        subscription:
+          $ref: '#/components/schemas/TunnelDedicatedIp'
+      required:
+      - subscription
+      - type
+      type: object
+    TunnelAssignment_oneOf_1:
+      properties:
+        type:
+          enum:
+          - dedicated-port
+          type: string
+        subscription:
+          $ref: '#/components/schemas/SubscriptionId'
+      required:
+      - subscription
+      - type
+      type: object
+    TotpStatus_oneOf:
+      allOf:
+      - $ref: '#/components/schemas/SignedEpoch'
+      - properties:
+          status:
+            enum:
+            - signed
+            type: string
+        required:
+        - status
+        type: object
+      example:
+        epoch_sec: 5.962133916683182
+        status: signed
+    TunnelCreateUseAllocation_oneOf:
+      example:
+        details:
+          port: 1.4658129805029452
+          ip_hostname: ip_hostname
+        type: dedicated-ip
+      properties:
+        type:
+          enum:
+          - dedicated-ip
+          type: string
+        details:
+          $ref: '#/components/schemas/UseAllocDedicatedIp'
+      required:
+      - details
+      - type
+      type: object
+    TunnelCreateUseAllocation_oneOf_1:
+      properties:
+        type:
+          enum:
+          - port-allocation
+          type: string
+        details:
+          $ref: '#/components/schemas/UseAllocPortAlloc'
+      required:
+      - details
+      - type
+      type: object
+    TunnelCreateUseAllocation_oneOf_2:
+      properties:
+        type:
+          enum:
+          - region
+          type: string
+        details:
+          $ref: '#/components/schemas/UseRegion'
+      required:
+      - details
+      - type
+      type: object
+    AccountTunnelAllocation_oneOf:
+      example:
+        data:
+          reason: null
+        status: disabled
+      properties:
+        status:
+          enum:
+          - disabled
+          type: string
+        data:
+          $ref: '#/components/schemas/TunnelDisabled'
+      required:
+      - data
+      - status
+      type: object
+    AccountTunnelAllocation_oneOf_1:
+      properties:
+        status:
+          enum:
+          - allocated
+          type: string
+        data:
+          $ref: '#/components/schemas/TunnelAllocated'
+      required:
+      - data
+      - status
+      type: object
+    TunnelOriginCreate_oneOf:
+      example:
+        data:
+          local_ip: local_ip
+          local_port: 6.027456183070403
+        type: default
+      properties:
+        type:
+          enum:
+          - default
+          type: string
+        data:
+          $ref: '#/components/schemas/AssignedDefaultCreate'
+      required:
+      - data
+      - type
+      type: object
+    TunnelOriginCreate_oneOf_1:
+      properties:
+        type:
+          enum:
+          - agent
+          type: string
+        data:
+          $ref: '#/components/schemas/AssignedAgentCreate'
+      required:
+      - data
+      - type
+      type: object
+    TunnelOriginCreate_oneOf_2:
+      properties:
+        type:
+          enum:
+          - managed
+          type: string
+        data:
+          $ref: '#/components/schemas/AssignedManagedCreate'
+      required:
+      - data
+      - type
+      type: object
+    TunnelOrigin_oneOf:
+      example:
+        data:
+          local_ip: local_ip
+          local_port: 5.637376656633329
+        type: default
+      properties:
+        type:
+          enum:
+          - default
+          type: string
+        data:
+          $ref: '#/components/schemas/AssignedDefault'
+      required:
+      - data
+      - type
+      type: object
+    TunnelOrigin_oneOf_1:
+      properties:
+        type:
+          enum:
+          - agent
+          type: string
+        data:
+          $ref: '#/components/schemas/AssignedAgent'
+      required:
+      - data
+      - type
+      type: object
+    TunnelOrigin_oneOf_2:
+      properties:
+        type:
+          enum:
+          - managed
+          type: string
+        data:
+          $ref: '#/components/schemas/AssignedManaged'
+      required:
+      - data
+      - type
+      type: object
+  securitySchemes:
+    ApiKey:
+      in: header
+      name: Authorization
+      type: apiKey
+    AgentKey:
+      in: header
+      name: Authorization
+      type: apiKey

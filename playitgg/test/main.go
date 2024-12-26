@@ -3,69 +3,71 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 
-	playitAPI "sirherobrine23.com.br/go-bds/go-bds/playitgg/api"
+	"github.com/google/uuid"
+	"sirherobrine23.com.br/go-bds/go-bds/playitgg/playitapi"
 )
 
-func printJSON(v any) {
-	js, _ := json.MarshalIndent(v, "", "  ")
-	fmt.Println(string(js))
+var configFile = "playitgg.json"
+
+func root() error {
+	var api playitapi.Api
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		claim, err := api.Claim()
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Open %s in your browser\n", claim.String())
+		if err = claim.Do(playitapi.AgentTypeDefault); err != nil {
+			return err
+		}
+		config, err := json.MarshalIndent(api, "", "  ")
+		if err != nil {
+			return err
+		} else if err = os.WriteFile(configFile, config, 0644); err != nil {
+			return err
+		}
+	} else {
+		file, err := os.Open(configFile)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if err = json.NewDecoder(file).Decode(&api); err != nil {
+			return err
+		}
+	}
+
+	agentData, err := api.RundataAgents()
+	if err != nil {
+		return err
+	}
+
+	tuns, err := api.Tunnels(uuid.Nil, agentData.ID)
+	if err != nil {
+		return err
+	}
+
+	route, err := api.Routing(agentData.ID)
+	if err != nil {
+		return err
+	}
+
+	d, _ := json.MarshalIndent(map[string]any{
+		"agent": agentData,
+		"tuns":  tuns,
+		"route": route,
+	}, "", "  ")
+	fmt.Println(string(d))
+
+	return nil
 }
 
 func main() {
-	setup := false
-	config, err := os.OpenFile("./config.json", os.O_RDONLY, 0644)
-	if err != nil {
-		if config != nil {
-			config.Close()
-		}
-		setup = true
+	if err := root(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
-	defer config.Close()
-
-	var clientAPI playitAPI.Api
-	if setup {
-		if err = clientAPI.CreateClaimCode(); err != nil {
-			panic(err)
-		}
-		fmt.Printf("Open %q\n", clientAPI.ClaimUrl())
-		if err = clientAPI.SetupSecret(playitAPI.AgentDefault); err != nil {
-			panic(err)
-		}
-		js, _ := json.MarshalIndent(clientAPI, "", "  ")
-		config, _ = os.Create("./config.json")
-		config.Write(js)
-	} else if err = json.NewDecoder(config).Decode(&clientAPI); err != nil {
-		panic(err)
-	}
-
-	id, err := clientAPI.CreateTunnel(playitAPI.Tunnel{
-		Name: "test",
-		TunnelType: playitAPI.TunnelTypeMinecraftBedrock,
-		PortType: 0,
-		PortCount: 1,
-		Enabled: true,
-		Alloc: &playitAPI.TunnelCreateUseAllocation{
-			Type: "region",
-			Data: playitAPI.TunnelCreateUseAllocationDetails{
-				UseRegion: &playitAPI.UseRegion{
-					Region: playitAPI.RegionGlobal,
-				},
-			},
-		},
-		Origin: playitAPI.TunnelOriginCreate{
-			Type: "default",
-			Agent: playitAPI.AgentMerged{
-				AssignedDefaultCreate: &playitAPI.AssignedDefaultCreate{
-					Ip: net.IPv4(192, 16, 0, 3),
-				},
-			},
-		},
-	})
-	if err != nil {
-		panic(err)
-	}
-	printJSON(id)
 }

@@ -26,15 +26,15 @@ func (err errResponseCode) Error() string {
 
 type Header map[string]string
 
-func (head Header) Merge(head2 Header) Header {
-	if head == nil {
-		head = map[string]string{}
+func (Headers Header) Merge(ToMerge Header) Header {
+	if Headers == nil {
+		Headers = map[string]string{}
 	}
-	if head2 == nil {
-		head2 = map[string]string{}
+	if ToMerge == nil {
+		ToMerge = map[string]string{}
 	}
-	n1 := maps.Clone(head)
-	for key, val := range head2 {
+	n1 := maps.Clone(Headers)
+	for key, val := range ToMerge {
 		n1[key] = val
 	}
 	return n1
@@ -45,9 +45,9 @@ type Options struct {
 	Method            string               // Request method, example, Get, Post
 	Body              any                  // Struct or io.Reader, if is Struct convert to json
 	Header            Header               // Extra request Headers
-	CodeProcess       map[int]CodeCallback // Process request with callback, -1 call any other status code
+	CodeProcess       map[int]CodeCallback `json:"-"` // Process request with callback, -1 call any other status code
 	NotFollowRedirect bool                 // Watcher requests redirects
-	Jar               http.CookieJar
+	Jar               http.CookieJar       `json:"-"`
 }
 
 // Request struct
@@ -91,7 +91,6 @@ func (req RequestRoot) MakeRequest() (*http.Response, error) {
 	var body io.Reader
 	if req.Options.Body != nil {
 		switch v := req.Options.Body.(type) {
-		case nil:
 		case []byte:
 			body = bytes.NewReader(v)
 		case io.Reader:
@@ -101,7 +100,6 @@ func (req RequestRoot) MakeRequest() (*http.Response, error) {
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println(string(data))
 			body = bytes.NewReader(data)
 		}
 	}
