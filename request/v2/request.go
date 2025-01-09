@@ -24,14 +24,30 @@ func (err errResponseCode) Error() string {
 	return fmt.Sprintf("cannot process request, response code %d", err.Response.StatusCode)
 }
 
+type Header map[string]string
+
+func (Headers Header) Merge(ToMerge Header) Header {
+	if Headers == nil {
+		Headers = map[string]string{}
+	}
+	if ToMerge == nil {
+		ToMerge = map[string]string{}
+	}
+	n1 := maps.Clone(Headers)
+	for key, val := range ToMerge {
+		n1[key] = val
+	}
+	return n1
+}
+
 // Request options
 type Options struct {
 	Method            string               // Request method, example, Get, Post
 	Body              any                  // Struct or io.Reader, if is Struct convert to json
-	Header            map[string]string    // Extra request Headers
-	CodeProcess       map[int]CodeCallback // Process request with callback, -1 call any other status code
+	Header            Header               // Extra request Headers
+	CodeProcess       map[int]CodeCallback `json:"-"` // Process request with callback, -1 call any other status code
 	NotFollowRedirect bool                 // Watcher requests redirects
-	Jar               http.CookieJar
+	Jar               http.CookieJar       `json:"-"`
 }
 
 // Request struct
@@ -67,32 +83,24 @@ func (req RequestRoot) MakeRequest() (*http.Response, error) {
 	}
 
 	var methodRequest string
-	if methodRequest = strings.ToUpper(req.Options.Method); methodRequest != "" {
+	if methodRequest = strings.ToUpper(req.Options.Method); methodRequest == "" {
 		methodRequest = "GET"
 	}
 
 	var err error
 	var body io.Reader
 	if req.Options.Body != nil {
-		if dbody, ok := req.Options.Body.(io.Reader); ok {
-			body = dbody
-		} else {
-			if data, ok := req.Options.Body.([]byte); ok {
-				req.Options.Body = bytes.NewReader(data)
-			} else if req.Options.Body != nil {
-				var data []byte
-				if data, err = json.Marshal(req.Options.Body); err != nil {
-					return nil, err
-				}
-				req.Options.Body = bytes.NewReader(data)
-
-				if req.Options.Header == nil {
-					req.Options.Header = make(map[string]string)
-				}
-				if (&http.Header{"Content-Type": {req.Options.Header["Content-Type"]}, "content-type": {req.Options.Header["content-type"]}}).Get("Content-Type") == "" {
-					req.Options.Header["Content-Type"] = "application/json"
-				}
+		switch v := req.Options.Body.(type) {
+		case []byte:
+			body = bytes.NewReader(v)
+		case io.Reader:
+			body = v
+		default:
+			data, err := json.MarshalIndent(req.Options.Body, "", "  ")
+			if err != nil {
+				return nil, err
 			}
+			body = bytes.NewReader(data)
 		}
 	}
 
