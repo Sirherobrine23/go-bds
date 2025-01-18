@@ -17,8 +17,8 @@ import (
 
 type Storage interface {
 	fs.FS
-	Create(name string) (io.WriteCloser, error) // Save file in storage
 	Remove(name string) error                   // Remove file from storage
+	Create(name string) (io.WriteCloser, error) // Save file in storage
 }
 
 func writeJSON(w io.Writer, obj any) {
@@ -89,8 +89,8 @@ func NewHandler(serverLimits Limits, storage Storage) *http.ServeMux {
 		defer logBody.Close()
 
 		// Parse log body
-		var logInsight Insights
-		if err := logInsight.ParseStream(logBody); err != nil {
+		logInsight, err := ParseLog(logBody);
+		if err != nil {
 			writeErr(w, err)
 			return
 		}

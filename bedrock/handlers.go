@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"sirherobrine23.com.br/go-bds/go-bds/mclog"
 	"sirherobrine23.com.br/go-bds/go-bds/regex"
 )
 
@@ -18,6 +19,8 @@ const (
 )
 
 var (
+	_ = mclog.RegisterNewParse(&BedrockLoger{})
+
 	MojangPlayerActions = map[string]*regex.Regexp{
 		// [2024-04-01 20:50:26:198 INFO] Player connected: Sirherobrine, xuid: 2535413418839840
 		// [2024-04-01 21:46:11:691 INFO] Player connected: nod dd, xuid:
@@ -50,6 +53,22 @@ var (
 		`v2`: regex.MustCompile(`(?m)^\[(?P<TimeAction>([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})):[0-9]{1,3} INFO\] Server started\.`),
 	}
 )
+
+type BedrockLoger struct{}
+
+func (BedrockLoger) String() string                  { return "mojang:bedrock" }
+func (BedrockLoger) New() (mclog.ServerParse, error) { return &LogerParse{mclog.Insights{}}, nil }
+
+type LogerParse struct {
+	local mclog.Insights
+}
+
+func (loger LogerParse) Insight() *mclog.Insights      { return &loger.local }
+func (loger *LogerParse) Detect(log io.ReadSeeker) error {
+	loger.local = mclog.Insights{Analysis: map[mclog.LogLevel][]mclog.InsightsAnalysis{}}
+	
+	return nil
+}
 
 type PlayerConnection struct {
 	Player         string    `json:"player"`         // Player username

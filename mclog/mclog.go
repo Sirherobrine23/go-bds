@@ -2,7 +2,6 @@ package mclog
 
 import (
 	"errors"
-	"io"
 	"time"
 )
 
@@ -10,8 +9,6 @@ var (
 	MclogsApi  string = "https://api.mclo.gs"
 	MclogsBase string = "https://mclo.gs"
 
-	ErrNoImplemented   error = errors.New("function not implemented")    // Cannot use function
-	ErrInvalidPlaftorm error = errors.New("cannot process log platform") // Cannot detect platform to process log
 	ErrNoExists        error = errors.New("log no exists")               // id request not exists
 	ErrNoId            error = errors.New("require mclo.gs id")          // Require uploaded log to view
 )
@@ -26,6 +23,7 @@ const (
 	LogWarn    LogLevel = "warning"
 )
 
+// Stands log levels
 type LogLevel string
 
 type MclogResponseStatus struct {
@@ -68,5 +66,3 @@ type Insights struct {
 	Name     string                          `json:"name,omitempty"`
 	Analysis map[LogLevel][]InsightsAnalysis `json:"analysis"`
 }
-
-func (insights *Insights) ParseStream(r io.Reader) error { return ErrNoImplemented }
