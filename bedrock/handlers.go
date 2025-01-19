@@ -63,18 +63,110 @@ type LogerParse struct {
 	local mclog.Insights
 }
 
-func (loger LogerParse) Insight() *mclog.Insights      { return &loger.local }
+func (loger LogerParse) Insight() *mclog.Insights { return &loger.local }
 func (loger *LogerParse) Detect(log io.ReadSeeker) error {
-	loger.local = mclog.Insights{Analysis: map[mclog.LogLevel][]mclog.InsightsAnalysis{}}
-	
+	loger.local = mclog.Insights{
+		ID:       "mojang/bedrock",
+		Name:     "bedrock",
+		Type:     "Server log",
+		Title:    "bedrock",
+		Version:  "unknown",
+		Analysis: map[mclog.LogLevel][]mclog.InsightsAnalysis{},
+	}
+
+	logScan := bufio.NewScanner(log)
+	for logScan.Scan() {
+		text := logScan.Text()
+		if !strings.Contains(text, "]") {
+			continue
+		}
+
+		Analysis := mclog.InsightsAnalysis{Entry: mclog.AnalysisEntry{Lines: []mclog.EntryLine{}}}
+		prefixSplit := strings.SplitN(text, "]", 2)
+		prefixSplit[0] = prefixSplit[0][strings.Index(prefixSplit[0], "[")+1:]
+		if prefixSplit[1] = strings.TrimSpace(prefixSplit[1]); prefixSplit[1] == "" {
+			continue // skip
+		}
+		Analysis.Entry.Prefix = prefixSplit[0]
+		Analysis.Message = prefixSplit[1]
+
+		logLevel, add, err := mclog.LogUnknown, false, error(nil)
+		if strings.HasSuffix(prefixSplit[0], "INFO") {
+			logLevel = mclog.LogInfo
+			prefixSplit[0] = prefixSplit[0][:len(prefixSplit[0])-5]
+		} else if strings.HasSuffix(prefixSplit[0], "ERROR") {
+			logLevel = mclog.LogProblem
+			prefixSplit[0] = prefixSplit[0][:len(prefixSplit[0])-6]
+			add = true
+		}
+
+		// Date
+		if len(prefixSplit[0]) >= 19 {
+			if Analysis.Entry.EntryTime, err = time.ParseInLocation("2006-01-02 15:04:05", prefixSplit[0][:19], time.Local); err != nil {
+				panic(err)
+			}
+			Analysis.Entry.EntryTime = Analysis.Entry.EntryTime.UTC() // Convert to UTC time
+		}
+
+		explodeString := strings.Fields(prefixSplit[1])
+		switch explodeString[0] {
+		case "Version":
+			if len(explodeString) >= 2 {
+				add = true
+				version := explodeString[len(explodeString)-1]
+				loger.local.Version = version
+				Analysis.Value = version
+				Analysis.Label = "Bedrock version"
+			}
+		case "IPv6", "IPv4", "Listening":
+			if explodeString[len(explodeString)-2] == "port:" {
+				add = true
+				Analysis.Label = "Port"
+				Analysis.Value = explodeString[len(explodeString)-1]
+				Analysis.Entry.Lines = append(Analysis.Entry.Lines, mclog.EntryLine{
+					Numbers: 1,
+					Label:   explodeString[0],
+					Content: Analysis.Value,
+				})
+			}
+		case "Player":
+			for _, reg := range MojangPlayerActions {
+				if reg.MatchString(text) {
+					ActionPlayer := reg.FindAllGroups(text)
+					action := strings.ToLower(ActionPlayer["Action"])
+					if slices.Contains([]string{PlayerActionConnect, PlayerActionDisconnect, PlayerActionSpawn}, action) {
+						playerData := PlayerConnection{
+							Action: action,
+							Player: strings.TrimSpace(ActionPlayer["Username"]),
+							XUID:   strings.TrimSpace(ActionPlayer["Xuid"]),
+						}
+
+						Analysis.Entry.Lines = append(Analysis.Entry.Lines, mclog.EntryLine{
+							Numbers:  1,
+							Label:    explodeString[0],
+							Content:  explodeString[len(explodeString)-1],
+							External: playerData,
+						})
+						add = true
+						break
+					}
+				}
+			}
+		}
+
+		if add {
+			Analysis.Counter = len(Analysis.Entry.Lines)
+			loger.local.Analysis[logLevel] = append(loger.local.Analysis[logLevel], Analysis)
+		}
+	}
+
 	return nil
 }
 
 type PlayerConnection struct {
-	Player         string    `json:"player"`         // Player username
-	XUID           string    `json:"xuid,omitempty"` // Player xuid
-	Action         string    `json:"action"`         // Connection type
-	TimeConnection time.Time `json:"connectionTime"` // Player connection time
+	Player string `json:"player"`         // Player username
+	XUID   string `json:"xuid,omitempty"` // Player xuid
+	Action string `json:"action"`         // Connection type
 }
 
 type Handlers struct {
@@ -110,21 +202,12 @@ func (w *Handlers) ParsePlayer(logline string) {
 	for _, reg := range MojangPlayerActions {
 		if reg.MatchString(logline) {
 			ActionPlayer := reg.FindAllGroups(logline)
-			var timed = time.Now()
-			if timeAct, ok := ActionPlayer["TimeAction"]; ok {
-				var err error
-				if timed, err = time.Parse(`2006-01-02 15:04:05`, timeAct); err != nil {
-					return
-				}
-			}
-
 			action := strings.ToLower(ActionPlayer["Action"])
 			if slices.Contains([]string{PlayerActionConnect, PlayerActionDisconnect, PlayerActionSpawn}, action) {
 				w.Players = append(w.Players, PlayerConnection{
-					Player:         strings.TrimSpace(ActionPlayer["Username"]),
-					XUID:           strings.TrimSpace(ActionPlayer["Xuid"]),
-					Action:         action,
-					TimeConnection: timed,
+					Player: strings.TrimSpace(ActionPlayer["Username"]),
+					XUID:   strings.TrimSpace(ActionPlayer["Xuid"]),
+					Action: action,
 				})
 			}
 			return

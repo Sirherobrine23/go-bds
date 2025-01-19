@@ -9,8 +9,8 @@ var (
 	MclogsApi  string = "https://api.mclo.gs"
 	MclogsBase string = "https://mclo.gs"
 
-	ErrNoExists        error = errors.New("log no exists")               // id request not exists
-	ErrNoId            error = errors.New("require mclo.gs id")          // Require uploaded log to view
+	ErrNoExists error = errors.New("log no exists")      // id request not exists
+	ErrNoId     error = errors.New("require mclo.gs id") // Require uploaded log to view
 )
 
 const (
@@ -39,12 +39,14 @@ type Limits struct {
 }
 
 type EntryLine struct {
-	Numbers int64  `json:"number"`
-	Content string `json:"content"`
+	Numbers  int    `json:"number"`
+	Content  string `json:"content"`
+	Label    string `json:"label"`
+	External any    `json:"external,omitempty"`
 }
 
 type AnalysisEntry struct {
-	Level     int64       `json:"level"`
+	Level     int         `json:"level"`
 	Prefix    string      `json:"prefix"`
 	EntryTime time.Time   `json:"time"`
 	Lines     []EntryLine `json:"lines"`
@@ -54,7 +56,7 @@ type InsightsAnalysis struct {
 	Label   string        `json:"label"`
 	Value   string        `json:"value"`
 	Message string        `json:"message"`
-	Counter int64         `json:"counter"`
+	Counter int           `json:"counter"`
 	Entry   AnalysisEntry `json:"level"`
 }
 
