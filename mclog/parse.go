@@ -62,17 +62,19 @@ func ParseLog(input io.Reader) (*Insights, error) {
 			return nil, err
 		}
 
-		if err = parse.Detect(reader); err == ErrSkipParse {
+		err = parse.Detect(reader)
+		switch err {
+		case ErrSkipParse:
 			// Reset stream
 			if _, err = reader.Seek(0, io.SeekStart); err != nil {
 				return nil, err
 			}
 			continue // Skip parse
-		} else if err != nil {
+		case nil:
+			return parse.Insight(), nil
+		default:
 			return nil, err
 		}
-
-		return parse.Insight(), nil
 	}
 	return nil, ErrCannotParse
 }

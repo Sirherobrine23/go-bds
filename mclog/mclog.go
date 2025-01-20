@@ -39,10 +39,9 @@ type Limits struct {
 }
 
 type EntryLine struct {
-	Numbers  int    `json:"number"`
-	Content  string `json:"content"`
-	Label    string `json:"label"`
-	External any    `json:"external,omitempty"`
+	Numbers int    `json:"number"`
+	Content string `json:"content"`
+	Label   string `json:"label,omitempty"`
 }
 
 type AnalysisEntry struct {
@@ -53,18 +52,19 @@ type AnalysisEntry struct {
 }
 
 type InsightsAnalysis struct {
-	Label   string        `json:"label"`
-	Value   string        `json:"value"`
-	Message string        `json:"message"`
-	Counter int           `json:"counter"`
-	Entry   AnalysisEntry `json:"level"`
+	Label    string        `json:"label"`
+	Value    string        `json:"value"`
+	Message  string        `json:"message"`
+	Counter  int           `json:"counter"`
+	External any           `json:"external,omitempty"`
+	Entry    AnalysisEntry `json:"level"`
 }
 
 type Insights struct {
-	ID       string                          `json:"id"`
-	Version  string                          `json:"version"`
-	Title    string                          `json:"title"`
-	Type     string                          `json:"type,omitempty"`
-	Name     string                          `json:"name,omitempty"`
-	Analysis map[LogLevel][]InsightsAnalysis `json:"analysis"`
+	ID       string                           `json:"id"`
+	Version  string                           `json:"version"`
+	Title    string                           `json:"title"`
+	Type     string                           `json:"type,omitempty"`
+	Name     string                           `json:"name,omitempty"`
+	Analysis map[LogLevel][]*InsightsAnalysis `json:"analysis"`
 }

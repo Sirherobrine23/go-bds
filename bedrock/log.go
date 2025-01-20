@@ -28,6 +28,8 @@ var (
 		// [2024-04-01 21:46:16:637 INFO] Player Spawned: nod dd xuid: , pfid: c31902da495f4549
 		// [2022-08-30 20:56:55:231 INFO] Player disconnected: Sirherobrine, xuid: 2535413418839840
 		// [2024-04-01 21:46:33:199 INFO] Player disconnected: nod dd, xuid: , pfid: c31902da495f4549
+		// NO LOG FILE! - [2025-01-19 23:35:18 INFO] Player connected: 2535413418839840
+		// NO LOG FILE! - [2025-01-19 23:38:54 INFO] Player disconnected: 2535413418839840
 		//
 		// TimeAction = time.Time{}
 		// Action = disconnected|connected|Spawned
@@ -71,17 +73,29 @@ func (loger *LogerParse) Detect(log io.ReadSeeker) error {
 		Type:     "Server log",
 		Title:    "bedrock",
 		Version:  "unknown",
-		Analysis: map[mclog.LogLevel][]mclog.InsightsAnalysis{},
+		Analysis: map[mclog.LogLevel][]*mclog.InsightsAnalysis{},
 	}
 
 	logScan := bufio.NewScanner(log)
+	isValid := false
 	for logScan.Scan() {
 		text := logScan.Text()
 		if !strings.Contains(text, "]") {
 			continue
 		}
+		isValid = true
 
-		Analysis := mclog.InsightsAnalysis{Entry: mclog.AnalysisEntry{Lines: []mclog.EntryLine{}}}
+		Analysis := &mclog.InsightsAnalysis{
+			Entry: mclog.AnalysisEntry{
+				Lines: []mclog.EntryLine{
+					{
+						Content: text,
+						Numbers: strings.Count(text, "") - len(strings.Split(text, " ")),
+					},
+				},
+			},
+		}
+
 		prefixSplit := strings.SplitN(text, "]", 2)
 		prefixSplit[0] = prefixSplit[0][strings.Index(prefixSplit[0], "[")+1:]
 		if prefixSplit[1] = strings.TrimSpace(prefixSplit[1]); prefixSplit[1] == "" {
@@ -89,6 +103,7 @@ func (loger *LogerParse) Detect(log io.ReadSeeker) error {
 		}
 		Analysis.Entry.Prefix = prefixSplit[0]
 		Analysis.Message = prefixSplit[1]
+		Analysis.Value = prefixSplit[1]
 
 		logLevel, add, err := mclog.LogUnknown, false, error(nil)
 		if strings.HasSuffix(prefixSplit[0], "INFO") {
@@ -97,19 +112,29 @@ func (loger *LogerParse) Detect(log io.ReadSeeker) error {
 		} else if strings.HasSuffix(prefixSplit[0], "ERROR") {
 			logLevel = mclog.LogProblem
 			prefixSplit[0] = prefixSplit[0][:len(prefixSplit[0])-6]
+			Analysis.Label = "Error"
 			add = true
+		} else {
+			return mclog.ErrSkipParse
 		}
 
 		// Date
 		if len(prefixSplit[0]) >= 19 {
 			if Analysis.Entry.EntryTime, err = time.ParseInLocation("2006-01-02 15:04:05", prefixSplit[0][:19], time.Local); err != nil {
-				panic(err)
+				return err
 			}
 			Analysis.Entry.EntryTime = Analysis.Entry.EntryTime.UTC() // Convert to UTC time
 		}
 
 		explodeString := strings.Fields(prefixSplit[1])
 		switch explodeString[0] {
+		case "Server":
+			if strings.Contains(text, "started") {
+				add = true
+				Analysis.Label = "Server started"
+				Analysis.Value = "started"
+				Analysis.Message = "Server started"
+			}
 		case "Version":
 			if len(explodeString) >= 2 {
 				add = true
@@ -120,37 +145,41 @@ func (loger *LogerParse) Detect(log io.ReadSeeker) error {
 			}
 		case "IPv6", "IPv4", "Listening":
 			if explodeString[len(explodeString)-2] == "port:" {
-				add = true
-				Analysis.Label = "Port"
+				protoLocation := 0
+				if explodeString[0] == "Listening" {
+					protoLocation = len(explodeString) - 3
+				}
+				Analysis.Label = explodeString[protoLocation]
 				Analysis.Value = explodeString[len(explodeString)-1]
-				Analysis.Entry.Lines = append(Analysis.Entry.Lines, mclog.EntryLine{
-					Numbers: 1,
-					Label:   explodeString[0],
-					Content: Analysis.Value,
-				})
+				Analysis.Label = "Port"
+				add = true
 			}
 		case "Player":
-			for _, reg := range MojangPlayerActions {
-				if reg.MatchString(text) {
-					ActionPlayer := reg.FindAllGroups(text)
-					action := strings.ToLower(ActionPlayer["Action"])
-					if slices.Contains([]string{PlayerActionConnect, PlayerActionDisconnect, PlayerActionSpawn}, action) {
-						playerData := PlayerConnection{
-							Action: action,
-							Player: strings.TrimSpace(ActionPlayer["Username"]),
-							XUID:   strings.TrimSpace(ActionPlayer["Xuid"]),
-						}
+			if !slices.Contains([]string{"connected:", "Spawned:", "disconnected:"}, explodeString[1]) {
+				continue
+			}
+			add = true
+			Analysis.Label = explodeString[1][:len(explodeString[1])-1]
+			Analysis.Message = "player connection"
 
-						Analysis.Entry.Lines = append(Analysis.Entry.Lines, mclog.EntryLine{
-							Numbers:  1,
-							Label:    explodeString[0],
-							Content:  explodeString[len(explodeString)-1],
-							External: playerData,
-						})
-						add = true
-						break
-					}
+			player := prefixSplit[1][strings.Index(prefixSplit[1], explodeString[1])+len(explodeString[1]):]
+
+			xuid := ""
+			if strings.Contains(player, "xuid:") {
+				xuid = player[strings.LastIndex(player, "xuid:")+5:]
+				player = player[:strings.LastIndex(player, "xuid:")-2]
+				if strings.Contains(xuid, ",") {
+					xuid = xuid[:strings.Index(player, ",")]
 				}
+				xuid = strings.TrimSpace(xuid)
+				player = strings.TrimSpace(player)
+			}
+
+			Analysis.Value = player
+			Analysis.External = PlayerConnection{
+				Player: player,
+				XUID:   xuid,
+				Action: Analysis.Label,
 			}
 		}
 
@@ -160,6 +189,9 @@ func (loger *LogerParse) Detect(log io.ReadSeeker) error {
 		}
 	}
 
+	if !isValid {
+		return mclog.ErrSkipParse
+	}
 	return nil
 }
 
