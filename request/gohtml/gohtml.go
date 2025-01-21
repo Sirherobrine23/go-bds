@@ -158,23 +158,16 @@ func recursivelyParseDoc(doc *goquery.Selection, structure any, extractor conten
 	return nil
 }
 
-// Parse finds and extracts data from a HTML reader stream
-func NewParse(r io.Reader, structure any) error {
-	doc, err := goquery.NewDocumentFromReader(r)
-	if err != nil {
-		return err
-	}
-
-	return recursivelyParseDoc(doc.Find("html"), structure, nil)
+// Parse finds and extracts data from a HTML content
+func Parse(content []byte, target any) error {
+	return NewParse(bytes.NewReader(content), target)
 }
 
-// Parse finds and extracts data from a HTML content
-func Parse(content []byte, structure any) error {
-	r := bytes.NewReader(content)
+// Parse finds and extracts data from a HTML reader stream
+func NewParse(r io.Reader, target any) error {
 	doc, err := goquery.NewDocumentFromReader(r)
 	if err != nil {
 		return err
 	}
-
-	return recursivelyParseDoc(doc.Find("html"), structure, nil)
+	return recursivelyParseDoc(doc.Selection, target, nil)
 }
