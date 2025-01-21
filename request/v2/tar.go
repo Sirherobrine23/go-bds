@@ -3,6 +3,7 @@ package request
 import (
 	"archive/tar"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -41,18 +42,33 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 		defer closer.Close()
 	}
 
+	linkes := [][2]string{}
 	tarReader := tar.NewReader(descompressed)
 	for {
 		head, err := tarReader.Next()
 		if err != nil {
 			if err == io.EOF {
-				return nil
+				break
 			}
 			return err
 		}
 
 		rootFile := filepath.Join(TarOption.Cwd, stripPath(head.Name, TarOption.Strip))
-		if rootFile == TarOption.Cwd || head.FileInfo().IsDir() || !head.FileInfo().Mode().IsRegular() {
+		if _, err := os.Stat(rootFile); err == nil {
+			continue
+		} else if rootFile == TarOption.Cwd {
+			continue
+		} else if head.FileInfo().IsDir() {
+			if err := os.MkdirAll(rootFile, head.FileInfo().Mode()); err != nil {
+				return err
+			}
+			continue
+		} else if head.FileInfo().Mode().Type() == fs.ModeSymlink {
+			targetPath := filepath.Join(filepath.Dir(rootFile), head.Linkname)
+			if filepath.IsAbs(head.Linkname) {
+				targetPath = head.Linkname
+			}
+			linkes = append(linkes, [2]string{rootFile, targetPath})
 			continue
 		}
 
@@ -62,16 +78,29 @@ func Tar(Url string, TarOption ExtractOptions, RequestOption *Options) error {
 			}
 		}
 
-		// Open file or create
-		localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0777)
-		if err != nil {
-			return err
-		}
+		if head.FileInfo().Mode().IsRegular() {
+			// Open file or create
+			localFile, err := os.OpenFile(rootFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, head.FileInfo().Mode())
+			if err != nil {
+				return err
+			}
 
-		_, err = io.CopyN(localFile, tarReader, head.Size) // Copy data
-		localFile.Close()                                  // Close file
-		if err != nil {
-			return err
+			_, err = io.CopyN(localFile, tarReader, head.Size) // Copy data
+			localFile.Close()                                  // Close file
+			if err != nil {
+				return err
+			}
 		}
 	}
+
+	// Create linkers
+	for _, link := range linkes {
+		if _, err := os.Lstat(link[0]); err != nil && os.IsNotExist(err) {
+			if err := os.Symlink(link[1], link[0]); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

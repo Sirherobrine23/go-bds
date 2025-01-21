@@ -29,7 +29,12 @@ jobs:
         java-version: "23"
 
     - name: Download packages
-      run: go get ./...
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        go get ./...
+        sudo apt update
+        sudo apt install -y proot || echo cannot install proot
 
     - name: Mount tmpfs
       run: sudo mount -t tmpfs tmpfs /tmp

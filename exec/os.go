@@ -102,11 +102,10 @@ func (w *Os) Start(options ProcExec) error {
 		w.osProc.Env = append(w.osProc.Env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	w.stderr = &MultiWrite{}
-	w.osProc.Stderr = w.stderr
-
-	w.stdout = &MultiWrite{}
+	w.stdout = &MultiWrite{Std: []io.Writer{}}
+	w.stderr = &MultiWrite{Std: []io.Writer{}}
 	w.osProc.Stdout = w.stdout
+	w.osProc.Stderr = w.stderr
 
 	var err error
 	if w.stdin, err = w.osProc.StdinPipe(); err != nil {
