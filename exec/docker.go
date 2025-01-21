@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -16,12 +17,24 @@ var _ Proc = &DockerContainer{}
 type DockerContainer struct {
 	DockerClient *client.Client
 
-	Image   string
-	Volumes []string
-	Ports   []nat.Port
+	ContainerName string
+	Image         string
+	Platform      string // Docker platform to run image
+	Ports         []nat.Port
+	Volumes       []string
 
 	containerID string
 	statusExit  *container.WaitResponse
+}
+
+// Return new docker exec
+func NewDocker(client *client.Client) *DockerContainer {
+	return &DockerContainer{
+		DockerClient: client,
+		Image:        "debian:latest",
+		Volumes:      []string{},
+		Ports:        []nat.Port{},
+	}
 }
 
 // Create Docker client connection and return new DockerContainer with "debian:latest" image
@@ -30,15 +43,74 @@ func NewDockerDefault() (*DockerContainer, error) {
 	if err != nil {
 		return nil, err
 	}
+	return NewDocker(client), nil
+}
 
-	return &DockerContainer{
-		DockerClient: client,
-		Image:        "debian:lates",
-		containerID:  "",
-		statusExit:   nil,
-		Volumes:      []string{},
-		Ports:        []nat.Port{},
-	}, nil
+// Append port on start conteiner
+func (docker *DockerContainer) AddPort(network string, local, remote uint16) {
+	switch network {
+	case "udp", "udp4", "udp6":
+		docker.Ports = append(docker.Ports, nat.Port(fmt.Sprintf("%d:%d/udp", remote, local)))
+	case "tcp", "tcp4", "tcp6":
+		docker.Ports = append(docker.Ports, nat.Port(fmt.Sprintf("%d:%d/tcp", remote, local)))
+	default:
+		docker.Ports = append(docker.Ports, nat.Port(fmt.Sprintf("%d:%d", remote, local)))
+	}
+}
+
+// Get container addresses
+func (docker DockerContainer) ContainerAddr() ([]netip.Addr, error) {
+	if docker.containerID == "" {
+		return nil, ErrNoRunning
+	}
+
+	// Get container info
+	info, err := docker.DockerClient.ContainerInspect(context.Background(), docker.containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// IP Addresses
+	addr := []netip.Addr{}
+	if info.NetworkSettings != nil {
+		if network := info.NetworkSettings; len(info.NetworkSettings.Networks) == 0 {
+			if network.IPAddress != "" {
+				ipv4Addr, err := netip.ParseAddr(network.IPAddress)
+				if err != nil {
+					return nil, err
+				}
+				addr = append(addr, ipv4Addr)
+			}
+
+			if network.GlobalIPv6Address != "" {
+				ipv6Addr, err := netip.ParseAddr(network.GlobalIPv6Address)
+				if err != nil {
+					return nil, err
+				}
+				addr = append(addr, ipv6Addr)
+			}
+		}
+
+		for _, network := range info.NetworkSettings.Networks {
+			if network.IPAddress != "" {
+				ipv4Addr, err := netip.ParseAddr(network.IPAddress)
+				if err != nil {
+					return nil, err
+				}
+				addr = append(addr, ipv4Addr)
+			}
+
+			if network.GlobalIPv6Address != "" {
+				ipv6Addr, err := netip.ParseAddr(network.GlobalIPv6Address)
+				if err != nil {
+					return nil, err
+				}
+				addr = append(addr, ipv6Addr)
+			}
+		}
+	}
+
+	return addr, nil
 }
 
 func (docker *DockerContainer) Kill() error {
@@ -179,7 +251,7 @@ func (docker *DockerContainer) Start(options ProcExec) error {
 		},
 	}
 
-	containerCreated, err := docker.DockerClient.ContainerCreate(ctx, &config, &host, nil, nil, "")
+	containerCreated, err := docker.DockerClient.ContainerCreate(ctx, &config, &host, nil, nil, docker.ContainerName)
 	if docker.containerID = containerCreated.ID; err != nil {
 		return err
 	} else if err = docker.DockerClient.ContainerStart(ctx, docker.containerID, container.StartOptions{}); err != nil {

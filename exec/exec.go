@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	ErrRunning   error = errors.New("process running")         // Process started
-	ErrNoRunning error = errors.New("process nothing running") // Process not started or not running
+	ErrRunning   error = errors.New("process running")        // Process started
+	ErrNoRunning error = errors.New("process is not running") // Process not started or not running
 )
 
 type Env map[string]string
@@ -24,9 +24,9 @@ func (env Env) ToSlice() []string {
 
 // Generic struct to start Process
 type ProcExec struct {
-	Arguments   []string          // command and arguments
-	Cwd         string            // Workdir path
-	Environment Env // Envs to add to process
+	Arguments   []string // command and arguments
+	Cwd         string   // Workdir path
+	Environment Env      // Envs to add to process
 }
 
 // Universal process struct
