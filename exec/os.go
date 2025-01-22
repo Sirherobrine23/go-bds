@@ -19,7 +19,7 @@ type Os struct {
 	osProc *exec.Cmd
 
 	stdin          io.WriteCloser
-	stdout, stderr *MultiWrite
+	stdout, stderr *Writers
 }
 
 func (os *Os) Write(w []byte) (int, error) {
@@ -67,32 +67,40 @@ func (w *Os) ExitCode() (int64, error) {
 }
 
 func (cli *Os) StdinFork() (io.WriteCloser, error) {
-	if cli.stdin == nil {
-		return nil, ErrNoRunning
-	}
 	r, w := io.Pipe()
-	// Write to stdin
-	//nolint:errcheck
-	go io.Copy(cli.stdin, r)
-	return w, nil
+	return w, cli.AppendToStdin(r)
 }
 
 func (cli *Os) StdoutFork() (io.ReadCloser, error) {
-	if cli.stdout == nil {
-		return nil, ErrNoRunning
-	}
 	r, w := io.Pipe()
-	cli.stdout.AddNewWriter(w)
-	return r, nil
+	return r, cli.AppendToStdout(w)
 }
 
 func (cli *Os) StderrFork() (io.ReadCloser, error) {
-	if cli.stderr == nil {
-		return nil, ErrNoRunning
-	}
 	r, w := io.Pipe()
-	cli.stderr.AddNewWriter(w)
-	return r, nil
+	return r, cli.AppendToStderr(w)
+}
+
+func (cli *Os) AppendToStdout(w io.Writer) error {
+	if cli.stdout == nil {
+		cli.stdout = &Writers{}
+	}
+	cli.stdout.Std = append(cli.stdout.Std, w)
+	return nil
+}
+func (cli *Os) AppendToStderr(w io.Writer) error {
+	if cli.stderr == nil {
+		cli.stderr = &Writers{}
+	}
+	cli.stderr.Std = append(cli.stderr.Std, w)
+	return nil
+}
+func (cli *Os) AppendToStdin(r io.Reader) error {
+	if cli.stdin == nil {
+		return ErrNoRunning
+	}
+	go io.Copy(cli.stdin, r)
+	return nil
 }
 
 func (w *Os) Start(options ProcExec) error {
@@ -102,9 +110,14 @@ func (w *Os) Start(options ProcExec) error {
 		w.osProc.Env = append(w.osProc.Env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	w.stdout = &MultiWrite{Std: []io.Writer{}}
-	w.stderr = &MultiWrite{Std: []io.Writer{}}
+	if w.stdout == nil {
+		w.stdout = &Writers{}
+	}
 	w.osProc.Stdout = w.stdout
+
+	if w.stderr == nil {
+		w.stderr = &Writers{}
+	}
 	w.osProc.Stderr = w.stderr
 
 	var err error

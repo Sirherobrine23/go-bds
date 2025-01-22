@@ -260,3 +260,7 @@ func (docker *DockerContainer) Start(options ProcExec) error {
 
 	return nil
 }
+
+func (docker *DockerContainer) AppendToStdout(w io.Writer) error { return io.ErrUnexpectedEOF }
+func (docker *DockerContainer) AppendToStderr(w io.Writer) error { return io.ErrUnexpectedEOF }
+func (docker *DockerContainer) AppendToStdin(r io.Reader) error { return io.ErrUnexpectedEOF }

@@ -26,7 +26,7 @@ type Proot struct {
 	Qemu     string              // Execute guest programs through QEMU, exp: "qemu-x86_64" or "qemu-x86_64-static"
 	GID, UID uint                // User and Group ID, default is root
 	Binds    map[string][]string // Bind mount directories, example: "/dev": {"/dev", "/root/dev"} => /dev -> /root/dev and /dev
-	*Os
+	Os                           // Extends from Os struct
 }
 
 // Append dns server to /etc/resolv.conf
@@ -84,7 +84,6 @@ func (pr *Proot) Start(options ProcExec) error {
 		exec.Environment["LD_PRELOAD"] = "" // Remove to termux
 	}
 
-	pr.Os = &Os{}
 	return pr.Os.Start(exec)
 }
 

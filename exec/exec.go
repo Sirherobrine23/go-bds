@@ -32,34 +32,37 @@ type ProcExec struct {
 // Universal process struct
 type Proc interface {
 	Start(options ProcExec) error       // Start process in background
-	Kill() error                        // Kill process with SIGKILL
 	Wait() error                        // Wait process
+	Kill() error                        // Kill process with SIGKILL
 	Close() error                       // Send ctrl + c (SIGINT) and wait process end
-	Write(p []byte) (int, error)        // Write to stdin
 	ExitCode() (int64, error)           // Get process exit
-	StdinFork() (io.WriteCloser, error) // Create stdin fork to write
-	StdoutFork() (io.ReadCloser, error) // Create stdout fork to read log
-	StderrFork() (io.ReadCloser, error) // Create stderr fork to read log
+	Write(p []byte) (int, error)        // Write to stdin
+	AppendToStdin(r io.Reader) error    // Add reader to stdin
+	AppendToStdout(w io.Writer) error   // Append writer to stdout
+	AppendToStderr(w io.Writer) error   // Append writer to stderr
+	StdinFork() (io.WriteCloser, error) // Create fork stream from Stdin
+	StdoutFork() (io.ReadCloser, error) // Create fork stream from Stdout
+	StderrFork() (io.ReadCloser, error) // Create fork stream from Stderr
 }
 
 // Write to many streamings and if closed remove from list
-type MultiWrite struct {
+type Writers struct {
 	Std    []io.Writer
 	Closed bool
 }
 
-func (p *MultiWrite) AddNewWriter(w io.Writer) {
+func (p *Writers) AddNewWriter(w io.Writer) {
 	if !p.Closed {
 		p.Std = append(p.Std, w)
 	}
 }
 
-func (p *MultiWrite) Close() error {
+func (p *Writers) Close() error {
 	p.Closed = true
 	return nil
 }
 
-func (p *MultiWrite) Write(w []byte) (int, error) {
+func (p *Writers) Write(w []byte) (int, error) {
 	if p.Closed {
 		return 0, io.EOF
 	}
