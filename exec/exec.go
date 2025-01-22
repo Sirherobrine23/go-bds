@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 )
 
 var (
@@ -32,10 +33,11 @@ type ProcExec struct {
 // Universal process struct
 type Proc interface {
 	Start(options ProcExec) error       // Start process in background
-	Wait() error                        // Wait process
 	Kill() error                        // Kill process with SIGKILL
 	Close() error                       // Send ctrl + c (SIGINT) and wait process end
-	ExitCode() (int64, error)           // Get process exit
+	Wait() error                        // Wait process
+	Signal(s os.Signal) error           // Send signal to process
+	ExitCode() (int, error)             // return process exit code, if running wait to get exit code
 	Write(p []byte) (int, error)        // Write to stdin
 	AppendToStdin(r io.Reader) error    // Add reader to stdin
 	AppendToStdout(w io.Writer) error   // Append writer to stdout

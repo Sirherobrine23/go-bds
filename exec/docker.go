@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/netip"
+	"os"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -142,9 +144,9 @@ func (docker *DockerContainer) Wait() error {
 	return nil
 }
 
-func (docker *DockerContainer) ExitCode() (int64, error) {
+func (docker *DockerContainer) ExitCode() (int, error) {
 	if docker.statusExit != nil {
-		return docker.statusExit.StatusCode, nil
+		return int(docker.statusExit.StatusCode), nil
 	} else if docker.containerID == "" {
 		return -1, ErrNoRunning
 	}
@@ -163,7 +165,7 @@ func (docker *DockerContainer) ExitCode() (int64, error) {
 			return -1, fmt.Errorf("exit code %d", status.StatusCode)
 		}
 	}
-	return docker.statusExit.StatusCode, nil
+	return int(docker.statusExit.StatusCode), nil
 }
 
 func (docker *DockerContainer) Close() error {
@@ -173,6 +175,15 @@ func (docker *DockerContainer) Close() error {
 		return err
 	}
 	return docker.Wait()
+}
+
+func (docker *DockerContainer) Signal(signal os.Signal) error {
+	if docker.containerID == "" {
+		return ErrNoRunning
+	} else if err := docker.DockerClient.ContainerStop(context.Background(), docker.containerID, container.StopOptions{Signal: signal.String()}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (docker *DockerContainer) Write(p []byte) (int, error) {
@@ -261,6 +272,6 @@ func (docker *DockerContainer) Start(options ProcExec) error {
 	return nil
 }
 
-func (docker *DockerContainer) AppendToStdout(w io.Writer) error { return io.ErrUnexpectedEOF }
-func (docker *DockerContainer) AppendToStderr(w io.Writer) error { return io.ErrUnexpectedEOF }
-func (docker *DockerContainer) AppendToStdin(r io.Reader) error { return io.ErrUnexpectedEOF }
+func (docker *DockerContainer) AppendToStdout(w io.Writer) error { return fs.ErrInvalid }
+func (docker *DockerContainer) AppendToStderr(w io.Writer) error { return fs.ErrInvalid }
+func (docker *DockerContainer) AppendToStdin(r io.Reader) error  { return fs.ErrInvalid }

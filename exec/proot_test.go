@@ -19,25 +19,20 @@ func TestPRoot(t *testing.T) {
 		Rootfs: filepath.Join(t.TempDir(), "rootfs"),
 	}
 
+	// Install ubuntu to current arch and latest version
 	if err := proot.DownloadUbuntuRootfs("", ""); err != nil {
 		t.Error(err)
 		return
 	}
 
-	process := ProcExec{
-		Arguments: []string{
-			"/bin/bash",
-			"-c",
-			"echo test",
-		},
-	}
-
+	// Simples process
+	process := ProcExec{Arguments: []string{"/bin/bash", "-c", "echo test"}}
 	if err := proot.Start(process); err != nil {
 		t.Error(err)
 		return
 	} else if err := proot.Wait(); err != nil {
 		if code, _ := proot.ExitCode(); code == 1 {
-			t.Skip("cannot process test, code returned 1")
+			t.Skip("cannot run proot or rootfs is invalid")
 			return
 		}
 		t.Error(err)

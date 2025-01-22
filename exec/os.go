@@ -29,19 +29,6 @@ func (os *Os) Write(w []byte) (int, error) {
 	return os.stdin.Write(w)
 }
 
-func (os *Os) Wait() error {
-	if os.osProc == nil {
-		return ErrNoRunning
-	} else if os.osProc.Process != nil {
-		state, err := os.osProc.Process.Wait()
-		if err == nil && !state.Success() {
-			err = &exec.ExitError{ProcessState: state}
-		}
-		return err
-	}
-	return os.osProc.Wait()
-}
-
 func (w *Os) Kill() error {
 	if w.osProc == nil {
 		return ErrNoRunning
@@ -50,20 +37,46 @@ func (w *Os) Kill() error {
 }
 
 func (w *Os) Close() error {
-	if w.osProc == nil {
-		return ErrNoRunning
+	if w.osProc != nil {
+		if w.stdin != nil {
+			w.stdin.Close()
+		}
+		return w.Signal(os.Interrupt)
 	}
-	if w.stdin != nil {
-		w.stdin.Close()
-	}
-	return w.osProc.Process.Signal(os.Interrupt)
+	return nil
 }
 
-func (w *Os) ExitCode() (int64, error) {
-	if !w.osProc.ProcessState.Exited() {
-		return 0, ErrRunning
+func (w *Os) Signal(sig os.Signal) error {
+	return w.osProc.Process.Signal(sig)
+}
+
+func (os *Os) Wait() error {
+	switch {
+	case os.osProc != nil && os.osProc.ProcessState != nil:
+		if !os.osProc.ProcessState.Success() {
+			return &exec.ExitError{ProcessState: os.osProc.ProcessState}
+		}
+		return nil
+	case os.osProc != nil && os.osProc.Process != nil:
+		return os.osProc.Wait()
+	default:
+		return ErrNoRunning
 	}
-	return int64(w.osProc.ProcessState.ExitCode()), nil
+}
+
+func (os *Os) ExitCode() (int, error) {
+	switch {
+	case os.osProc != nil && os.osProc.ProcessState != nil:
+		return os.osProc.ProcessState.ExitCode(), nil
+	case os.osProc != nil && os.osProc.Process != nil:
+		state, err := os.osProc.Process.Wait()
+		if err != nil {
+			return -1, err
+		}
+		return state.ExitCode(), nil
+	default:
+		return -1, ErrNoRunning
+	}
 }
 
 func (cli *Os) StdinFork() (io.WriteCloser, error) {
