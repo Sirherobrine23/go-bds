@@ -7,31 +7,7 @@ import (
 	"os/exec"
 )
 
-type dynamicWrite struct {
-	p []io.Writer
-}
-
-func (p *dynamicWrite) Append(w io.Writer) {
-	p.p = append(p.p, w)
-}
-
-func (p *dynamicWrite) Write(w []byte) (int, error) {
-	for indexWriter, wri := range p.p {
-		_, err := wri.Write(w[:])
-		if err == nil {
-			continue
-		} else if err == io.EOF {
-			if (indexWriter + 1) == len(p.p) {
-				p.p = p.p[:indexWriter]
-			} else {
-				p.p = append(p.p[:indexWriter], p.p[indexWriter+1:]...)
-			}
-		} else {
-			return 0, err
-		}
-	}
-	return len(w), nil
-}
+var _ Proc = &Os{}
 
 // Check if binary exists
 func LocalBinExist(processConfig ProcExec) bool {
@@ -42,9 +18,8 @@ func LocalBinExist(processConfig ProcExec) bool {
 type Os struct {
 	osProc *exec.Cmd
 
-	stdin              io.WriteCloser
-	stdout, stderr     io.ReadCloser
-	stderrIO, stdoutIO *dynamicWrite
+	stdin          io.WriteCloser
+	stdout, stderr *Writers
 }
 
 func (os *Os) Write(w []byte) (int, error) {
@@ -52,13 +27,6 @@ func (os *Os) Write(w []byte) (int, error) {
 		return 0, ErrNoRunning
 	}
 	return os.stdin.Write(w)
-}
-
-func (os *Os) Wait() error {
-	if os.stdin == nil {
-		return ErrNoRunning
-	}
-	return os.osProc.Wait()
 }
 
 func (w *Os) Kill() error {
@@ -69,44 +37,83 @@ func (w *Os) Kill() error {
 }
 
 func (w *Os) Close() error {
-	if w.osProc == nil {
-		return ErrNoRunning
+	if w.osProc != nil {
+		if w.stdin != nil {
+			w.stdin.Close()
+		}
+		return w.Signal(os.Interrupt)
 	}
-	if w.stdin != nil {
-		w.stdin.Close()
-	}
-	if w.stdout != nil {
-		w.stdout.Close()
-	}
-	if w.stderr != nil {
-		w.stderr.Close()
-	}
-	return w.osProc.Process.Signal(os.Interrupt)
+	return nil
 }
 
-func (w *Os) ExitCode() (int64, error) {
-	if !w.osProc.ProcessState.Exited() {
-		return 0, ErrRunning
+func (w *Os) Signal(sig os.Signal) error {
+	return w.osProc.Process.Signal(sig)
+}
+
+func (os *Os) Wait() error {
+	switch {
+	case os.osProc != nil && os.osProc.ProcessState != nil:
+		if !os.osProc.ProcessState.Success() {
+			return &exec.ExitError{ProcessState: os.osProc.ProcessState}
+		}
+		return nil
+	case os.osProc != nil && os.osProc.Process != nil:
+		return os.osProc.Wait()
+	default:
+		return ErrNoRunning
 	}
-	return int64(w.osProc.ProcessState.ExitCode()), nil
+}
+
+func (os *Os) ExitCode() (int, error) {
+	switch {
+	case os.osProc != nil && os.osProc.ProcessState != nil:
+		return os.osProc.ProcessState.ExitCode(), nil
+	case os.osProc != nil && os.osProc.Process != nil:
+		state, err := os.osProc.Process.Wait()
+		if err != nil {
+			return -1, err
+		}
+		return state.ExitCode(), nil
+	default:
+		return -1, ErrNoRunning
+	}
 }
 
 func (cli *Os) StdinFork() (io.WriteCloser, error) {
 	r, w := io.Pipe()
-	go io.Copy(cli.stdin, r) // Write to stdin
-	return w, nil
+	return w, cli.AppendToStdin(r)
 }
 
 func (cli *Os) StdoutFork() (io.ReadCloser, error) {
 	r, w := io.Pipe()
-	cli.stdoutIO.Append(w)
-	return r, nil
+	return r, cli.AppendToStdout(w)
 }
 
 func (cli *Os) StderrFork() (io.ReadCloser, error) {
 	r, w := io.Pipe()
-	cli.stderrIO.Append(w)
-	return r, nil
+	return r, cli.AppendToStderr(w)
+}
+
+func (cli *Os) AppendToStdout(w io.Writer) error {
+	if cli.stdout == nil {
+		cli.stdout = &Writers{}
+	}
+	cli.stdout.Std = append(cli.stdout.Std, w)
+	return nil
+}
+func (cli *Os) AppendToStderr(w io.Writer) error {
+	if cli.stderr == nil {
+		cli.stderr = &Writers{}
+	}
+	cli.stderr.Std = append(cli.stderr.Std, w)
+	return nil
+}
+func (cli *Os) AppendToStdin(r io.Reader) error {
+	if cli.stdin == nil {
+		return ErrNoRunning
+	}
+	go io.Copy(cli.stdin, r)
+	return nil
 }
 
 func (w *Os) Start(options ProcExec) error {
@@ -116,21 +123,20 @@ func (w *Os) Start(options ProcExec) error {
 		w.osProc.Env = append(w.osProc.Env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	w.stderrIO = &dynamicWrite{}
-	w.stdoutIO = &dynamicWrite{}
+	if w.stdout == nil {
+		w.stdout = &Writers{}
+	}
+	w.osProc.Stdout = w.stdout
+
+	if w.stderr == nil {
+		w.stderr = &Writers{}
+	}
+	w.osProc.Stderr = w.stderr
+
 	var err error
-	if w.stdout, err = w.osProc.StdoutPipe(); err != nil {
-		return err
-	} else if w.stderr, err = w.osProc.StderrPipe(); err != nil {
-		w.stdout.Close()
-		return err
-	} else if w.stdin, err = w.osProc.StdinPipe(); err != nil {
-		w.stdout.Close()
-		w.stderr.Close()
+	if w.stdin, err = w.osProc.StdinPipe(); err != nil {
 		return err
 	}
-	go io.Copy(w.stdoutIO, w.stdout)
-	go io.Copy(w.stderrIO, w.stderr)
 
 	if err := w.osProc.Start(); err != nil {
 		return err
