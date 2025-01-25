@@ -4,56 +4,140 @@
 package overlayfs
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
-	"path/filepath"
+	"io/fs"
+	"os"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
 
+const expectedNumFieldsPerLine = 6 // Number of fields per line in /proc/mounts as per the fstab man page.
+
+type mountPoints []*mountPoint
+
+func (mounts mountPoints) Get(target string) *mountPoint {
+	for _, mount := range mounts {
+		if mount.Path == target {
+			return mount
+		}
+	}
+	return nil
+}
+
+func (mounts mountPoints) Exist(target string) bool {
+	return mounts.Get(target) != nil
+}
+
+type mountPoint struct {
+	Device string
+	Path   string
+	Type   string
+	Opts   []string // Opts may contain sensitive mount options (like passwords) and MUST be treated as such (e.g. not logged).
+	Freq   int
+	Pass   int
+}
+
+func parseProcMounts() (mountPoints, error) {
+	mountProc, err := os.Open("/proc/mounts")
+	if err != nil {
+		return nil, err
+	}
+
+	out := []*mountPoint{}
+	buff := bufio.NewScanner(mountProc)
+	for buff.Scan() {
+		line := buff.Text()
+
+		if line == "" {
+			// the last split() item is empty string following the last \n
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) != expectedNumFieldsPerLine {
+			// Do not log line in case it contains sensitive Mount options
+			return nil, fmt.Errorf("wrong number of fields (expected %d, got %d)", expectedNumFieldsPerLine, len(fields))
+		}
+
+		mp := &mountPoint{
+			Device: fields[0],
+			Path:   fields[1],
+			Type:   fields[2],
+			Opts:   strings.Split(fields[3], ","),
+		}
+
+		freq, err := strconv.Atoi(fields[4])
+		if err != nil {
+			return nil, err
+		}
+		mp.Freq = freq
+
+		pass, err := strconv.Atoi(fields[5])
+		if err != nil {
+			return nil, err
+		}
+		mp.Pass = pass
+
+		out = append(out, mp)
+	}
+	return out, nil
+}
+
 // Mount overlayfs same `mount -t overlay overlay`:
 //
 //   - The working directory (Workdir) needs to be an empty directory on the same filesystem as the Upper directory.
-func (w *Overlayfs) Mount() error {
+func (overlay *Overlayfs) Mount() error {
 	// overlay on /var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/merged
 	//    workdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/work
 	//   upperdir=/var/lib/docker/overlay2/5e7aff79cd206c6672c453913df640bf73f075981366fd2c3b81780b5cb776e9/diff
 	//  lowerdir=/var/lib/docker/overlay2/l/4UKYKDRRHSYV7T6FMWQV7XGOJU
 	//           /var/lib/docker/overlay2/l/X4HBSZ4R5V7LFSZYXQ5T7V3Q2Q
-
-	if len(w.Lower) == 0 {
+	if len(overlay.Lower) == 0 {
 		return fmt.Errorf("set one lower dir")
-	} else if w.Workdir == "" && w.Upper != "" {
+	} else if overlay.Workdir == "" && overlay.Upper != "" {
 		return fmt.Errorf("set workdir to user Upperdir")
 	}
 
-	var err error
-	if w.Upper != "" {
-		if w.Upper, err = filepath.Abs(w.Upper); err != nil {
-			return err
-		}
-	}
-	if w.Workdir != "" {
-		if w.Workdir, err = filepath.Abs(w.Workdir); err != nil {
-			return err
-		}
-	}
-	for workIndex := range w.Lower {
-		if w.Lower[workIndex], err = filepath.Abs(w.Lower[workIndex]); err != nil {
-			return err
+	for _, folderPath := range append(overlay.Lower, overlay.Target, overlay.Upper, overlay.Workdir) {
+		if folderPath == "" {
+			continue
+		} else if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+			if err = os.MkdirAll(folderPath, 0777); err != nil {
+				return err
+			}
 		}
 	}
 
-	var flags string // Flags to mount overlay
-	if w.Workdir != "" && w.Upper != "" {
-		flags = fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", strings.Join(w.Lower, ":"), w.Upper, w.Workdir)
-	} else {
-		flags = "lowerdir=" + strings.Join(w.Lower, ":")
+	// Flags to mount overlay
+	flags := "lowerdir=" + strings.Join(overlay.Lower, ":")
+	if overlay.Workdir != "" && overlay.Upper != "" {
+		flags = fmt.Sprintf("upperdir=%s,workdir=%s,lowerdir=%s", overlay.Upper, overlay.Workdir, strings.Join(overlay.Lower, ":"))
 	}
-	return unix.Mount("overlay", w.Target, "overlay", 0, flags)
+	err := unix.Mount("overlay", overlay.Target, "overlay", 0, flags)
+	if errors.Is(err, syscall.Errno(1)) {
+		err = fs.ErrPermission
+	}
+	return err
 }
 
 // Unmount overlayfs same `unmount`
-func (w *Overlayfs) Unmount() error {
-	return unix.Unmount(w.Target, unix.MNT_DETACH)
+func (overlay *Overlayfs) Unmount() error {
+	mountedParts, err := mountPoints{}, error(nil)
+	for range time.Tick(time.Nanosecond) {
+		if mountedParts, err = parseProcMounts(); err != nil {
+			return err
+		} else if !mountedParts.Exist(overlay.Target) {
+			break
+		} else if err = unix.Unmount(overlay.Target, unix.MNT_DETACH); errors.Is(err, syscall.Errno(22)) {
+			err = nil
+		} else if err != nil {
+			break
+		}
+	}
+	return err
 }

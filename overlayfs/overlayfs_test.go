@@ -1,3 +1,5 @@
+//go:build !(linux || (windows && !winfspexp))
+
 package overlayfs
 
 import (
@@ -6,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -14,11 +15,6 @@ import (
 )
 
 func TestOverlayMount(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("Test not supported to current platform")
-		return
-	}
-
 	root := filepath.Join(t.TempDir(), "overlayfs")
 	if err := os.MkdirAll(root, 0666); err != nil {
 		return
@@ -36,6 +32,7 @@ func TestOverlayMount(t *testing.T) {
 	for _, k := range append(overlayFS.Lower, overlayFS.Workdir, overlayFS.Target, overlayFS.Upper) {
 		os.MkdirAll(k, 0600)
 	}
+
 	config, _ := json.MarshalIndent(overlayFS, "", "  ")
 	t.Log(string(config))
 
