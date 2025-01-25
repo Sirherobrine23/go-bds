@@ -45,6 +45,8 @@ func getContentExtractor(sel *goquery.Selection, tagValue string) (*goquery.Sele
 		return sel, &tagAttributeContentExtractor{Attribute: strings.TrimSpace(parts[0])}
 	} else if parts := strings.Split(tagValue, "="); len(parts) > 1 {
 		return sel.Find(strings.TrimSpace(parts[0])), &tagAttributeContentExtractor{Attribute: strings.TrimSpace(parts[1])}
+	} else if tagValue == "__self" {
+		return sel, &textContentExtractor{}
 	}
 
 	return sel.Find(tagValue), &textContentExtractor{}
