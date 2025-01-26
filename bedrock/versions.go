@@ -28,17 +28,17 @@ var (
 
 	MojangHeaders = map[string]string{
 		// "Accept-Encoding":           "gzip, deflate",
-		"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
 		"Accept-Language":           "en-US;q=0.9,en;q=0.8",
-		"Sec-Ch-Ua":                 `"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123\"`,
+		"Priority":                  "u=0, i",
+		"Sec-Ch-Ua":                 "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
 		"Sec-Ch-Ua-Mobile":          "?0",
-		"Sec-Ch-Ua-Platform":        `"Windows"`,
+		"Sec-Ch-Ua-Platform":        "\"Linux\"",
 		"Sec-Fetch-Dest":            "document",
 		"Sec-Fetch-Mode":            "navigate",
 		"Sec-Fetch-Site":            "none",
 		"Sec-Fetch-User":            "?1",
 		"Upgrade-Insecure-Requests": "1",
-		"User-Agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+		"User-Agent":                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 	}
 )
 
@@ -60,7 +60,6 @@ type VersionPlatform struct {
 	ReleaseDate time.Time `json:"releaseDate"` // Platform release/build day
 }
 
-type OldVersions map[string]Version
 type Versions []Version
 type Version struct {
 	ServerVersion string                     `json:"version"`
@@ -70,15 +69,6 @@ type Version struct {
 }
 
 func (version Version) SemverVersion() *semver.Version { return semver.New(version.ServerVersion) }
-
-func (old OldVersions) Migrate() (new Versions) {
-	new = make(Versions, 0)
-	for versionStr, versionStruct := range old {
-		versionStruct.ServerVersion = versionStr // Add version to struct
-		new = append(new, versionStruct)
-	}
-	return
-}
 
 // Check if version exists in slice
 func (versions Versions) Has(ver string) (exit bool) {
@@ -110,14 +100,14 @@ func FromVersions() (Versions, error) {
 
 // Get latest stable release version
 func (versions Versions) GetLatest() string {
-	releasesVersions := slices.DeleteFunc(versions, func(v Version) bool { return !v.IsPreview })
+	releasesVersions := slices.DeleteFunc(slices.Clone(versions), func(v Version) bool { return !v.IsPreview })
 	semver.SortStruct(releasesVersions)
 	return releasesVersions[len(releasesVersions)-1].ServerVersion
 }
 
 // Get latest preview release version
 func (versions Versions) GetLatestPreview() string {
-	previewVersions := slices.DeleteFunc(versions, func(v Version) bool { return v.IsPreview })
+	previewVersions := slices.DeleteFunc(slices.Clone(versions), func(v Version) bool { return v.IsPreview })
 	semver.SortStruct(previewVersions)
 	return previewVersions[len(previewVersions)-1].ServerVersion
 }
