@@ -1,3 +1,10 @@
+// Implements Overlayfs/Mergefs mount
+//
+// for Linux use kernel overlayfs
+//
+// for Windows use winfsp + go-bds/Overlayfs to mount overlayfs
+//
+// another platforms return ErrNotOverlayAvaible
 package overlayfs
 
 import (

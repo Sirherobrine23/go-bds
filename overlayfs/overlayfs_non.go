@@ -1,6 +1,5 @@
 //go:build !(linux || (windows && !winfspexp))
 
-// Overlayfs not avaible to current platform
 package overlayfs
 
 // Current platform not supported to mount Overlayfs or Similar, returning ErrNotOverlayAvaible

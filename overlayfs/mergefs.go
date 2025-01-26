@@ -32,7 +32,7 @@ func (merge Overlayfs) MkdirAll(name string, perm fs.FileMode) error {
 func (merge Overlayfs) Stat(name string) (os.FileInfo, error) {
 	if name == "" || name == "." || name == "/" {
 		if merge.Upper == "" {
-			return nil, &fs.PathError{Op: "readdir", Path: filepath.Clean(name), Err: fs.ErrPermission}
+			return nil, &fs.PathError{Op: "stat", Path: filepath.Clean(name), Err: fs.ErrPermission}
 		}
 		return os.Stat(merge.Upper)
 	}
@@ -50,7 +50,7 @@ func (merge Overlayfs) Stat(name string) (os.FileInfo, error) {
 		}
 		return s, nil
 	}
-	return nil, &fs.PathError{Op: "readdir", Path: filepath.Clean(name), Err: fs.ErrNotExist}
+	return nil, &fs.PathError{Op: "stat", Path: filepath.Clean(name), Err: fs.ErrNotExist}
 }
 
 // Create creates or truncates the named file. If the file already exists, it is truncated. If the file does not exist, it is created with mode 0o666 (before umask). If successful, methods on the returned File can be used for I/O; the associated file descriptor has mode O_RDWR. If there is an error, it will be of type *PathError.
@@ -85,6 +85,10 @@ func (merge Overlayfs) RemoveAll(name string) error {
 	}
 	dir, name := filepath.Split(name)
 	return merge.WriteFile(filepath.Join(merge.Upper, dir, OpaqueWhiteout+name), nil, 0666) // Write null Head
+}
+
+func (merge Overlayfs) Rename(oldpath, newpath string) error {
+	return fs.ErrInvalid
 }
 
 // WriteFile writes data to the named file, creating it if necessary. If the file does not exist, WriteFile creates it with permissions perm (before umask); otherwise WriteFile truncates it before writing, without changing permissions. Since WriteFile requires multiple system calls to complete, a failure mid-operation can leave the file in a partially written state.

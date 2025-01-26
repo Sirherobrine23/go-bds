@@ -1,6 +1,5 @@
 //go:build linux
 
-// For non root user mount in namespace (unshare -rm)
 package overlayfs
 
 import (

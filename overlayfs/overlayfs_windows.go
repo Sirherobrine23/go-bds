@@ -1,6 +1,5 @@
-//go:build windows && winfspexp && (amd64 || 386 || arm64)
+//go:build windows && (amd64 || 386 || arm64)
 
-// Mount virtual filesystem with winfsp
 package overlayfs
 
 import (
@@ -25,7 +24,7 @@ func (overlay *Overlayfs) Mount() error {
 		return os.ErrInvalid
 	}
 
-	sys, err := winfsp.Mount(gofs.New(&winfspMerge{w}), overlay.Target, winfsp.FileSystemName("go-mergefs"))
+	sys, err := winfsp.Mount(gofs.New(&winfspMerge{Overlayfs: overlay}), overlay.Target, winfsp.FileSystemName("go-mergefs"))
 	if err != nil {
 		return err
 	}
