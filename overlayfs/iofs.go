@@ -15,8 +15,8 @@ var (
 )
 
 type FsMergeFs struct {
-	MergedFS *Overlayfs
-	Subdir   string
+	MergedFS *Overlayfs // Overlayfs
+	Subdir   string     // Sub dir to find files
 }
 
 // Pipe MergeFS to [io/fs.FS]
