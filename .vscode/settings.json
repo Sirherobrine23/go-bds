@@ -1,4 +1,5 @@
 {
+  "github.copilot.chat.localeOverride": "en",
   "terminal.integrated.profiles.linux": {
     "unshare": {
       "path": "unshare",

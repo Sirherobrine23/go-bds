@@ -1,4 +1,4 @@
-//go:build !(linux || (windows && !winfspexp))
+//go:build !(linux || (windows && (amd64 || 386 || arm64)))
 
 package overlayfs
 

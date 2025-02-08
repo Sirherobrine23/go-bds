@@ -29,6 +29,7 @@ For now we have a few supported servers, but enough to quickly deploy a server.
 ## Tools
 
 - Mergefs/Overlayfs (***only some systems are supported***)
+   - Golang fs.FS and os extends
 - Mclog
    - Parse logs (experimental)
    - Client

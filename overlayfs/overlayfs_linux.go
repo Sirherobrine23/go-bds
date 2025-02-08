@@ -16,8 +16,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const expectedNumFieldsPerLine = 6 // Number of fields per line in /proc/mounts as per the fstab man page.
-
 type mountPoints []*mountPoint
 
 func (mounts mountPoints) Get(target string) *mountPoint {
@@ -43,6 +41,7 @@ type mountPoint struct {
 }
 
 func parseProcMounts() (mountPoints, error) {
+	expectedNumFieldsPerLine := 6 // Number of fields per line in /proc/mounts as per the fstab man page.
 	mountProc, err := os.Open("/proc/mounts")
 	if err != nil {
 		return nil, err
@@ -126,17 +125,26 @@ func (overlay *Overlayfs) Mount() error {
 
 // Unmount overlayfs same `unmount`
 func (overlay *Overlayfs) Unmount() error {
-	mountedParts, err := mountPoints{}, error(nil)
-	for range time.Tick(time.Nanosecond) {
-		if mountedParts, err = parseProcMounts(); err != nil {
+	info := time.NewTicker(time.Nanosecond)
+	defer info.Stop()
+	for range info.C {
+		mountedParts, err := parseProcMounts()
+		if err != nil {
 			return err
 		} else if !mountedParts.Exist(overlay.Target) {
-			break
-		} else if err = unix.Unmount(overlay.Target, unix.MNT_DETACH); errors.Is(err, syscall.Errno(22)) {
+			break // Skip ared unmounted
+		}
+
+		err = unix.Unmount(overlay.Target, unix.MNT_DETACH)
+		// Ignore
+		if errors.Is(err, syscall.Errno(22)) {
 			err = nil
-		} else if err != nil {
-			break
+		}
+
+		// return error if exist
+		if err != nil {
+			return err
 		}
 	}
-	return err
+	return nil
 }
