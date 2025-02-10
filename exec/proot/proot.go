@@ -12,20 +12,30 @@ qualquer coisa foi usar o cgo para incorporar o proot no Golang, mas quero algo 
 // Implements Proot in Golang
 package proot
 
+import (
+	"io"
+	"io/fs"
+	"os"
+	"syscall"
+
+	"sirherobrine23.com.br/go-bds/go-bds/exec/proot/filesystem"
+	"sirherobrine23.com.br/go-bds/go-bds/exec/proot/kernel/tracee"
+)
+
 // chroot, mount --bind, and binfmt_misc without privilege/setup for Linux/Android directly from golang
 type PRoot struct {
 	// The specified path typically contains a Linux distribution where
 	// all new programs will be confined.  The default rootfs is /
 	// when none is specified, this makes sense when the bind mechanism
 	// is used to relocate host files and directories.
-	Rootfs Binding
+	Rootfs filesystem.HostBind
 
 	// This option makes any file or directory of the host rootfs
 	// accessible in the confined environment just as if it were part of
 	// the guest rootfs.
 	//
 	// "mount path" => Virtual/Host filesystem
-	Binds map[string]Binding
+	Binds map[string]filesystem.Binding
 
 	// Execute guest programs through QEMU as specified by command.
 	//
@@ -44,7 +54,7 @@ type PRoot struct {
 	// old".  To be able to run such programs, PRoot can emulate some of
 	// the features that are available in the kernel release specified by
 	// *string* but that are missing in the current kernel.
-	KernelRelease string
+	KernelRelease *syscall.Utsname
 
 	// Make current user and group.
 	//
@@ -83,4 +93,98 @@ type PRoot struct {
 
 	// Command and args to execute programer
 	Command []string
+
+	// Stdin specifies the process's standard input.
+	//
+	// If Stdin is nil, the process reads from the null device (os.DevNull).
+	//
+	// If Stdin is an *os.File, the process's standard input is connected
+	// directly to that file.
+	//
+	// Otherwise, during the execution of the command a separate
+	// goroutine reads from Stdin and delivers that data to the command
+	// over a pipe. In this case, Wait does not complete until the goroutine
+	// stops copying, either because it has reached the end of Stdin
+	// (EOF or a read error), or because writing to the pipe returned an error,
+	// or because a nonzero WaitDelay was set and expired.
+	Stdin io.Reader
+
+	// Stdout and Stderr specify the process's standard output and error.
+	//
+	// If either is nil, Run connects the corresponding file descriptor
+	// to the null device (os.DevNull).
+	//
+	// If either is an *os.File, the corresponding output from the process
+	// is connected directly to that file.
+	//
+	// Otherwise, during the execution of the command a separate goroutine
+	// reads from the process over a pipe and delivers that data to the
+	// corresponding Writer. In this case, Wait does not complete until the
+	// goroutine reaches EOF or encounters an error or a nonzero WaitDelay
+	// expires.
+	//
+	// If Stdout and Stderr are the same writer, and have a type that can
+	// be compared with ==, at most one goroutine at a time will call Write.
+	Stdout, Stderr io.Writer
+
+	// Process
+	Process *os.Process
+
+	sysTracee *tracee.Tracee
+	vpids     int
+}
+
+func closePipes(Stdout, Stderr, Stdin io.Closer) {
+	if Stdout != nil {
+		_ = Stdout.Close()
+	}
+	if Stderr != nil {
+		_ = Stderr.Close()
+	}
+	if Stdin != nil {
+		_ = Stdin.Close()
+	}
+}
+
+// Create new *os.File and add to Stdout, Stderr and Stdin
+func (proot *PRoot) AttachPipe() (Stdout, Stderr io.ReadCloser, Stdin io.WriteCloser, err error) {
+	if Stdout, proot.Stdout, err = os.Pipe(); err != nil {
+		closePipes(Stdout, Stderr, Stdin)
+		return nil, nil, nil, err
+	} else if Stderr, proot.Stderr, err = os.Pipe(); err != nil {
+		closePipes(Stdout, Stderr, Stdin)
+		return nil, nil, nil, err
+	} else if proot.Stdin, Stdin, err = os.Pipe(); err != nil {
+		closePipes(Stdout, Stderr, Stdin)
+		return nil, nil, nil, err
+	}
+	return
+}
+
+func readToOs(input io.Reader) (*os.File, error) {
+	if input == nil {
+		return nil, fs.ErrNotExist
+	} else if v, ok := input.(*os.File); ok {
+		return v, nil
+	}
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	go io.Copy(w, input)
+	return r, nil
+}
+
+func writeToOs(input io.Writer) (*os.File, error) {
+	if input == nil {
+		return nil, fs.ErrNotExist
+	} else if v, ok := input.(*os.File); ok {
+		return v, nil
+	}
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	go io.Copy(input, r)
+	return w, nil
 }

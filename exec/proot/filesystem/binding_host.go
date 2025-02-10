@@ -1,4 +1,4 @@
-package proot
+package filesystem
 
 import (
 	"io/fs"

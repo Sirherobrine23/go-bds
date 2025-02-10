@@ -1,4 +1,5 @@
-package proot
+// Implements basic system to emulate chroot in proot
+package filesystem
 
 import (
 	"io"
