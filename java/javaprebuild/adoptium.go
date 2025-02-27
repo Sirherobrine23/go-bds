@@ -52,7 +52,7 @@ func InstallLatest(featVersion uint, installPath string) error {
 	}
 
 	reqOpt.NotFollowRedirect = true
-	reqOpt.CodeProcess = map[int]request.CodeCallback{301: processRedirect, 302: processRedirect, 307: processRedirect}
+	reqOpt.CodeProcess = map[int]request.RequestStatusFunction{301: processRedirect, 302: processRedirect, 307: processRedirect}
 	Url := fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, os, arch)
 	if _, err := request.Request(Url, &reqOpt); err != nil {
 		return err

@@ -25,7 +25,7 @@ func ListPaper(ProjectTarget string) (ListServer, error) {
 		var projectVersions struct {
 			Versions []string `json:"versions"`
 		}
-		if _, err := request.JSONDo(fmt.Sprintf(paperProjectURL, ProjectTarget), &projectVersions, nil); err != nil {
+		if _, err := request.DoJSON(fmt.Sprintf(paperProjectURL, ProjectTarget), &projectVersions, nil); err != nil {
 			return nil, err
 		}
 
@@ -42,7 +42,7 @@ func ListPaper(ProjectTarget string) (ListServer, error) {
 				} `json:"builds"`
 			}
 
-			if _, err := request.JSONDo(fmt.Sprintf(paperProjectBuildsURL, ProjectTarget, version), &builds, nil); err != nil {
+			if _, err := request.DoJSON(fmt.Sprintf(paperProjectBuildsURL, ProjectTarget, version), &builds, nil); err != nil {
 				return nil, err
 			}
 

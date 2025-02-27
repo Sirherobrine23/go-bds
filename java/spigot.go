@@ -49,7 +49,7 @@ func ListSpigot(JavaBinaryFolder string) ListServer {
 		var urls struct {
 			Files []string `html:"body > pre > a = href"`
 		}
-		if err := gohtml.NewParse(res.Body, &urls); err != nil {
+		if err := gohtml.NewDecode(res.Body, &urls); err != nil {
 			return nil, err
 		}
 
@@ -60,7 +60,7 @@ func ListSpigot(JavaBinaryFolder string) ListServer {
 		Version := Versions{}
 		for _, entry := range urls.Files {
 			var spigotRelease SpigotMC
-			if _, err := request.JSONDo(versionsURL+entry, &spigotRelease, nil); err != nil {
+			if _, err := request.DoJSON(versionsURL+entry, &spigotRelease, nil); err != nil {
 				return nil, err
 			}
 			spigotRelease.JavaFolder = JavaBinaryFolder

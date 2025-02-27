@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/request"
+	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 )
 
 var (
@@ -23,7 +23,7 @@ type Version struct {
 // remoteFileFetch set custom cache versions for load versions
 func FromVersions() ([]Version, error) {
 	var versions []Version
-	res, err := request.Request(request.RequestOptions{Method: "GET", HttpError: true, Url: VersionsRemote})
+	res, err := request.Request(VersionsRemote, nil)
 	if err != nil {
 		return nil, err
 	}

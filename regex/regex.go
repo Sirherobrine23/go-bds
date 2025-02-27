@@ -31,7 +31,6 @@ func CompilePOSIX(expr string) (*Regexp, error) {
 // FindAllGroups returns a map with each match group. The map key corresponds to the match group name.
 // A nil return value indicates no matches.
 func (re *Regexp) FindAllGroups(s string) map[string]string {
-
 	matches := re.FindStringSubmatch(s)
 	subnames := re.SubexpNames()
 	if matches == nil || len(matches) != len(subnames) {

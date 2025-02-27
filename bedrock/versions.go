@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/regex"
-	"sirherobrine23.com.br/go-bds/go-bds/request/gohtml"
 	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
 	"sirherobrine23.com.br/go-bds/go-bds/semver"
+	bdsslice "sirherobrine23.com.br/go-bds/go-bds/utils/slice"
 )
 
 var (
@@ -100,14 +99,14 @@ func FromVersions() (Versions, error) {
 
 // Get latest stable release version
 func (versions Versions) GetLatest() string {
-	releasesVersions := slices.DeleteFunc(slices.Clone(versions), func(v Version) bool { return !v.IsPreview })
+	releasesVersions := bdsslice.Slice[Version](versions).Filter(func(v Version) bool { return !v.IsPreview }).Orin()
 	semver.SortStruct(releasesVersions)
 	return releasesVersions[len(releasesVersions)-1].ServerVersion
 }
 
 // Get latest preview release version
 func (versions Versions) GetLatestPreview() string {
-	previewVersions := slices.DeleteFunc(slices.Clone(versions), func(v Version) bool { return v.IsPreview })
+	previewVersions := bdsslice.Slice[Version](versions).Filter(func(v Version) bool { return v.IsPreview }).Orin()
 	semver.SortStruct(previewVersions)
 	return previewVersions[len(previewVersions)-1].ServerVersion
 }
@@ -127,26 +126,20 @@ func (version VersionPlatform) Download(serverPath string) error {
 
 // Get new versions from minecraft.net/en-us/download/server/bedrock
 func FetchFromWebsite() (*MojangHTML, error) {
-	res, err := request.Request("https://minecraft.net/en-us/download/server/bedrock", &request.Options{Header: MojangHeaders})
+	pageVersions, _, err := request.GoHTML[MojangHTML]("https://minecraft.net/en-us/download/server/bedrock", &request.Options{Header: MojangHeaders})
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
 
-	var body MojangHTML
-	if err := gohtml.NewParse(res.Body, &body); err != nil {
-		return nil, err
-	}
-
-	for index, value := range body.Versions {
-		body.Versions[index].Version = VersionMatch.FindAllGroups(value.URL)["Version"]
+	for index, value := range pageVersions.Versions {
+		pageVersions.Versions[index].Version = VersionMatch.FindAllGroups(value.URL)["Version"]
 
 		// Set go platform
 		switch value.Platform {
 		case "serverBedrockLinux", "serverBedrockPreviewLinux":
-			body.Versions[index].Platform = "linux/amd64"
+			pageVersions.Versions[index].Platform = "linux/amd64"
 		case "serverBedrockWindows", "serverBedrockPreviewWindows":
-			body.Versions[index].Platform = "windows/amd64"
+			pageVersions.Versions[index].Platform = "windows/amd64"
 		default:
 			return nil, fmt.Errorf("cannot go target from %q", value.Platform)
 		}
@@ -154,10 +147,10 @@ func FetchFromWebsite() (*MojangHTML, error) {
 		// Check if is beta version
 		switch value.Platform {
 		case "serverBedrockPreviewWindows", "serverBedrockPreviewLinux":
-			body.Versions[index].Preview = true
+			pageVersions.Versions[index].Preview = true
 		}
 	}
-	return &body, nil
+	return &pageVersions, nil
 }
 
 // Convert to versions and fill ReleaseDate, ZipFile and ZipSHA1
@@ -179,7 +172,7 @@ func (mojangWeb MojangHTML) ConvertToVersions() (Versions, error) {
 			}
 
 			// Save file localy
-			localFile, _, err := request.SaveTmp(WebVersion.URL, &request.Options{Header: MojangHeaders})
+			localFile, _, err := request.SaveTmp(WebVersion.URL, "", &request.Options{Header: MojangHeaders})
 			if err != nil {
 				if localFile != nil {
 					os.Remove(localFile.Name())

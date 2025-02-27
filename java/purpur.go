@@ -46,7 +46,7 @@ func ListPurpur() (Versions, error) {
 
 		if strings.ToUpper(resBuild.Result) != "SUCCESS" {
 			for _, build := range buildInfo.Builds.All {
-				if _, err = request.JSONDo(fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s", version, build), &resBuild, nil); err != nil {
+				if _, err = request.DoJSON(fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s", version, build), &resBuild, nil); err != nil {
 					return nil, err
 				}
 				if strings.ToUpper(resBuild.Result) == "SUCCESS" {

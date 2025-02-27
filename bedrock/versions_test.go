@@ -1,6 +1,7 @@
 package bedrock
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -20,8 +21,11 @@ func TestVersions(t *testing.T) {
 }
 
 func TestFromMojang(t *testing.T) {
-	if _, err := FetchFromWebsite(); err != nil {
+	data, err := FetchFromWebsite()
+	if err != nil {
 		t.Error(err)
 		return
 	}
+	s, _ := json.MarshalIndent(data, "", "  ")
+	t.Log(string(s))
 }
