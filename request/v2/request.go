@@ -7,7 +7,6 @@ import (
 	"io"
 	"maps"
 	"net/http"
-	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -69,11 +68,7 @@ type Header map[string]string
 func (Headers Header) ToHTTP() http.Header {
 	httpHeader := http.Header{}
 	for key, value := range Headers {
-		key = textproto.CanonicalMIMEHeaderKey(key)
-		httpHeader[key] = strings.Split(value, ";")
-		for index, value := range httpHeader[key] {
-			httpHeader[key][index] = strings.TrimSpace(value)
-		}
+		httpHeader.Set(key, value)
 	}
 	return httpHeader
 }
