@@ -2,7 +2,10 @@ package mclog
 
 import (
 	"errors"
+	"fmt"
 	"time"
+
+	"sirherobrine23.com.br/go-bds/go-bds/logs"
 )
 
 var (
@@ -23,6 +26,12 @@ const (
 	LogWarn    LogLevel = "warning"
 )
 
+type Limits struct {
+	StorageTime time.Duration `json:"storageTime"` // The duration in seconds that a log is stored for after the last view.
+	MaxLength   int64         `json:"maxLength"`   // Maximum file length in bytes. Logs over this limit will be truncated to this length.
+	MaxLines    int64         `json:"maxLines"`    // Maximum number of lines. Additional lines will be removed.
+}
+
 // Stands log levels
 type LogLevel string
 
@@ -30,12 +39,6 @@ type MclogResponseStatus struct {
 	Success      bool   `json:"success"`         // Request return is processed request
 	ErrorMessage string `json:"error,omitempty"` // Real error question in bad request's
 	Id           string `json:"id,omitempty"`    // If post log file return id if processed
-}
-
-type Limits struct {
-	StorageTime time.Duration `json:"storageTime"` // The duration in seconds that a log is stored for after the last view.
-	MaxLength   int64         `json:"maxLength"`   // Maximum file length in bytes. Logs over this limit will be truncated to this length.
-	MaxLines    int64         `json:"maxLines"`    // Maximum number of lines. Additional lines will be removed.
 }
 
 type EntryLine struct {
@@ -67,4 +70,42 @@ type Insights struct {
 	Type     string                           `json:"type,omitempty"`
 	Name     string                           `json:"name,omitempty"`
 	Analysis map[LogLevel][]*InsightsAnalysis `json:"analysis"`
+}
+
+func ConvertLogs(id string, log logs.Log) Insights {
+	var insight Insights
+	insight.Type = "server"
+	insight.ID = id
+
+	serverInfo := log.Server()
+	insight.Version = serverInfo.Version
+	insight.Name = serverInfo.Platform
+	insight.Title = fmt.Sprintf("%s - %s", serverInfo.Platform, serverInfo.Version)
+
+	insight.Analysis = map[LogLevel][]*InsightsAnalysis{}
+	insight.Analysis[LogInfo] = append(insight.Analysis[LogInfo], &InsightsAnalysis{
+		Label: "Started time",
+		Value: serverInfo.Started.Format(time.RFC3339),
+	})
+
+	for _, port := range serverInfo.Ports {
+		insight.Analysis[LogInfo] = append(insight.Analysis[LogInfo], &InsightsAnalysis{
+			Label:   "Port listen",
+			Message: port.From,
+			Value:   port.AddrPort.String(),
+		})
+	}
+
+	for _, err := range log.Errors() {
+		insight.Analysis[LogProblem] = append(insight.Analysis[LogProblem], &InsightsAnalysis{
+			Value: err.Error(),
+		})
+	}
+	for _, err := range log.Warnings() {
+		insight.Analysis[LogWarn] = append(insight.Analysis[LogWarn], &InsightsAnalysis{
+			Value: err.Error(),
+		})
+	}
+
+	return insight
 }

@@ -1,0 +1,16 @@
+NO LOG FILE! - setting up server logging...
+NO LOG FILE! - [2025-01-19 23:35:13 INFO] Starting Server
+NO LOG FILE! - [2025-01-19 23:35:13 INFO] Version 1.6.1.0
+NO LOG FILE! - [2025-01-19 23:35:13 INFO] Level Name: Bedrock level
+NO LOG FILE! - [2025-01-19 23:35:13 ERROR] Error opening whitelist file: whitelist.json
+NO LOG FILE! - [2025-01-19 23:35:13 ERROR] Error opening ops file: ops.json
+NO LOG FILE! - [2025-01-19 23:35:13 INFO] Game mode: 0 Survival
+NO LOG FILE! - [2025-01-19 23:35:13 INFO] Difficulty: 1 EASY
+NO LOG FILE! - [2025-01-19 23:35:13 INFO] IPv4 supported, port: 19132
+NO LOG FILE! - [2025-01-19 23:35:13 INFO] IPv6 supported, port: 19133
+NO LOG FILE! - [2025-01-19 23:35:14 INFO] Listening on IPv6 port: 19133
+NO LOG FILE! - [2025-01-19 23:35:14 INFO] Listening on IPv4 port: 19132
+NO LOG FILE! - [2025-01-19 23:35:18 INFO] Player connected: 2535413418839840
+NO LOG FILE! - [2025-01-19 23:38:54 INFO] Player disconnected: 2535413418839840
+NO LOG FILE! - [2025-01-19 23:40:13 INFO] Player connected:
+NO LOG FILE! - [2025-01-19 23:40:54 INFO] Player disconnected:
