@@ -1,0 +1,68 @@
+[Log4jPatcher] [INFO] Transforming org/apache/logging/log4j/core/lookup/JndiLookup
+[Log4jPatcher] [INFO] Transforming org/apache/logging/log4j/core/pattern/MessagePatternConverter
+[Log4jPatcher] [WARN]  Unable to find noLookups:Z field in org/apache/logging/log4j/core/pattern/MessagePatternConverter
+Jan 19, 2025 6:36:38 PM io.netty.util.internal.PlatformDependent <clinit>
+INFO: Your platform does not provide complete low-level API for accessing direct buffers reliably. Unless explicitly requested, heap buffer will always be preferred to avoid potential system unstability.
+[18:36:38] [Server thread/INFO]: Starting minecraft server version 1.7.10
+[18:36:38] [Server thread/INFO]: Loading properties
+[18:36:38] [Server thread/INFO]: Default game type: SURVIVAL
+[18:36:38] [Server thread/INFO]: Generating keypair
+[18:36:38] [Server thread/INFO]: Starting Minecraft server on *:25565
+[18:36:38] [Server thread/WARN]: Failed to load user banlist:
+java.io.FileNotFoundException: banned-players.json (No such file or directory)
+	at java.base/java.io.FileInputStream.open0(Native Method) ~[?:?]
+	at java.base/java.io.FileInputStream.open(Unknown Source) ~[?:?]
+	at java.base/java.io.FileInputStream.<init>(Unknown Source) ~[?:?]
+	at com.google.common.io.Files.newReader(Files.java:86) ~[minecraft_server.1.7.10.jar:?]
+	at om.g(SourceFile:124) ~[minecraft_server.1.7.10.jar:?]
+	at ls.y(SourceFile:99) [minecraft_server.1.7.10.jar:?]
+	at ls.<init>(SourceFile:25) [minecraft_server.1.7.10.jar:?]
+	at lt.e(SourceFile:166) [minecraft_server.1.7.10.jar:?]
+	at net.minecraft.server.MinecraftServer.run(SourceFile:339) [minecraft_server.1.7.10.jar:?]
+	at lj.run(SourceFile:628) [minecraft_server.1.7.10.jar:?]
+[18:36:38] [Server thread/WARN]: Failed to load ip banlist:
+java.io.FileNotFoundException: banned-ips.json (No such file or directory)
+	at java.base/java.io.FileInputStream.open0(Native Method) ~[?:?]
+	at java.base/java.io.FileInputStream.open(Unknown Source) ~[?:?]
+	at java.base/java.io.FileInputStream.<init>(Unknown Source) ~[?:?]
+	at com.google.common.io.Files.newReader(Files.java:86) ~[minecraft_server.1.7.10.jar:?]
+	at om.g(SourceFile:124) ~[minecraft_server.1.7.10.jar:?]
+	at ls.x(SourceFile:91) [minecraft_server.1.7.10.jar:?]
+	at ls.<init>(SourceFile:27) [minecraft_server.1.7.10.jar:?]
+	at lt.e(SourceFile:166) [minecraft_server.1.7.10.jar:?]
+	at net.minecraft.server.MinecraftServer.run(SourceFile:339) [minecraft_server.1.7.10.jar:?]
+	at lj.run(SourceFile:628) [minecraft_server.1.7.10.jar:?]
+[18:36:38] [Server thread/WARN]: Failed to load operators list:
+java.io.FileNotFoundException: ops.json (No such file or directory)
+	at java.base/java.io.FileInputStream.open0(Native Method) ~[?:?]
+	at java.base/java.io.FileInputStream.open(Unknown Source) ~[?:?]
+	at java.base/java.io.FileInputStream.<init>(Unknown Source) ~[?:?]
+	at com.google.common.io.Files.newReader(Files.java:86) ~[minecraft_server.1.7.10.jar:?]
+	at om.g(SourceFile:124) ~[minecraft_server.1.7.10.jar:?]
+	at ls.z(SourceFile:107) [minecraft_server.1.7.10.jar:?]
+	at ls.<init>(SourceFile:29) [minecraft_server.1.7.10.jar:?]
+	at lt.e(SourceFile:166) [minecraft_server.1.7.10.jar:?]
+	at net.minecraft.server.MinecraftServer.run(SourceFile:339) [minecraft_server.1.7.10.jar:?]
+	at lj.run(SourceFile:628) [minecraft_server.1.7.10.jar:?]
+[18:36:38] [Server thread/WARN]: Failed to load white-list:
+java.io.FileNotFoundException: whitelist.json (No such file or directory)
+	at java.base/java.io.FileInputStream.open0(Native Method) ~[?:?]
+	at java.base/java.io.FileInputStream.open(Unknown Source) ~[?:?]
+	at java.base/java.io.FileInputStream.<init>(Unknown Source) ~[?:?]
+	at com.google.common.io.Files.newReader(Files.java:86) ~[minecraft_server.1.7.10.jar:?]
+	at om.g(SourceFile:124) ~[minecraft_server.1.7.10.jar:?]
+	at ls.B(SourceFile:123) [minecraft_server.1.7.10.jar:?]
+	at ls.<init>(SourceFile:30) [minecraft_server.1.7.10.jar:?]
+	at lt.e(SourceFile:166) [minecraft_server.1.7.10.jar:?]
+	at net.minecraft.server.MinecraftServer.run(SourceFile:339) [minecraft_server.1.7.10.jar:?]
+	at lj.run(SourceFile:628) [minecraft_server.1.7.10.jar:?]
+[18:36:38] [Server thread/INFO]: Preparing level "world"
+[18:36:38] [Server thread/INFO]: Preparing start region for level 0
+[18:36:39] [Server thread/INFO]: Preparing spawn area: 12%
+[18:36:40] [Server thread/INFO]: Preparing spawn area: 28%
+[18:36:41] [Server thread/INFO]: Preparing spawn area: 48%
+[18:36:42] [Server thread/INFO]: Preparing spawn area: 69%
+[18:36:43] [Server thread/INFO]: Preparing spawn area: 91%
+[18:36:44] [Server thread/INFO]: Done (5.518s)! For help, type "help" or "?"
+[18:36:44] [Server thread/INFO]: Starting remote control listener
+[18:36:44] [RCON Listener #1/INFO]: RCON running on 0.0.0.0:25575
