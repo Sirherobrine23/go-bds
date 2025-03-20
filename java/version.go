@@ -10,7 +10,7 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/bedrock"
 	"sirherobrine23.com.br/go-bds/go-bds/semver"
-	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
+	"sirherobrine23.com.br/go-bds/request/v2"
 )
 
 // Default server name for file

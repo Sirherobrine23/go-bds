@@ -3,7 +3,7 @@ package java
 import (
 	"sync"
 
-	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
+	"sirherobrine23.com.br/go-bds/request/v2"
 )
 
 func MultiRun[E any](input []E, slice int, fn func(E, int) error) error {

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
+	"sirherobrine23.com.br/go-bds/request/v2"
 )
 
 var (

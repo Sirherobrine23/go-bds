@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/regex"
-	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
+	"sirherobrine23.com.br/go-bds/request/v2"
 	"sirherobrine23.com.br/go-bds/go-bds/semver"
 	bdsslice "sirherobrine23.com.br/go-bds/go-bds/utils/slice"
 )

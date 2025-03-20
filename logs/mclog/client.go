@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/request/v2"
+	"sirherobrine23.com.br/go-bds/request/v2"
 )
 
 // Client to mclog
