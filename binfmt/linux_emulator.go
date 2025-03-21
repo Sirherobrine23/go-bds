@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 )
 
@@ -167,6 +168,17 @@ func (s LinuxEmulator) GoArch() string {
 	return s.Arch
 }
 
+// Open file and check if qemu target, box64 or box86 is avaible to emulater arch
+func OpenEmulatorTarget(name string) (Binary, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return GetEmulatorTarget(f)
+}
+
+// Check if qemu target, box64 or box86 is avaible to emulater arch
 func GetEmulatorTarget(r io.ReaderAt) (Binary, error) {
 	for _, target := range emulatorTargets {
 		emulator := ""

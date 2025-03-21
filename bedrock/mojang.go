@@ -121,12 +121,12 @@ func (server *Mojang) Start() error {
 			return ErrVersionNotFound
 		}
 
-		sysVer, ok := rootVersion.Platforms[osTarget]
+		bedrockDownload, ok := rootVersion.Platforms[osTarget]
 		if !ok {
 			// Check if avaible to emulate server
 			if slices.Contains([]string{"linux", "windows"}, runtime.GOOS) {
-				if archok, _ := binfmt.Target("amd64"); archok {
-					sysVer, ok = rootVersion.Platforms[fmt.Sprintf("%s/amd64", runtime.GOOS)]
+				if archok, _ := binfmt.MiscGoTarget("", "amd64"); archok {
+					bedrockDownload, ok = rootVersion.Platforms[fmt.Sprintf("%s/amd64", runtime.GOOS)]
 				}
 			}
 
@@ -136,7 +136,7 @@ func (server *Mojang) Start() error {
 			}
 		}
 
-		if err := sysVer.Download(versionRoot); err != nil {
+		if err := bedrockDownload.Download(versionRoot); err != nil {
 			return err
 		}
 	}
@@ -230,22 +230,18 @@ func (server *Mojang) Start() error {
 		bedrockConfigExec.Arguments = []string{"bedrock_server.exe"}
 		server.ServerProc = &exec.Os{}
 	case "linux", "android":
-		if requireEmulate, err := binfmt.RequireEmulate(filepath.Join(versionRoot, "bedrock_server")); err == nil && requireEmulate {
-			var binfmtInfo binfmt.Binfmt
-			if binfmtInfo, err = binfmt.ResolveBinfmt(filepath.Join(versionRoot, "bedrock_server")); err != nil {
-				return err
-			}
-
+		emulator, err := binfmt.Open(filepath.Join(versionRoot, "bedrock_server"))
+		if err == nil && emulator != nil {
 			switch v := server.ServerProc.(type) {
 			case *exec.DockerContainer:
 				// Require add Platform to Docker image
 			case *exec.Proot:
-				qemuArgs := binfmtInfo.ProgramArgs()
-				v.Qemu = qemuArgs[0]
-				bedrockConfigExec.Arguments = qemuArgs[1:]
+				emulatorArgs := binfmt.AsEmulator(emulator)
+				v.Qemu = emulatorArgs[0]
+				bedrockConfigExec.Arguments = emulatorArgs[1:]
 			default:
 				server.ServerProc = &exec.Os{}
-				bedrockConfigExec.Arguments = binfmtInfo.ProgramArgs()
+				bedrockConfigExec.Arguments = binfmt.AsEmulator(emulator)
 			}
 		}
 

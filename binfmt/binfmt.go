@@ -1,69 +1,66 @@
+// Abstract [debug/elf], [debug/male], [debug/pe] to geric interface, plus a touch to Linux Binfmt-Misc, Box64 and QEMU
 package binfmt
 
 import (
+	"debug/elf"
+	"debug/macho"
+	"debug/pe"
 	"errors"
-	"io"
 	"os"
-	"slices"
-	"strings"
 )
 
-var (
-	ErrNoSupportedPlatform error = errors.New("current platform not support binfmt")
-	ErrCannotFind          error = errors.New("cannot find Fmt")
-)
+var ErrNotDetect error = errors.New("cannot detect binary file")
 
-type Binfmt interface {
-	String() string
-	Arch() string                // Target arch
-	Sys() string                 // Target system
-	SystemSelect() bool          // System select Interpreter automatic
-	ProgramArgs() []string       // Program args
-	Check(r io.ReadSeeker) error // Check if is compatible file stream
+type Binary interface {
+	GoArch() string // Binary arch name with GOARCH style.
+	GoOs() string   // Binary target name with GOOS style.
+	From() any      // Binary from, example: [debug/elf.File], [debug/pe.File], [debug/macho.File] or nil.
 }
 
-func Target(target string) (bool, error) {
-	archs, err := Archs()
-	if err != nil {
-		return false, err
-	} else if strings.Contains(target, "/") {
-		target = strings.Split(target, "/")[1]
+func AsEmulator(target Binary) []string {
+	switch v := target.(type) {
+	case LinuxEmulator:
+		return v.EmulatorCommand
+	case *LinuxEmulator:
+		return v.EmulatorCommand
+	case LinuxMisc:
+		return v.Interpreter
+	case *LinuxMisc:
+		return v.Interpreter
 	}
-	return slices.ContainsFunc(archs, func(entry Binfmt) bool { return entry.Arch() == target }), nil
+	return nil
 }
 
-// Check binary is required emulate software
-func RequireEmulate(binPath string) (bool, error) {
-	fmt, err := ResolveBinfmt(binPath)
-	if err != nil {
-		return false, err
-	}
-	return !fmt.SystemSelect(), nil
-}
-
-// Check if binary contains in fist offset+Magic
-func ResolveBinfmt(binPath string) (Binfmt, error) {
-	archs, err := Archs()
+func Open(name string) (Binary, error) {
+	localFile, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
-	bin, err := os.OpenFile(binPath, os.O_RDONLY, 0)
-	if err != nil {
-		return nil, err
-	}
-	defer bin.Close()
+	defer localFile.Close()
 
-	for _, binFmt := range archs {
-		if err := binFmt.Check(bin); err != nil {
-			if err == ErrNoSupportedPlatform {
-				continue
-			}
-			return nil, err
-		} else if _, err := bin.Seek(0, 0); err != nil {
-			return nil, err
-		}
-		continue
+	// Linux
+	linuxEmulator, err := GetEmulatorTarget(localFile)
+	if err == nil {
+		return linuxEmulator, nil
 	}
 
-	return nil, ErrCannotFind
+	// Unix ELF
+	elfFile, err := elf.NewFile(localFile)
+	if err == nil {
+		return (*Elf)(elfFile), nil
+	}
+
+	// Windows PE
+	peFile, err := pe.NewFile(localFile)
+	if err == nil {
+		return (*Pe)(peFile), nil
+	}
+
+	// MacOS Macho
+	machoFile, err := macho.NewFile(localFile)
+	if err == nil {
+		return (*Macho)(machoFile), nil
+	}
+
+	return nil, ErrNotDetect
 }

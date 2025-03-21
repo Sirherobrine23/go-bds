@@ -101,6 +101,27 @@ func (m LinuxMisc) GoOs() string {
 	return m.OS
 }
 
+// Check if current avaible emulator in system
+func MiscGoTarget(GOOS, GOARCH string) (bool, error) {
+	misc, err := LinuxMiscs()
+	if err != nil {
+		if err == ErrNotDetect {
+			err = nil
+		}
+		return false, err
+	}
+
+	for _, bin := range misc {
+		if (GOOS != "" && bin.GoOs() != GOOS) || (GOARCH != "" && bin.GoArch() != GOARCH) {
+			continue
+		}
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// List all emulator from linux binfmt_misc, another GOOS return [sirherobrine23.com.br/go-bds/go-bds/binfmt.ErrNotDetect]
 func LinuxMiscs() ([]Binary, error) {
 	files, err := os.ReadDir(miscDir)
 	if err != nil {
