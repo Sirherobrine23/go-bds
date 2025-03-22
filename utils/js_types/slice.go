@@ -1,8 +1,22 @@
-package slice
+package js_types
+
+import "slices"
 
 type Slice[T any] []T
 
-func (s Slice[T]) Orin() []T { return s }
+func (s Slice[T]) ForEach(fn func(input T)) {
+	for _, data := range s {
+		fn(data)
+	}
+}
+
+func (s Slice[T]) Map(fn func(input T) T) Slice[T] {
+	newSlice := []T{}
+	s.ForEach(func(input T) {
+		newSlice = append(newSlice, fn(input))
+	})
+	return newSlice
+}
 
 // Filter elements from slice and return new slice
 func (s Slice[T]) Filter(filter func(input T) bool) Slice[T] {
@@ -15,8 +29,16 @@ func (s Slice[T]) Filter(filter func(input T) bool) Slice[T] {
 	return newBook
 }
 
+func (s Slice[T]) Contains(fn func(input T) bool) bool {
+	return slices.ContainsFunc(s, fn)
+}
+
 // The at() method of Array instances takes an integer value and returns the item at that index, allowing for positive and negative integers. Negative integers count back from the last item in the array.
 func (s Slice[T]) At(index int) T {
+	if len(s) == 0 {
+		return *new(T)
+	}
+
 	if index > len(s) {
 		return *new(T)
 	} else if index < 0 {
@@ -62,6 +84,10 @@ func (s Slice[T]) FindLastIndex(call func(input T) bool) int {
 }
 
 func (s Slice[T]) Slice(start, end int) Slice[T] {
+	if len(s) == 0 {
+		return []T{}
+	}
+
 	if end == 0 {
 		if start > len(s) {
 			return []T{}
@@ -107,4 +133,8 @@ func (s *Slice[T]) Unshift(value T) Slice[T] {
 func (s *Slice[T]) Push(value T) Slice[T] {
 	*s = append(*s, value)
 	return *s
+}
+
+func (s *Slice[T]) Sort(fn func(a, b T) int) {
+	slices.SortFunc(*s, fn)
 }

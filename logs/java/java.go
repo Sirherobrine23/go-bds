@@ -11,7 +11,7 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/logs"
 	"sirherobrine23.com.br/go-bds/go-bds/regex"
-	"sirherobrine23.com.br/go-bds/go-bds/utils/slice"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
 )
 
 var (
@@ -99,7 +99,7 @@ func (java *JavaParse) ParseTime(currentTime time.Time, log io.Reader) error {
 			continue
 		}
 
-		contentExplode := slice.Slice[string](strings.Fields(prefixSplited[2]))
+		contentExplode := js_types.Slice[string](strings.Fields(prefixSplited[2]))
 		switch contentExplode.At(0) {
 		case "RCON":
 			if contentExplode.At(-2) == "on" {

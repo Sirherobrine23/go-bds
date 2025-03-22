@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/logs"
-	"sirherobrine23.com.br/go-bds/go-bds/utils/slice"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
 )
 
 var (
@@ -100,7 +100,7 @@ func (bedrock *BedrockParse) Parse(log io.Reader) error {
 		}
 		EntryTime = EntryTime.UTC() // Convert to UTC time
 
-		explodeString := slice.Slice[string](strings.Fields(line))
+		explodeString := js_types.Slice[string](strings.Fields(line))
 		switch explodeString.At(0) {
 		case "Server":
 			if strings.Contains(text, "started") {

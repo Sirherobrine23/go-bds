@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/regex"
-	"sirherobrine23.com.br/go-bds/request/v2"
 	"sirherobrine23.com.br/go-bds/go-bds/semver"
-	bdsslice "sirherobrine23.com.br/go-bds/go-bds/utils/slice"
+	bdsslice "sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
+	"sirherobrine23.com.br/go-bds/request/v2"
 )
 
 var (
@@ -99,14 +99,14 @@ func FromVersions() (Versions, error) {
 
 // Get latest stable release version
 func (versions Versions) GetLatest() string {
-	releasesVersions := bdsslice.Slice[Version](versions).Filter(func(v Version) bool { return !v.IsPreview }).Orin()
+	releasesVersions := bdsslice.Slice[Version](versions).Filter(func(v Version) bool { return !v.IsPreview })
 	semver.SortStruct(releasesVersions)
 	return releasesVersions[len(releasesVersions)-1].ServerVersion
 }
 
 // Get latest preview release version
 func (versions Versions) GetLatestPreview() string {
-	previewVersions := bdsslice.Slice[Version](versions).Filter(func(v Version) bool { return v.IsPreview }).Orin()
+	previewVersions := bdsslice.Slice[Version](versions).Filter(func(v Version) bool { return v.IsPreview })
 	semver.SortStruct(previewVersions)
 	return previewVersions[len(previewVersions)-1].ServerVersion
 }

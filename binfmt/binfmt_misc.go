@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/utils/slice"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
 )
 
 var miscIgnoreFiles = []string{"register", "status"}
@@ -132,7 +132,7 @@ func LinuxMiscs() ([]Binary, error) {
 	}
 
 	interpreters := []Binary{}
-	for _, fileEntry := range slice.Slice[os.DirEntry](files).Filter(func(input os.DirEntry) bool { return !slices.Contains(miscIgnoreFiles, input.Name()) }) {
+	for _, fileEntry := range js_types.Slice[os.DirEntry](files).Filter(func(input os.DirEntry) bool { return !slices.Contains(miscIgnoreFiles, input.Name()) }) {
 		miscBuff, err := os.ReadFile(filepath.Join(miscDir, fileEntry.Name()))
 		if err != nil {
 			return nil, err
@@ -152,7 +152,7 @@ func LinuxMiscs() ([]Binary, error) {
 				interpreter.Enabled = true
 			case "interpreter":
 				interpreter.Interpreter = fields[1:]
-				if slice.Slice[string](interpreter.Interpreter).Find(func(input string) bool { return strings.Contains(input, "/wine") }) != "" {
+				if js_types.Slice[string](interpreter.Interpreter).Find(func(input string) bool { return strings.Contains(input, "/wine") }) != "" {
 					interpreter.OS = "windows"
 				}
 			case "flags:":
