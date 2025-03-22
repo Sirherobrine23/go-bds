@@ -1,14 +1,9 @@
 package bedrock
 
 import (
-	"fmt"
-	"io/fs"
 	"os"
-	"path/filepath"
-	"reflect"
-	"slices"
 
-	"github.com/gookit/properties"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/properties"
 )
 
 type Permission struct {
@@ -141,49 +136,17 @@ type MojangConfig struct {
 	Telemetry bool `json:"telemetry" properties:"emit-server-telemetry"`
 }
 
-// Load server config and Write to Struct
-func GetConfig(ServerPath string) (*MojangConfig, error) {
-	var Config MojangConfig
-	f, err := os.ReadFile(filepath.Join(ServerPath, "server.properties"))
-	if err != nil {
-		return nil, err
-	}
-	return &Config, properties.Unmarshal(f, Config)
+func UnmarshalConfig(data []byte) (config *MojangConfig, err error) {
+	err = properties.Unmarshal(data, config)
+	return
 }
 
-// Save server config from struct
-func SaveConfig(ServerPath string, Config *MojangConfig) error {
-	if err := Config.Check(); err != nil {
-		return err
+func OpenConfig(name string) (config *MojangConfig, err error) {
+	var f *os.File
+	if f, err = os.Open(name); err != nil {
+		return
 	}
-	data, err := properties.Marshal(Config)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(ServerPath, "server.properties"), data, fs.FileMode(0700))
-}
-
-func (config *MojangConfig) Check() error {
-	typed := reflect.TypeOf(config).Elem()
-	for i := 0; i < typed.NumField(); i++ {
-		switch typed.Field(i).Name {
-		case "Gamemode":
-			if !slices.Contains([]string{"survival", "creative", "adventure"}, config.Gamemode) {
-				return fmt.Errorf("set valid gamemode in config")
-			}
-		case "Difficulty":
-			if !slices.Contains([]string{"peaceful", "easy", "normal", "hard"}, config.Difficulty) {
-				return fmt.Errorf("set valid difficulty in config")
-			}
-		case "TickDistance":
-			if config.TickDistance < 4 || config.TickDistance > 12 {
-				return fmt.Errorf("set tick distance equal or more then 4 and less or equal at 12")
-			}
-		case "DefaultPlayerPermission":
-			if !slices.Contains([]string{"visitor", "member", "operator"}, config.DefaultPlayerPermission) {
-				return fmt.Errorf("set valid player permission (visitor, member, operator)")
-			}
-		}
-	}
-	return nil
+	defer f.Close()
+	err = properties.NewParse(f).Decode(config)
+	return
 }
