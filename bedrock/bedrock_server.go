@@ -9,10 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
 )
 
 func isClean(path string) bool {
@@ -74,8 +76,35 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 		return nil, ErrPlatform
 	}
 
-	// Check to overlayfs is avaible
-	if overlayfs.OverlayfsAvaible() {
+	// Copy server if
+	if !overlayfs.OverlayfsAvaible() && !isClean(cwd) {
+		// Files to not delete
+		filesToIgnore := []string{"allowlist.json", "permissions.json", "server.properties", "worlds"}
+
+		// List current fileNames
+		fileNames, err := os.ReadDir(cwd)
+		if err != nil {
+			return nil, err
+		}
+		fileNames = js_types.Slice[os.DirEntry](fileNames).Filter(func(input os.DirEntry) bool { return !slices.Contains(filesToIgnore, input.Name()) })
+
+		for _, fileToDelete := range fileNames {
+			if err := os.RemoveAll(filepath.Join(cwd, fileToDelete.Name())); err != nil && !os.IsNotExist(err) {
+				return nil, err
+			}
+		}
+
+		// Copy server folder
+		if fileNames, err = os.ReadDir(versionFolder); err != nil {
+			return nil, err
+		}
+		fileNames = js_types.Slice[os.DirEntry](fileNames).Filter(func(input os.DirEntry) bool { return !slices.Contains(filesToIgnore, input.Name()) })
+		for _, fileToCopy := range fileNames {
+			if err := os.CopyFS(filepath.Join(cwd, fileToCopy.Name()), os.DirFS(filepath.Join(versionFolder, fileToCopy.Name()))); err != nil {
+				return nil, err
+			}
+		}
+	} else if overlayfs.OverlayfsAvaible() {
 		bedrockConfig.Overlayfs = &overlayfs.Overlayfs{
 			Target:  cwd,
 			Upper:   upper,
@@ -88,8 +117,6 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 		if err := os.CopyFS(cwd, os.DirFS(versionFolder)); err != nil {
 			return nil, err
 		}
-	} else {
-		// Compare versions
 	}
 
 	return bedrockConfig, nil
@@ -125,7 +152,7 @@ func (bed *Bedrock) Start() error {
 	}
 
 	// Check if require emulator
-	if fileInfo.GoArch() != runtime.GOARCH {
+	if fileInfo.GoArch() != runtime.GOARCH && runtime.GOOS != "windows" {
 		emulator := binfmt.AsEmulator(fileInfo)
 		if emulator == nil {
 			return ErrPlatform

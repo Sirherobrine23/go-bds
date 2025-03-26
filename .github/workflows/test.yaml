@@ -9,6 +9,20 @@ on:
       - "go.sum"
 
 jobs:
+  # Check for vulnerability in code
+  go-vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        name: Checkout code
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - name: Check for vulnerability in code
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest -format sarif ./...
+
+  # Go test
   go-test:
     runs-on: ubuntu-latest
     steps:
@@ -25,16 +39,14 @@ jobs:
         distribution: adopt-hotspot
         java-version: "23"
 
-    - name: Download packages
+    - name: Download packages and mount tmpfs to /tmp
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
         go get ./...
         sudo apt update
         sudo apt install -y proot || echo cannot install proot
-
-    - name: Mount tmpfs
-      run: sudo mount -t tmpfs tmpfs /tmp
+        sudo mount -t tmpfs tmpfs /tmp
 
     - name: Test
       run: go test -timeout 0 -v ./...
