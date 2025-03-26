@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/java/javaprebuild"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/javaprebuild"
 	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 )
 

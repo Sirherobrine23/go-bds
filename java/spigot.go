@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/java/javaprebuild"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/javaprebuild"
 	"sirherobrine23.com.br/go-bds/request/gohtml"
 	"sirherobrine23.com.br/go-bds/request/v2"
 	"sirherobrine23.com.br/go-bds/go-bds/semver"

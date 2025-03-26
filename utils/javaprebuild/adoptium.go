@@ -15,7 +15,6 @@ import (
 
 // Install latest version from adoptium
 func InstallLatest(featVersion uint, installPath string) error {
-	var reqOpt request.Options
 	// architecture: x64, x86, x32, ppc64, ppc64le, s390x, aarch64, arm, sparcv9, riscv64
 	arch := runtime.GOARCH
 	switch arch {
@@ -51,10 +50,21 @@ func InstallLatest(featVersion uint, installPath string) error {
 		return res, request.Tar(RequestURL, extractOptions, nil)
 	}
 
-	reqOpt.NotFollowRedirect = true
-	reqOpt.CodeProcess = map[int]request.RequestStatusFunction{301: processRedirect, 302: processRedirect, 307: processRedirect}
-	Url := fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, os, arch)
-	if _, err := request.Request(Url, &reqOpt); err != nil {
+	_, err := request.Request(fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, os, arch), &request.Options{
+		NotFollowRedirect: true,
+		CodeProcess:       request.MapCode{
+			301: processRedirect,
+			302: processRedirect,
+			307: processRedirect,
+			404: func(res *http.Response) (*http.Response, error) {
+				if res != nil {
+					res.Body.Close()
+				}
+				return nil, ErrSystem
+			},
+		},
+	})
+	if err != nil {
 		return err
 	}
 	return nil

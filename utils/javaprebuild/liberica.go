@@ -1,5 +1,6 @@
 //go:build linux && arm
 
+// Download java from liberica (BellSoft)
 package javaprebuild
 
 import (

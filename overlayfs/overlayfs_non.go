@@ -2,6 +2,8 @@
 
 package overlayfs
 
+func OverlayfsAvaible() bool { return false }
+
 // Current platform not supported to mount Overlayfs or Similar, returning ErrNotOverlayAvaible
 func (overlay *Overlayfs) Mount() error { return ErrNotOverlayAvaible }
 

@@ -10,11 +10,29 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
 )
+
+func OverlayfsAvaible() bool {
+	if f, err := os.Open("/proc/filesystems"); err == nil {
+		defer f.Close()
+		r := bufio.NewReader(f)
+		for {
+			line, err := r.ReadString('\n')
+			switch err {
+			case nil:
+				if strings.HasSuffix(line, "overlay") {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}
+	return false
+}
 
 type mountPoints []*mountPoint
 
@@ -117,7 +135,7 @@ func (overlay *Overlayfs) Mount() error {
 		flags = fmt.Sprintf("upperdir=%s,workdir=%s,lowerdir=%s", overlay.Upper, overlay.Workdir, strings.Join(overlay.Lower, ":"))
 	}
 	err := unix.Mount("overlay", overlay.Target, "overlay", 0, flags)
-	if errors.Is(err, syscall.Errno(1)) {
+	if errors.Is(err, unix.Errno(1)) {
 		err = fs.ErrPermission
 	}
 	return err
@@ -137,7 +155,7 @@ func (overlay *Overlayfs) Unmount() error {
 
 		err = unix.Unmount(overlay.Target, unix.MNT_DETACH)
 		// Ignore
-		if errors.Is(err, syscall.Errno(22)) {
+		if errors.Is(err, unix.Errno(22)) {
 			err = nil
 		}
 

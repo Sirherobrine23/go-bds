@@ -15,7 +15,10 @@ For now we have a few supported servers, but enough to quickly deploy a server.
 ### Bedrock
 
 - [Mojang](minecraft.net/en-us/download/server/bedrock) server
-- [Pocketmine-PMMP](https://github.com/pmmp/PocketMine-MP) server (`implemented more features, but it is already possible to start`)
+- [Pocketmine-PMMP](https://github.com/pmmp/PocketMine-MP) server
+- [AllayMC](https://github.com/AllayMC/Allay) server
+- [sculkmp/Sculk](https://github.com/sculkmp/Sculk) server
+- [EndstoneMC](https://github.com/EndstoneMC/endstone) server
 
 ### Java
 
