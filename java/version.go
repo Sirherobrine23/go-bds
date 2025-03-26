@@ -2,13 +2,13 @@ package java
 
 import (
 	"archive/zip"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/bedrock"
 	"sirherobrine23.com.br/go-bds/go-bds/semver"
 	"sirherobrine23.com.br/go-bds/request/v2"
 )
@@ -19,8 +19,8 @@ const (
 	EulaFile   string = "#This file was changed by go-bds\neula=true"
 )
 
-// Version request not exists
-var ErrVersionNotExist = bedrock.ErrNoVersion
+// Version not exists
+var ErrVersionNotExist error = errors.New("cannot find version")
 
 type Version interface {
 	JVM() uint                      // Java version to Run server
