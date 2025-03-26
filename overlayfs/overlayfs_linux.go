@@ -15,6 +15,25 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func OverlayfsAvaible() bool {
+	if f, err := os.Open("/proc/filesystems"); err == nil {
+		defer f.Close()
+		r := bufio.NewReader(f)
+		for {
+			line, err := r.ReadString('\n')
+			switch err {
+			case nil:
+				if strings.HasSuffix(line, "overlay") {
+					return true
+				}
+			default:
+				return false
+			}
+		}
+	}
+	return false
+}
+
 type mountPoints []*mountPoint
 
 func (mounts mountPoints) Get(target string) *mountPoint {

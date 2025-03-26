@@ -10,6 +10,8 @@ import (
 	"github.com/aegistudio/go-winfsp/gofs"
 )
 
+func OverlayfsAvaible() bool { return true }
+
 type winfspMerge struct{ *Overlayfs }
 
 func (winfsp winfspMerge) OpenFile(name string, flag int, perm os.FileMode) (gofs.File, error) {

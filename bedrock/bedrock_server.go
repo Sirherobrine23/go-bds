@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,30 +15,83 @@ import (
 	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 )
 
-type VersionSearch func(version string) (*Version, error)
+func isClean(path string) bool {
+	entrys, _ := os.ReadDir(path)
+	return len(entrys) == 0
+}
 
 // Make new bedrock config
-func NewBedrock(version, versionFolder, cwd string, search VersionSearch) (*Bedrock, error) {
+func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*Bedrock, error) {
+	if version == nil {
+		return nil, ErrNoVersion
+	}
+
 	bedrockConfig := &Bedrock{
 		PID:       &exec.Os{},
-		Version:   nil,
+		Version:   version,
 		Overlayfs: nil,
 		serverStart: exec.ProcExec{
-			Cwd: cwd,
+			Cwd:         cwd,
+			Arguments:   []string{},
+			Environment: exec.Env{},
 		},
 	}
 
-	bedrockConfig.serverStart.Cwd = cwd
+	// Folder path to storage server version
+	versionFolder = filepath.Join(versionFolder, version.Version)
+
+	// Correct config to GOOS
 	switch runtime.GOOS {
 	case "windows":
 		bedrockConfig.serverStart.Arguments = []string{"bedrock_server.exe"}
-		search(version)
+		target, ok := version.Plaforms["windows/amd64"]
+		if !ok {
+			return nil, ErrNoVersion
+		}
+
+		if isClean(versionFolder) {
+			if err := target.Extract(versionFolder); err != nil {
+				return nil, err
+			}
+		}
 	case "linux", "android":
-		bedrockConfig.serverStart.Environment = map[string]string{"LD_LIBRARY_PATH": "."}
+		bedrockConfig.serverStart.Environment = exec.Env{"LD_LIBRARY_PATH": "."}
 		bedrockConfig.serverStart.Arguments = []string{"./bedrock_server"}
+
+		target, ok := version.Plaforms[fmt.Sprintf("linux/%s", runtime.GOARCH)]
+		if !ok {
+			if target, ok = version.Plaforms["linux/amd64"]; !ok {
+				return nil, ErrNoVersion
+			}
+		}
+
+		if isClean(versionFolder) {
+			if err := target.Extract(versionFolder); err != nil {
+				return nil, err
+			}
+		}
 	default:
 		return nil, ErrPlatform
 	}
+
+	// Check to overlayfs is avaible
+	if overlayfs.OverlayfsAvaible() {
+		bedrockConfig.Overlayfs = &overlayfs.Overlayfs{
+			Target:  cwd,
+			Upper:   upper,
+			Workdir: workdir,
+			Lower: []string{
+				versionFolder,
+			},
+		}
+	} else if isClean(cwd) {
+		if err := os.CopyFS(cwd, os.DirFS(versionFolder)); err != nil {
+			return nil, err
+		}
+	} else {
+		// Compare versions
+	}
+
 	return bedrockConfig, nil
 }
 

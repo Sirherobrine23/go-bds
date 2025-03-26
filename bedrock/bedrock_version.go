@@ -1,14 +1,11 @@
 package bedrock
 
 import (
-	"archive/tar"
-	"archive/zip"
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -164,62 +161,4 @@ func (target PlatformVersion) Extract(cwd string) error {
 	default:
 		return errors.New("cannot extract server target")
 	}
-}
-
-// Download zip file and make SHA1 to Zip and Tar file
-func (target *PlatformVersion) AppendSHA1() error {
-	file, _, err := request.SaveTmp(target.ZipFile, "", &request.Options{Method: "GET", Header: MojangHeaders})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		file.Close()
-		os.Remove(file.Name())
-	}()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return err
-	}
-
-	// SHA1
-	zipSHA1, tarSHA1 := sha1.New(), sha1.New()
-	if _, err = io.Copy(zipSHA1, file); err != nil {
-		return err
-	}
-	target.ZipSHA1 = hex.EncodeToString(zipSHA1.Sum(nil))
-
-	zipFile, err := zip.NewReader(file, stat.Size())
-	if err != nil {
-		return err
-	}
-
-	tarbal := tar.NewWriter(tarSHA1)
-	defer tarbal.Close()
-	for _, file := range zipFile.File {
-		r, err := tar.FileInfoHeader(file.FileInfo(), "")
-		if err != nil {
-			return err
-		}
-		r.Name = path.Clean(strings.ReplaceAll(file.Name, "\\", "/"))
-		if err = tarbal.WriteHeader(r); err != nil {
-			return err
-		}
-		if file.FileInfo().IsDir() {
-			continue
-		}
-		f, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		if _, err = io.CopyN(tarbal, f, file.FileInfo().Size()); err != nil {
-			return err
-		}
-		f.Close()
-	}
-	tarbal.Close()
-
-	target.TarSHA1 = hex.EncodeToString(tarSHA1.Sum(nil))
-	return nil
 }
