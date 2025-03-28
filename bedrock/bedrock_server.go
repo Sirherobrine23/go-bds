@@ -129,6 +129,32 @@ type Bedrock struct {
 	Overlayfs   *overlayfs.Overlayfs // Overlayfs mounted
 }
 
+// Make server backup with [*archive/tar.Writer]
+//
+// If server mounted with [*sirherobrine23.com.br/go-bds/go-bds/overlayfs.Overlayfs] backup only Upper layer
+// else backup entire server folder
+func (bed Bedrock) Tar(w io.Writer) error {
+	tarball := tar.NewWriter(w)
+	defer tarball.Close()
+	if bed.Overlayfs == nil {
+		return tarball.AddFS(os.DirFS(bed.serverStart.Cwd))
+	}
+	return tarball.AddFS(os.DirFS(bed.Overlayfs.Upper))
+}
+
+// Make server backup with [*archive/zip.Writer]
+//
+// If server mounted with [*sirherobrine23.com.br/go-bds/go-bds/overlayfs.Overlayfs] backup only Upper layer
+// else backup entire server folder
+func (bed Bedrock) Zip(w io.Writer) error {
+	wr := zip.NewWriter(w)
+	defer wr.Close()
+	if bed.Overlayfs == nil {
+		return wr.AddFS(os.DirFS(bed.serverStart.Cwd))
+	}
+	return wr.AddFS(os.DirFS(bed.Overlayfs.Upper))
+}
+
 // Start server
 func (bed *Bedrock) Start() error {
 	// if server not configured correctly return error
@@ -165,30 +191,4 @@ func (bed *Bedrock) Start() error {
 		return err
 	}
 	return nil
-}
-
-// Make server backup with [*archive/tar.Writer]
-//
-// If server mounted with [*sirherobrine23.com.br/go-bds/go-bds/overlayfs.Overlayfs] backup only Upper layer
-// else backup entire server folder
-func (bed Bedrock) Tar(w io.Writer) error {
-	tarball := tar.NewWriter(w)
-	defer tarball.Close()
-	if bed.Overlayfs == nil {
-		return tarball.AddFS(os.DirFS(bed.serverStart.Cwd))
-	}
-	return tarball.AddFS(os.DirFS(bed.Overlayfs.Upper))
-}
-
-// Make server backup with [*archive/zip.Writer]
-//
-// If server mounted with [*sirherobrine23.com.br/go-bds/go-bds/overlayfs.Overlayfs] backup only Upper layer
-// else backup entire server folder
-func (bed Bedrock) Zip(w io.Writer) error {
-	wr := zip.NewWriter(w)
-	defer wr.Close()
-	if bed.Overlayfs == nil {
-		return wr.AddFS(os.DirFS(bed.serverStart.Cwd))
-	}
-	return wr.AddFS(os.DirFS(bed.Overlayfs.Upper))
 }

@@ -5,3 +5,10 @@
 //
 // Original Pocketmine-MP Code: https://github.com/PocketMine/PocketMine-MP
 package pmmp
+
+import "errors"
+
+var (
+	ErrNoVersion error = errors.New("version not found")
+	ErrPlatform  error = errors.New("current platform no supported")
+)
