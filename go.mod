@@ -7,7 +7,7 @@ require (
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	golang.org/x/sys v0.31.0
-	sirherobrine23.com.br/go-bds/request v1.2.0
+	sirherobrine23.com.br/go-bds/request v1.2.2
 )
 
 require (
