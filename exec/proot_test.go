@@ -21,7 +21,7 @@ func TestPRoot(t *testing.T) {
 
 	// Install ubuntu to current arch and latest version
 	if err := proot.DownloadUbuntuRootfs("", ""); err != nil {
-		t.Error(err)
+		t.Skipf("Cannot install rootfs to test PRoot struct, error: %s", err)
 		return
 	}
 

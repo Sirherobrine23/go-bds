@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"sirherobrine23.com.br/go-bds/go-bds/semver"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
 	"sirherobrine23.com.br/go-bds/request/v2"
 )
@@ -24,7 +24,7 @@ type Version struct {
 }
 
 // Return serve [sirherobrine23.com.br/go-bds/go-bds/semver.Version]
-func (version *Version) SemverVersion() *semver.Version { return semver.New(version.Version) }
+func (version *Version) SemverVersion() semver.Version { return semver.New(version.Version) }
 
 // Slice with versions
 type Versions []*Version
@@ -48,14 +48,14 @@ func (versions Versions) Get(ver string) (*Version, error) {
 // Get last version stable (oficial) release
 func (versions Versions) LatestStable() *Version {
 	releasesVersions := js_types.Slice[*Version](versions).Filter(func(v *Version) bool { return !v.IsPreview })
-	semver.SortStruct(releasesVersions)
+	semver.Sort(releasesVersions)
 	return releasesVersions.At(-1)
 }
 
 // Get last preview version
 func (versions Versions) LatestPreview() *Version {
 	previewVersions := js_types.Slice[*Version](versions).Filter(func(v *Version) bool { return v.IsPreview })
-	semver.SortStruct(previewVersions)
+	semver.Sort(previewVersions)
 	return previewVersions.At(-1)
 }
 
@@ -108,7 +108,7 @@ func (versions *Versions) FetchFromMinecraftDotNet() error {
 		}
 		version.Plaforms[platform] = &PlatformVersion{ReleaseDate: time.Unix(0, 0), ZipFile: value.URL}
 	}
-	semver.SortStruct(*versions)
+	semver.Sort(*versions)
 	return nil
 }
 

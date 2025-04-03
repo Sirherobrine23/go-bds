@@ -9,7 +9,7 @@ import (
 	"runtime"
 
 	"sirherobrine23.com.br/go-bds/request/v2"
-	"sirherobrine23.com.br/go-bds/go-bds/semver"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
 )
 
 var (
@@ -100,7 +100,7 @@ type ubuntuEntrie struct {
 	Architectures string `json:"architectures_collection_link,omitempty"`
 }
 
-func (entry ubuntuEntrie) SemverVersion() *semver.Version { return semver.New(entry.Version) }
+func (entry ubuntuEntrie) SemverVersion() semver.Version { return semver.New(entry.Version) }
 
 type ubuntuArch struct {
 	Enabled   bool   `json:"enabled"`
@@ -124,7 +124,7 @@ func (proc Proot) DownloadUbuntuRootfs(Version, Arch string) error {
 	if err != nil {
 		return errors.Join(ErrNoExtractUbuntu, err)
 	}
-	semver.SortStruct(data.Entries)
+	semver.Sort(data.Entries)
 	versionSelect := ubuntuEntrie{}
 	if Version == "" {
 		versionSelect = data.Entries[len(data.Entries)-1]

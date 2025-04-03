@@ -183,3 +183,5 @@ gotest.tools/v3 v3.5.1 h1:EENdUnS3pdur5nybKYIh2Vfgc8IUNBjxDPSjtiJcOzU=
 gotest.tools/v3 v3.5.1/go.mod h1:isy3WKz7GK6uNw/sbHzfKBLvlvXwUyV06n6brMxxopU=
 sirherobrine23.com.br/go-bds/request v1.2.2 h1:QhyVfOknV1Oe/CB28QDUtbl/8CpVIHZ34DR3l4PwKjY=
 sirherobrine23.com.br/go-bds/request v1.2.2/go.mod h1:qHQQqKSzBMdCqAieshL0FrIsSxiwXKU6bWEPfiJVx1w=
+sirherobrine23.com.br/go-bds/request v1.2.3 h1:usqitC3FOvFMZKI2Ihv03GhO9D9jc6w5zp8t5fUe9wI=
+sirherobrine23.com.br/go-bds/request v1.2.3/go.mod h1:qHQQqKSzBMdCqAieshL0FrIsSxiwXKU6bWEPfiJVx1w=

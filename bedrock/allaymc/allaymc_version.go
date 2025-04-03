@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"sirherobrine23.com.br/go-bds/go-bds/semver"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/javaprebuild"
 	"sirherobrine23.com.br/go-bds/request/github"
 	"sirherobrine23.com.br/go-bds/request/v2"
@@ -22,7 +22,7 @@ type Version struct {
 	JavaVersion javaprebuild.JavaVersion `json:"java_version"` // Java Version, example: 21
 }
 
-func (ver Version) SemverVersion() *semver.Version { return semver.New(ver.Version) }
+func (ver Version) SemverVersion() semver.Version { return semver.New(ver.Version) }
 
 // Download server
 func (ver Version) Dowload(path string) error {
@@ -94,7 +94,7 @@ func (versions *Versions) FetchFromGithub() error {
 	wg.Wait()
 
 	// Sort structs
-	semver.SortStruct(*versions)
+	semver.Sort(*versions)
 	return err
 }
 
