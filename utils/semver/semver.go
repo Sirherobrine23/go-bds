@@ -56,7 +56,7 @@ func ExtractVersion(d any) Version {
 		}
 		return New(string(text))
 	}
-	return nil
+	return &versionInfo{Original: "0.0.1", Major: 0, Minor: 0, Patch: 1}
 }
 
 type sortVersions[T any] []T
@@ -179,7 +179,7 @@ func (v *versionInfo) UnmarshalText(data []byte) error {
 	default:
 		return errors.New("invalid semver version")
 	case semverMatch.MatchString(version):
-		if groups := semverMatch.FindAllGroups(version); groups != nil {
+		if groups := semverMatch.FindAllGroup(version); groups != nil {
 			v.Major = mustInt(groups["major"])
 			v.Minor = mustInt(groups["minor"])
 			v.Patch = mustInt(groups["patch"])
@@ -192,7 +192,7 @@ func (v *versionInfo) UnmarshalText(data []byte) error {
 			}
 		}
 	case mojangVersion.MatchString(version):
-		if groups := semverMatch.FindAllGroups(version); groups != nil {
+		if groups := semverMatch.FindAllGroup(version); groups != nil {
 			if minor2, ok := groups["minor2"]; ok {
 				v.Major = mustInt(groups["major"])
 				v.Minor = mustInt(minor2)

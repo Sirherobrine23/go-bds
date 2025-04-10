@@ -1,0 +1,5 @@
+# Go test
+/*.prof
+/*.test
+/*.svg
+/bedrock/pmmp/phps_versions.json

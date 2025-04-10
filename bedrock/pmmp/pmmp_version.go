@@ -1,23 +1,17 @@
 package pmmp
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
-	"os/exec"
+	"net/url"
 	"path"
-	"runtime"
+	"strings"
 	"time"
 
+	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
+	"sirherobrine23.com.br/go-bds/request/github"
 	"sirherobrine23.com.br/go-bds/request/v2"
 )
-
-// Build info
-type BuildInfo struct {
-	PHPVersion   string `json:"php_version"`
-	GitCommit    string `json:"git_commit"`
-	McpeVersion  string `json:"mcpe_version"`
-	PharDownload string `json:"download_url"`
-}
 
 // Pocketmine Release info
 type Version struct {
@@ -25,8 +19,11 @@ type Version struct {
 	MCVersion string    `json:"mc_version"`   // Minecraft Bedrock version
 	Release   time.Time `json:"release_date"` // Pocketmine release
 	Phar      string    `json:"phar"`         // Pocketmine url download
-	PHP       PHP       `json:"php_info"`     // PHP info
+	PHP       *PHP      `json:"php_info"`     // PHP info
 }
+
+// Return semver version
+func (ver Version) SemverVersion() semver.Version { return semver.New(ver.Version) }
 
 func (ver Version) Download(path string) error {
 	if ver.Phar != "" {
@@ -36,49 +33,137 @@ func (ver Version) Download(path string) error {
 	return ErrNoVersion
 }
 
-// Pocketmine PHP required and tools to build
-type PHP struct {
-	PHPVersion    string               `json:"php"`            // PHP versions
-	WinScript     string               `json:"win_script"`     // Windows script
-	UnixScript    string               `json:"unix_script"`    // Unix script to build
-	PHPExtensions map[string][2]string `json:"php_extensions"` // Extensions in PHP: name => [src, version]
-	Tools         map[string][2]string `json:"tools"`          // Tools to install/build: name => [src, version]
-	Downloads     map[string]string    `json:"downloads"`      // Prebuilds php files
-}
+// All Pocketmine Releases
+type Versions []*Version
 
-// Install prebuild binary's
-func (php PHP) Install(installPath string) error {
-	if urlDownload, ok := php.Downloads[fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)]; ok {
-		switch path.Ext(urlDownload) {
-		case ".zip":
-			return request.Zip(urlDownload, request.ExtractOptions{Cwd: installPath}, nil)
-		default:
-			return request.Tar(urlDownload, request.ExtractOptions{Cwd: installPath}, nil)
-		}
-	}
-	return fmt.Errorf("prebuild to %s/%s not exists", runtime.GOOS, runtime.GOARCH)
-}
-
-// Build php localy
-func (php PHP) Build(logWrite io.Writer) error {
-	switch runtime.GOOS {
-	case "aix", "plan9", "solaris", "js", "illumos", "ios", "dragonfly":
-		return ErrPlatform
-	case "windows":
-		cmd := exec.Command("powershell", fmt.Sprintf("irm %q | iex", php.WinScript))
-		cmd.Stderr = logWrite
-		cmd.Stdout = logWrite
-		return cmd.Run()
-	default:
-		res, err := request.Request(php.UnixScript, nil)
+// List all releases and PHP prebuilds from Github Releases to
+// PocketMine/PocketMine-MP and pmmp/PocketMine-MP
+func (versions *Versions) GetVersionsFromGithub() error {
+	client := github.NewClient("pmmp", "PocketMine-MP", "")
+	*versions = (*versions)[:0]
+	for PMMPRelease, err := range client.ReleaseSeq() {
 		if err != nil {
 			return err
 		}
-		defer res.Body.Close()
-		cmd := exec.Command("sh", "-c", "-")
-		cmd.Stdin = res.Body
-		cmd.Stderr = logWrite
-		cmd.Stdout = logWrite
-		return cmd.Run()
+
+		// Start new struct
+		newVersion := &Version{
+			Version: PMMPRelease.TagName,
+			Release: PMMPRelease.PublishedAt,
+			PHP: &PHP{
+				Tools:         map[string][]*PHPSource{},
+				Downloads:     map[string]string{},
+			},
+		}
+
+		for _, asset := range PMMPRelease.Assets {
+			switch path.Ext(asset.Name) {
+			case ".phar":
+				newVersion.Phar = asset.BrowserDownloadURL
+				newVersion.Release = asset.UpdatedAt
+			case ".json":
+				buildInfo, _, err := request.JSON[map[string]json.RawMessage](asset.BrowserDownloadURL, nil)
+				if err != nil {
+					return err
+				}
+
+				// Minecraft Bedrock Version
+				if mcpeVersion, ok := buildInfo["mcpe_version"]; ok {
+					newVersion.MCVersion = string(mcpeVersion[1 : len(mcpeVersion)-2])
+				}
+
+				// PHP Version
+				if phpVersion, ok := buildInfo["php_version"]; ok {
+					newVersion.PHP = &PHP{
+						PHPVersion: string(phpVersion[1 : len(phpVersion)-2]),
+					}
+				}
+
+				// Prebuild PHP files
+				if phpDownloadVersion, ok := buildInfo["php_download_url"]; ok {
+					phpPrebuildUrl, err := url.Parse(string(phpDownloadVersion[1 : len(phpDownloadVersion)-2]))
+					if err == nil {
+						tagRelease := phpPrebuildUrl.Path[strings.LastIndex(phpPrebuildUrl.Path, "/"):]
+						newVersion.PHP.UnixScript = fmt.Sprintf("https://raw.githubusercontent.com/pmmp/PHP-Binaries/%s/compile.sh", tagRelease)
+
+						// Historically Windows has had several scripts to build PHP
+						newVersion.PHP.WinScript = fmt.Sprintf("https://raw.githubusercontent.com/pmmp/PHP-Binaries/%s/windows-compile-vs.ps1", tagRelease)
+						newVersion.PHP.WinScript = fmt.Sprintf("https://raw.githubusercontent.com/pmmp/PHP-Binaries/%s/windows-compile-vs.bat", tagRelease)
+						newVersion.PHP.WinOldPs = fmt.Sprintf("https://raw.githubusercontent.com/pmmp/PHP-Binaries/%s/windows-binaries.ps1", tagRelease)
+						newVersion.PHP.WinSh = fmt.Sprintf("https://raw.githubusercontent.com/pmmp/PHP-Binaries/%s/windows-binaries.sh", tagRelease)
+
+						// Create new client to PHP binaries
+						client := github.NewClient("pmmp", "PHP-Binaries", "")
+
+						// Append to PHP Struct prebuild files
+						if phpRelease, err := client.ReleaseTag(tagRelease); err == nil {
+							for _, phpAsset := range phpRelease.Assets {
+								name := strings.ToLower(phpAsset.Name)
+								switch {
+								case strings.Contains(name, "debug"):
+									continue
+								case (strings.Contains(name, "darwin") || strings.Contains(phpAsset.Name, "macos")) && strings.Contains(name, "arm64"):
+									newVersion.PHP.Downloads["darwin/arm64"] = phpAsset.BrowserDownloadURL
+								case (strings.Contains(name, "darwin") || strings.Contains(phpAsset.Name, "macos")):
+									newVersion.PHP.Downloads["darwin/amd64"] = phpAsset.BrowserDownloadURL
+								case strings.Contains(name, "android") && strings.Contains(name, "arm64"):
+									newVersion.PHP.Downloads["android/arm64"] = phpAsset.BrowserDownloadURL
+								case strings.Contains(name, "android"):
+									newVersion.PHP.Downloads["android/amd64"] = phpAsset.BrowserDownloadURL
+								case strings.Contains(name, "windows") && strings.Contains(name, "arm64"):
+									newVersion.PHP.Downloads["windows/arm64"] = phpAsset.BrowserDownloadURL
+								case strings.Contains(name, "windows"):
+									newVersion.PHP.Downloads["windows/amd64"] = phpAsset.BrowserDownloadURL
+								case strings.Contains(name, "linux") && strings.Contains(name, "arm64"):
+									newVersion.PHP.Downloads["linux/arm64"] = phpAsset.BrowserDownloadURL
+								case strings.Contains(name, "linux") && strings.Contains(name, "arm"):
+									newVersion.PHP.Downloads["linux/arm"] = phpAsset.BrowserDownloadURL
+								case strings.Contains(name, "linux"):
+									newVersion.PHP.Downloads["linux/amd64"] = phpAsset.BrowserDownloadURL
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Skip append to versions
+		if newVersion.Phar == "" {
+			continue
+		}
+		*versions = append(*versions, newVersion)
 	}
+
+	// Fetch from old Release
+	client.Username = "PocketMine"
+	for PocketmineRelease, err := range client.ReleaseSeq() {
+		if err != nil {
+			return fmt.Errorf("cannot get release to PocketMine/PocketMine-MP: %s", err)
+		}
+
+		// Make new struct to old release
+		newVersion := &Version{
+			Version: PocketmineRelease.TagName,
+			Release: PocketmineRelease.PublishedAt,
+		}
+
+		for _, asset := range PocketmineRelease.Assets {
+			switch path.Ext(asset.Name) {
+			case ".phar":
+				newVersion.Phar = asset.BrowserDownloadURL
+				newVersion.Release = asset.UpdatedAt
+			}
+		}
+
+		// Skip append to versions
+		if newVersion.Phar == "" {
+			continue
+		}
+		*versions = append(*versions, newVersion)
+	}
+
+	semver.Sort(*versions)
+
+	return nil
 }
