@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"iter"
 	"net/url"
 	"os/exec"
 	"path"
@@ -13,7 +12,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"unicode"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -36,11 +34,15 @@ var (
 	phpProgramAndExtension = regex.MustCompile(`(?m)^((?P<Extension>(PHP|EXT)_)?(?P<Program>([a-zA-Z_][a-zA-Z0-9_]*))_(VER(SION(S)?)?))$`)
 )
 
-// PHP Package info and origin
-type PHPSource struct {
-	PkgName string   `json:"name"`    // Package name
+type SourceInfo struct {
 	Version string   `json:"version"` // Version
 	Src     []string `json:"src"`     // Source and mirrors
+}
+
+// PHP Package info and origin
+type PHPSource struct {
+	PkgName  string        `json:"name"`     // Package name
+	Versions []*SourceInfo `json:"versions"` // Source and mirrors
 }
 
 // Pocketmine PHP required and tools to build
@@ -53,8 +55,8 @@ type PHP struct {
 	WinBat     string                  `json:"win_bat"`     // Windows script (bat)
 	WinOldPs   string                  `json:"win_old_ps"`  // Windows old script
 	WinSh      string                  `json:"win_sh"`      // Windows old bash script
-	Tools      map[string][]*PHPSource `json:"tools"`       // Tools or extensions to PHP to install/build
 	Downloads  map[string]string       `json:"downloads"`   // Prebuilds php files
+	Tools      map[string][]*PHPSource `json:"tools"`       // Tools or extensions to PHP to install/build
 }
 
 // Return semver version from PHP
@@ -253,6 +255,11 @@ type workerPayload struct {
 	gitRepo, gitHash, UnixCompileContent, WinScriptContent, WinBatContent, WinOldPsContent, WinShContent string
 }
 
+var PsExtra = []sh.Value{
+	sh.BasicSet{"BUILD_TARGET", "x64"},
+	sh.BasicSet{"OPTARG", "x64"},
+}
+
 // Process jobs to new worker load
 func commitWorker(job <-chan workerPayload, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -265,67 +272,64 @@ func commitWorker(job <-chan workerPayload, wg *sync.WaitGroup) {
 			UnixScript: "compile.sh",
 		}
 
-		pkgs := processBuildScript(Worker.UnixCompileContent)
+		pkgs := processBuildScript(sh.BashWithValues(Worker.UnixCompileContent, PsExtra))
 		lastPhp := js_types.Slice[*PHPSource](pkgs).FindLast(func(input *PHPSource) bool { return input.PkgName == "php" })
-		if len(pkgs) == 0 || lastPhp == nil {
+		if len(pkgs) == 0 || lastPhp == nil || len(lastPhp.Versions) == 0 || lastPhp.Versions[0].Version == "" {
 			continue
 		}
 		phpInfo.Tools["compile.sh"] = pkgs
-		phpInfo.PHPVersion = lastPhp.Version
+		phpInfo.PHPVersion = lastPhp.Versions[0].Version
 
-		if WinScriptPkgs := processBuildScript(Worker.WinScriptContent); len(WinScriptPkgs) > 0 {
+		if WinScriptPkgs := processBuildScript(sh.PowershellWithValues(strings.ReplaceAll(Worker.WinScriptContent, "$wc.DownloadFile", "wc.DownloadFile"), PsExtra)); len(WinScriptPkgs) > 0 {
 			phpInfo.WinScript = "windows-compile-vs.ps1"
 			phpInfo.Tools[phpInfo.WinScript] = WinScriptPkgs
 		}
-		if WinBatPkgs := processBuildScript(Worker.WinBatContent); len(WinBatPkgs) > 0 {
+		if WinBatPkgs := processBuildScript(sh.Cmd(Worker.WinBatContent)); len(WinBatPkgs) > 0 {
 			phpInfo.WinBat = "windows-compile-vs.bat"
 			phpInfo.Tools[phpInfo.WinBat] = WinBatPkgs
 		}
-		if WinOldPsPkgs := processBuildScript(Worker.WinOldPsContent); len(WinOldPsPkgs) > 0 {
+		if WinOldPsPkgs := processBuildScript(sh.PowershellWithValues(strings.ReplaceAll(Worker.WinOldPsContent, "$wc.DownloadFile", "wc.DownloadFile"), PsExtra)); len(WinOldPsPkgs) > 0 {
 			phpInfo.WinOldPs = "windows-binaries.ps1"
 			phpInfo.Tools[phpInfo.WinOldPs] = WinOldPsPkgs
 		}
-		if WinShPkgs := processBuildScript(Worker.WinShContent); len(WinShPkgs) > 0 {
+		if WinShPkgs := processBuildScript(sh.BashWithValues(Worker.WinShContent, PsExtra)); len(WinShPkgs) > 0 {
 			phpInfo.WinSh = "windows-binaries.sh"
 			phpInfo.Tools[phpInfo.WinSh] = WinShPkgs
 		}
+
 		*Worker.VersionSlice = append(*Worker.VersionSlice, phpInfo)
 	}
 }
 
-func processBuildScript(script string) []*PHPSource {
-	fileSh := sh.ProcessSh(script)
-	scriptLines := fileSh.Lines()
-	phpPkgs := []*PHPSource{}
-	
-	for pkgVar, pkgVersions := range fileSh.Seq() {
-		if !phpProgramAndExtension.MatchString(pkgVar) {
+func processBuildScript(scriptInter sh.ProcessSh) []*PHPSource {
+	prePkg := map[string]*PHPSource{}
+	for _, vars := range scriptInter.Seq() {
+		pkgIndex := slices.IndexFunc(vars, func(v sh.Value) bool { return v.ValueType().IsSet() && phpProgramAndExtension.MatchString(v.KeyName()) })
+		if pkgIndex == -1 {
 			continue
 		}
-		// "Extension", "Program"
-		pkgName, ok := phpProgramAndExtension.FindAllGroup(pkgVar)["Program"]
-		if !ok {
-			continue
-		}
-		pkgName = strings.ToLower(pkgName)
-
-		switch pkgVar {
-		case "PHP_VERSIONS":
-			pkgVar = "PHP_VERSION"
+		pkgVar := vars[pkgIndex]
+		pkgName := strings.ToLower(phpProgramAndExtension.FindAllGroup(pkgVar.KeyName())["Program"])
+		var pkg *PHPSource
+		if pkg = prePkg[pkgName]; pkg == nil {
+			pkg = &PHPSource{PkgName: pkgName, Versions: []*SourceInfo{}}
+			prePkg[pkgName] = pkg
 		}
 
-		for lineIndex, line := range scriptLines {
-			line = strings.TrimSpace(line)
-			if !sh.ProcessSh(line).ContainsVar(pkgVar) {
-				continue
+		for pkgVersion := range pkgVar.Array() {
+			switch pkgVar.KeyName() {
+			case "PHP_VERSIONS":
+				scriptInter.Back()
+				scriptInter.SetKey("PHP_VERSION", pkgVersion)
 			}
 
-			for pkgVersion := range splitVersion(pkgVersions) {
-				fileSh := fileSh.Clone()
-				fileSh.SetVar(pkgVar, pkgVersion)
-				fields := js_types.Slice[string](fieldParse(fileSh.ReplaceWithVar(line)))
-				info := &PHPSource{PkgName: pkgName, Version: pkgVersion}
+			for line, lineInfo := range scriptInter.Seq(-1, -5) {
+				if !slices.ContainsFunc(lineInfo, func(v sh.Value) bool { return v.ValueType().IsAccess() && v.KeyName() == pkgVar.KeyName() }) {
+					continue
+				}
 
+				info := &SourceInfo{Version: pkgVersion}
+				fields := js_types.Slice[string](fieldParse(line))
 			dw:
 				switch fields.At(0) {
 				case "get_github_extension", "#get_github_extension":
@@ -338,6 +342,9 @@ func processBuildScript(script string) []*PHPSource {
 					info.Src = append(info.Src, fields.At(1))
 				case "get_pecl_extension", "#get_pecl_extension":
 					info.Src = append(info.Src, fmt.Sprintf("http://pecl.php.net/get/%s-%s.tgz", fields.At(1), fields.At(2)))
+				// $wc.DownloadFile("http://windows.php.net/downloads/releases/php-$PHP_VERSION-Win32-VC14-$target.zip", $tmp_path + "php.zip")
+				// case "wc.DownloadFile":
+				// 	panic(fmt.Sprint(fields.Slice(1, -1)))
 				case "git", "#git":
 					if fields.At(1) == "clone" {
 						for _, field := range fields {
@@ -348,8 +355,8 @@ func processBuildScript(script string) []*PHPSource {
 						}
 						break
 					}
-					for indexBack := 10; indexBack > 0; indexBack-- {
-						fields = js_types.Slice[string](fieldParse(fileSh.ReplaceWithVar(scriptLines[lineIndex-indexBack])))
+					for line := range scriptInter.Seq(10, -10) {
+						fields = js_types.Slice[string](fieldParse(line))
 						if !(fields.At(0) == "git" && fields.At(1) == "clone") {
 							continue
 						}
@@ -371,76 +378,78 @@ func processBuildScript(script string) []*PHPSource {
 				}
 
 				if len(info.Src) > 0 {
-					phpPkgs = append(phpPkgs, info)
+					pkg.Versions = append(pkg.Versions, info)
 				}
 			}
 		}
 	}
 
 	pkgFilter := []*PHPSource{}
-	for _, info := range phpPkgs {
-		pkgIndex := slices.IndexFunc(pkgFilter, func(pkg *PHPSource) bool { return pkg.PkgName == info.PkgName })
-		if pkgIndex == -1 {
-			pkgFilter = append(pkgFilter, info)
-			continue
+	for _, info := range prePkg {
+		for index := range info.Versions {
+			for srcIndex := range info.Versions[index].Src {
+				info.Versions[index].Src[srcIndex] = strings.ReplaceAll(info.Versions[index].Src[srcIndex], "$OPTARG", "x64")
+			}
 		}
-		phpPkgs[pkgIndex].Src = append(phpPkgs[pkgIndex].Src, info.Src...)
+		pkgFilter = append(pkgFilter, info)
 	}
-	
-	for _, info := range pkgFilter {
-		for index := range info.Src {
-			info.Src[index] = strings.ReplaceAll(info.Src[index], "$OPTARG", "x64")
-		}
-	}
-
 	return pkgFilter
 }
 
-func splitVersion(input string) iter.Seq[string] {
-	input = strings.Trim(input, "@() ")
-	return func(yield func(string) bool) {
-		for input != "" {
-			fallback := input
-			switch input[0] {
-			case '"':
-				index := strings.Index(input[1:], "\"")
-				if index <= 0 {
-					fallback = input[1:]
-					input = ""
-					break
-				}
-				fallback = input[1:index]
-				input = strings.TrimSpace(input[index+1:])
-			case '\'':
-				index := strings.Index(input[1:], "'")
-				if index <= 0 {
-					fallback = input[1:]
-					input = ""
-					break
-				}
-				fallback = input[1:index]
-				input = strings.TrimSpace(input[index+1:])
-			default:
-				if !strings.ContainsFunc(input, unicode.IsSpace) {
-					input = ""
-					break
-				}
-				index := strings.IndexFunc(input, unicode.IsSpace)
-				fallback = input[1:index]
-				input = strings.TrimSpace(input[index+1:])
+func fieldParse(s string) []string {
+	s = strings.TrimSpace(s)
+	type span struct {
+		start int
+		end   int
+	}
+	spans := make([]span, 0, 32)
+	start := -1
+	for end := 0; end < len(s); end++ {
+		rune := rune(s[end])
+		switch rune {
+		case '\t', '\n', '\v', '\f', '\r', ' ', 0x85, 0xA0, '(':
+			if start >= 0 {
+				spans = append(spans, span{start, end})
+				// Set start to a negative value.
+				// Note: using -1 here consistently and reproducibly
+				// slows down this code by a several percent on amd64.
+				start = ^start
 			}
-
-			if !yield(fallback) {
-				return
+		case '"':
+			end++
+			endDouble := strings.IndexRune(s[end:], '"')
+			if endDouble == -1 {
+				endDouble = len(s[end:])
+			}
+			spans = append(spans, span{end, end + endDouble})
+			end = end + endDouble
+			start = -1
+		case '\'':
+			end++
+			endDouble := strings.IndexRune(s[end:], '\'')
+			if endDouble == -1 {
+				endDouble = len(s[end:])
+			}
+			spans = append(spans, span{end, end + endDouble})
+			end = end + endDouble
+			start = -1
+		default:
+			if start < 0 {
+				start = end
 			}
 		}
 	}
-}
 
-func fieldParse(line string) []string {
-	fields := strings.Fields(strings.TrimSpace(line))
-	for fieldIndex := range fields {
-		fields[fieldIndex] = strings.Trim(fields[fieldIndex], `"'`)
+	// Last field might end at EOF.
+	if start >= 0 {
+		spans = append(spans, span{start, len(s)})
 	}
-	return fields
+
+	// Create strings from recorded field indices.
+	a := make([]string, len(spans))
+	for i, span := range spans {
+		a[i] = s[span.start:span.end]
+	}
+
+	return a
 }
