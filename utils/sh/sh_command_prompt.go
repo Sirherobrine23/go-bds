@@ -6,6 +6,11 @@ import (
 	"unicode"
 )
 
+var (
+	_ ShValue = &CmdValue{}
+	_ Sh      = &CommandPrompt{}
+)
+
 type CmdValue struct {
 	Type       RawType // Value type
 	Start, End int     // Content start and end

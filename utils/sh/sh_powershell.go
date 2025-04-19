@@ -90,7 +90,7 @@ func (psValue PsValue) ContentArray() iter.Seq[string] {
 //   - $[A-Za-z0-9_]
 //   - $[A-Za-z0-9_](.<Object Name[A-Za-z0-9_]>)?
 type Powershell struct {
-	psContent string         // Powershell script
+	psContent string     // Powershell script
 	Variables []*PsValue // Variables set and access
 }
 
@@ -188,7 +188,7 @@ func PowershellScript(content string) (Sh, error) {
 						return nil, fmt.Errorf("cannot get final of string set")
 					}
 					contentIndex += endIndex
-					
+
 					ps1.Variables = append(ps1.Variables, &PsValue{
 						Type:    VarSetArray,
 						Start:   startVar,
@@ -197,7 +197,7 @@ func PowershellScript(content string) (Sh, error) {
 						Value:   strings.Trim(content[valueStart:contentIndex], "@()"),
 						Content: content[startVar : contentIndex+1],
 					})
-					
+
 					continue
 				default:
 					endIndex := strings.IndexFunc(content[contentIndex:], isSpace)

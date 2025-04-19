@@ -1,11 +1,11 @@
 package pmmp
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"iter"
-	"net/url"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -265,7 +265,7 @@ func commitWorker(job <-chan workerPayload, wg *sync.WaitGroup) {
 			UnixScript: "compile.sh",
 		}
 
-		pkgs := processBuildScript(Worker.UnixCompileContent)
+		pkgs := processBuildScript(Worker.UnixCompileContent, sh.Must(sh.BashScript(Worker.UnixCompileContent)))
 		lastPhp := js_types.Slice[*PHPSource](pkgs).FindLast(func(input *PHPSource) bool { return input.PkgName == "php" })
 		if len(pkgs) == 0 || lastPhp == nil {
 			continue
@@ -273,19 +273,19 @@ func commitWorker(job <-chan workerPayload, wg *sync.WaitGroup) {
 		phpInfo.Tools["compile.sh"] = pkgs
 		phpInfo.PHPVersion = lastPhp.Version
 
-		if WinScriptPkgs := processBuildScript(Worker.WinScriptContent); len(WinScriptPkgs) > 0 {
+		if WinScriptPkgs := processBuildScript(Worker.WinScriptContent, sh.Must(sh.PowershellScript(Worker.WinScriptContent))); len(WinScriptPkgs) > 0 {
 			phpInfo.WinScript = "windows-compile-vs.ps1"
 			phpInfo.Tools[phpInfo.WinScript] = WinScriptPkgs
 		}
-		if WinBatPkgs := processBuildScript(Worker.WinBatContent); len(WinBatPkgs) > 0 {
+		if WinBatPkgs := processBuildScript(Worker.WinBatContent, sh.Must(sh.CommandPromptScript(Worker.WinBatContent))); len(WinBatPkgs) > 0 {
 			phpInfo.WinBat = "windows-compile-vs.bat"
 			phpInfo.Tools[phpInfo.WinBat] = WinBatPkgs
 		}
-		if WinOldPsPkgs := processBuildScript(Worker.WinOldPsContent); len(WinOldPsPkgs) > 0 {
+		if WinOldPsPkgs := processBuildScript(Worker.WinOldPsContent, sh.Must(sh.PowershellScript(Worker.WinOldPsContent))); len(WinOldPsPkgs) > 0 {
 			phpInfo.WinOldPs = "windows-binaries.ps1"
 			phpInfo.Tools[phpInfo.WinOldPs] = WinOldPsPkgs
 		}
-		if WinShPkgs := processBuildScript(Worker.WinShContent); len(WinShPkgs) > 0 {
+		if WinShPkgs := processBuildScript(Worker.WinShContent, sh.Must(sh.BashScript(Worker.WinShContent))); len(WinShPkgs) > 0 {
 			phpInfo.WinSh = "windows-binaries.sh"
 			phpInfo.Tools[phpInfo.WinSh] = WinShPkgs
 		}
@@ -293,89 +293,11 @@ func commitWorker(job <-chan workerPayload, wg *sync.WaitGroup) {
 	}
 }
 
-func processBuildScript(script string) []*PHPSource {
-	fileSh := sh.ProcessSh(script)
-	scriptLines := fileSh.Lines()
+func processBuildScript(script string, fileSh sh.Sh) []*PHPSource {
 	phpPkgs := []*PHPSource{}
-	
-	for pkgVar, pkgVersions := range fileSh.Seq() {
-		if !phpProgramAndExtension.MatchString(pkgVar) {
-			continue
-		}
-		// "Extension", "Program"
-		pkgName, ok := phpProgramAndExtension.FindAllGroup(pkgVar)["Program"]
-		if !ok {
-			continue
-		}
-		pkgName = strings.ToLower(pkgName)
 
-		switch pkgVar {
-		case "PHP_VERSIONS":
-			pkgVar = "PHP_VERSION"
-		}
-
-		for lineIndex, line := range scriptLines {
-			line = strings.TrimSpace(line)
-			if !sh.ProcessSh(line).ContainsVar(pkgVar) {
-				continue
-			}
-
-			for pkgVersion := range splitVersion(pkgVersions) {
-				fileSh := fileSh.Clone()
-				fileSh.SetVar(pkgVar, pkgVersion)
-				fields := js_types.Slice[string](fieldParse(fileSh.ReplaceWithVar(line)))
-				info := &PHPSource{PkgName: pkgName, Version: pkgVersion}
-
-			dw:
-				switch fields.At(0) {
-				case "get_github_extension", "#get_github_extension":
-					info.Src = append(info.Src, fmt.Sprintf("https://github.com/%s/%s/archive/%s%s.tar.gz", fields.At(3), fields.At(4), fields.At(5), fields.At(2)))
-				case "download_github_src", "#download_github_src":
-					info.Src = append(info.Src, fmt.Sprintf("https://github.com/%s/archive/%s.tar.gz", fields.At(1), fields.At(2)))
-				case "download_from_mirror", "#download_from_mirror":
-					info.Src = append(info.Src, fmt.Sprintf("https://github.com/pmmp/DependencyMirror/releases/download/mirror/%s", fields.At(1)))
-				case "download_file", "#download_file":
-					info.Src = append(info.Src, fields.At(1))
-				case "get_pecl_extension", "#get_pecl_extension":
-					info.Src = append(info.Src, fmt.Sprintf("http://pecl.php.net/get/%s-%s.tgz", fields.At(1), fields.At(2)))
-				case "git", "#git":
-					if fields.At(1) == "clone" {
-						for _, field := range fields {
-							if strings.HasPrefix(field, "http") || strings.HasPrefix(field, "git:") || strings.HasPrefix(field, "ssh") {
-								info.Src = append(info.Src, field)
-								break dw
-							}
-						}
-						break
-					}
-					for indexBack := 10; indexBack > 0; indexBack-- {
-						fields = js_types.Slice[string](fieldParse(fileSh.ReplaceWithVar(scriptLines[lineIndex-indexBack])))
-						if !(fields.At(0) == "git" && fields.At(1) == "clone") {
-							continue
-						}
-						for _, urlStr := range fields.Slice(2, -1) {
-							if _, err := url.Parse(urlStr); err != nil {
-								continue
-							}
-							info.Src = append(info.Src, urlStr)
-							break dw
-						}
-					}
-				default:
-					for _, field := range fields {
-						if strings.HasPrefix(field, "http") || strings.HasPrefix(field, "ftp") || strings.HasPrefix(field, "git:") || strings.HasPrefix(field, "ssh") {
-							info.Src = append(info.Src, field)
-							break dw
-						}
-					}
-				}
-
-				if len(info.Src) > 0 {
-					phpPkgs = append(phpPkgs, info)
-				}
-			}
-		}
-	}
+	d, _ := json.MarshalIndent(fileSh, "", "  ")
+	println(string(d))
 
 	pkgFilter := []*PHPSource{}
 	for _, info := range phpPkgs {
@@ -386,7 +308,7 @@ func processBuildScript(script string) []*PHPSource {
 		}
 		phpPkgs[pkgIndex].Src = append(phpPkgs[pkgIndex].Src, info.Src...)
 	}
-	
+
 	for _, info := range pkgFilter {
 		for index := range info.Src {
 			info.Src[index] = strings.ReplaceAll(info.Src[index], "$OPTARG", "x64")
