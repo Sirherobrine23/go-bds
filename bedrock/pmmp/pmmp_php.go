@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"net/url"
 	"os/exec"
 	"path"
@@ -166,6 +167,29 @@ func (PHPs) checkout(repoPath, repoUrl string) (*git.Repository, error) {
 	return repo, err
 }
 
+func gogitSeq[T any](v interface {
+	Close()
+	Next() (T, error)
+}) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		defer v.Close()
+		for {
+			f, err := v.Next()
+			switch err {
+			case io.EOF:
+				return
+			case nil:
+				if !yield(f, err) {
+					return
+				}
+			default:
+				yield(f, err)
+				return
+			}
+		}
+	}
+}
+
 // Process build scripts from Pmmp and Pocketmine php build scripts
 func (phpBuildSlice *PHPs) FetchAllScripts(storageRepo string) error {
 	// job<-chan workerPayload, wg *sync.WaitGroup
@@ -189,13 +213,9 @@ func (phpBuildSlice *PHPs) FetchAllScripts(storageRepo string) error {
 		if err != nil {
 			return err
 		}
-		defer commits.Close()
-		for {
-			commit, err := commits.Next()
+
+		for commit, err := range gogitSeq(commits) {
 			if err != nil {
-				if err == io.EOF {
-					break
-				}
 				return err
 			}
 
@@ -238,7 +258,6 @@ func (phpBuildSlice *PHPs) FetchAllScripts(storageRepo string) error {
 				WinShContent:       WinShContent,
 			}
 		}
-		commits.Close()
 	}
 
 	// Done process and wait done process worker loader

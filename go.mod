@@ -3,6 +3,7 @@ module sirherobrine23.com.br/go-bds/go-bds
 go 1.24
 
 require (
+	github.com/Sirherobrine23/phargo v0.0.0-20250411030318-232554ea3ebb
 	github.com/aegistudio/go-winfsp v1.0.0
 	github.com/docker/docker v28.1.0+incompatible
 	github.com/docker/go-connections v0.5.0

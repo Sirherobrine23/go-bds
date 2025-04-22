@@ -9,6 +9,8 @@ github.com/ProtonMail/go-crypto v1.2.0 h1:+PhXXn4SPGd+qk76TlEePBfOfivE0zkWFenhGh
 github.com/ProtonMail/go-crypto v1.2.0/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR2e7GWU1R+/PE=
 github.com/PuerkitoBio/goquery v1.10.3 h1:pFYcNSqHxBD06Fpj/KsbStFRsgRATgnf3LeXiUkhzPo=
 github.com/PuerkitoBio/goquery v1.10.3/go.mod h1:tMUX0zDMHXYlAQk6p35XxQMqMweEKB7iK7iLNd4RH4Y=
+github.com/Sirherobrine23/phargo v0.0.0-20250411030318-232554ea3ebb h1:jyXXhPy7aRLWGjdd8WqVbFxdpQd5RYID2qQDtCLEHRE=
+github.com/Sirherobrine23/phargo v0.0.0-20250411030318-232554ea3ebb/go.mod h1:vn3BmSf3BNzzN+rC3XMC5+l84LNO+IhseZv2RY7Po8U=
 github.com/aegistudio/go-winfsp v1.0.0 h1:trRk7HeKd6+cIKNz7H05n+34lMXstSXaP+3Yu/xnxzY=
 github.com/aegistudio/go-winfsp v1.0.0/go.mod h1:NLiW7JmEKU0TaN19ymrywYtiA9E0tEDfh+sJU4G/Tgw=
 github.com/andybalholm/cascadia v1.3.3 h1:AG2YHrzJIm4BZ19iwJ/DAua6Btl3IwJX+VI4kktS1LM=

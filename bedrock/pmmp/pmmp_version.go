@@ -1,12 +1,15 @@
 package pmmp
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/Sirherobrine23/phargo"
 
 	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
 	"sirherobrine23.com.br/go-bds/request/github"
@@ -33,6 +36,20 @@ func (ver Version) Download(path string) error {
 	return ErrNoVersion
 }
 
+func (ver Version) PharFiles() (*phargo.Phar, error) {
+	buff, _, err := request.Buffer(ver.Phar, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	phar, err := phargo.NewReader(bytes.NewReader(buff), int64(len(buff)))
+	if err != nil {
+		return nil, err
+	}
+
+	return phar, nil
+}
+
 // All Pocketmine Releases
 type Versions []*Version
 
@@ -51,8 +68,8 @@ func (versions *Versions) GetVersionsFromGithub() error {
 			Version: PMMPRelease.TagName,
 			Release: PMMPRelease.PublishedAt,
 			PHP: &PHP{
-				Tools:         map[string][]*PHPSource{},
-				Downloads:     map[string]string{},
+				Downloads: map[string]string{},
+				Tools:     map[string][]*PHPSource{},
 			},
 		}
 
