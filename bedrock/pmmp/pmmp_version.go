@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,11 +16,11 @@ import (
 
 // Pocketmine Release info
 type Version struct {
-	Version   string    `json:"version"`      // Pocketmine version
-	MCVersion string    `json:"mc_version"`   // Minecraft Bedrock version
-	Release   time.Time `json:"release_date"` // Pocketmine release
-	Phar      string    `json:"phar"`         // Pocketmine url download
-	PHP       *PHP      `json:"php_info"`     // PHP info
+	Version   string    `json:"version"`            // Pocketmine version
+	MCVersion string    `json:"mc_version"`         // Minecraft Bedrock version
+	Release   time.Time `json:"release_date"`       // Pocketmine release
+	Phar      string    `json:"phar"`               // Pocketmine url download
+	PHP       *PHP      `json:"php_info,omitempty"` // PHP info
 }
 
 // Return semver version
@@ -39,7 +40,13 @@ type Versions []*Version
 // List all releases and PHP prebuilds from Github Releases to
 // PocketMine/PocketMine-MP and pmmp/PocketMine-MP
 func (versions *Versions) GetVersionsFromGithub() error {
+	// Create new phpPmmpBin to PHP binaries
+	phpPmmpBin := github.NewClient("pmmp", "PHP-Binaries", "")
+
+	// Pocketmine repo
 	client := github.NewClient("pmmp", "PocketMine-MP", "")
+
+	// Clean versions
 	*versions = (*versions)[:0]
 	for PMMPRelease, err := range client.ReleaseSeq() {
 		if err != nil {
@@ -51,8 +58,8 @@ func (versions *Versions) GetVersionsFromGithub() error {
 			Version: PMMPRelease.TagName,
 			Release: PMMPRelease.PublishedAt,
 			PHP: &PHP{
-				Tools:         map[string][]*PHPSource{},
-				Downloads:     map[string]string{},
+				Tools:     map[string][]*PHPSource{},
+				Downloads: map[string]string{},
 			},
 		}
 
@@ -69,13 +76,13 @@ func (versions *Versions) GetVersionsFromGithub() error {
 
 				// Minecraft Bedrock Version
 				if mcpeVersion, ok := buildInfo["mcpe_version"]; ok {
-					newVersion.MCVersion = string(mcpeVersion[1 : len(mcpeVersion)-2])
+					newVersion.MCVersion = strings.Trim(string(mcpeVersion), "\"")
 				}
 
 				// PHP Version
 				if phpVersion, ok := buildInfo["php_version"]; ok {
 					newVersion.PHP = &PHP{
-						PHPVersion: string(phpVersion[1 : len(phpVersion)-2]),
+						PHPVersion: strings.Trim(string(phpVersion), "\""),
 					}
 				}
 
@@ -92,11 +99,8 @@ func (versions *Versions) GetVersionsFromGithub() error {
 						newVersion.PHP.WinOldPs = fmt.Sprintf("https://raw.githubusercontent.com/pmmp/PHP-Binaries/%s/windows-binaries.ps1", tagRelease)
 						newVersion.PHP.WinSh = fmt.Sprintf("https://raw.githubusercontent.com/pmmp/PHP-Binaries/%s/windows-binaries.sh", tagRelease)
 
-						// Create new client to PHP binaries
-						client := github.NewClient("pmmp", "PHP-Binaries", "")
-
 						// Append to PHP Struct prebuild files
-						if phpRelease, err := client.ReleaseTag(tagRelease); err == nil {
+						if phpRelease, err := phpPmmpBin.ReleaseTag(tagRelease); err == nil {
 							for _, phpAsset := range phpRelease.Assets {
 								name := strings.ToLower(phpAsset.Name)
 								switch {
@@ -128,11 +132,9 @@ func (versions *Versions) GetVersionsFromGithub() error {
 			}
 		}
 
-		// Skip append to versions
-		if newVersion.Phar == "" {
-			continue
+		if newVersion.Phar != "" {
+			*versions = append(*versions, newVersion)
 		}
-		*versions = append(*versions, newVersion)
 	}
 
 	// Fetch from old Release
@@ -156,14 +158,14 @@ func (versions *Versions) GetVersionsFromGithub() error {
 			}
 		}
 
-		// Skip append to versions
-		if newVersion.Phar == "" {
-			continue
+		if newVersion.Phar != "" {
+			*versions = append(*versions, newVersion)
 		}
-		*versions = append(*versions, newVersion)
 	}
 
-	semver.Sort(*versions)
+	slices.SortFunc(*versions, func(a, b *Version) int {
+		return a.Release.Compare(b.Release)
+	})
 
 	return nil
 }
