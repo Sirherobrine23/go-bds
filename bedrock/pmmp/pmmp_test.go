@@ -23,8 +23,13 @@ func TestPHPBuilds(t *testing.T) {
 
 func TestVersionsGithub(t *testing.T) {
 	versions := Versions{}
-	if err := versions.GetVersionsFromGithub(); len(versions) == 0 && err != nil {
-		t.Errorf("Cannot get all PHPs builds: %s", err)
+	if err := versions.GetVersionsFromGithub(); err != nil {
+		switch len(versions) {
+		case 0:
+			t.Errorf("Cannot get PHPs builds: %s", err)
+		default:
+			t.Skipf("Cannot get all PHPs builds: %s", err)
+		}
 		return
 	}
 
