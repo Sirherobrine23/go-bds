@@ -3,30 +3,37 @@ package pmmp
 import (
 	"encoding/json"
 	"os"
+	"sync"
 	"testing"
 )
 
-func TestPmmpVersion(t *testing.T) {
-	t.Run("PHPVersions", func(t *testing.T) {
-		t.Parallel()
-		phps := PHPs{}
+func TestPocketmine(t *testing.T) {
+	phps := PHPs{}
+	versions := Versions{}
+	defer func() {
+		// Write tmp file
+		tmpFile, _ := os.Create("./versions.json")
+		defer tmpFile.Close()
+		js := json.NewEncoder(tmpFile)
+		js.SetIndent("", "  ")
+		js.Encode([]any{versions, phps})
+	}()
+
+	var lock sync.Mutex
+	lock.Lock()
+	t.Run("phpBuilds", func(t *testing.T) {
+		defer lock.Unlock()
 		if err := phps.FetchAllScripts(t.TempDir()); err != nil {
 			t.Errorf("Cannot get all PHPs builds: %s", err)
 			return
 		}
-
-		// Write tmp file
-		tmpFile, _ := os.Create("./phps_versions.json")
-		defer tmpFile.Close()
-		js := json.NewEncoder(tmpFile)
-		js.SetIndent("", "  ")
-		js.Encode(phps)
 	})
 
-	t.Run("VersionsGithub", func(t *testing.T) {
-		t.Parallel()
-		versions := Versions{}
-		if err := versions.GetVersionsFromGithub(); err != nil {
+	t.Run("pocketmine_versions", func(t *testing.T) {
+		lock.Lock()
+		defer lock.Unlock()
+
+		if err := versions.GetVersionsFromGithub(phps); err != nil {
 			switch len(versions) {
 			case 0:
 				t.Errorf("Cannot get PHPs builds: %s", err)
@@ -35,12 +42,5 @@ func TestPmmpVersion(t *testing.T) {
 			}
 			return
 		}
-
-		// Write tmp file
-		tmpFile, _ := os.Create("./versions.json")
-		defer tmpFile.Close()
-		js := json.NewEncoder(tmpFile)
-		js.SetIndent("", "  ")
-		js.Encode(versions)
 	})
 }

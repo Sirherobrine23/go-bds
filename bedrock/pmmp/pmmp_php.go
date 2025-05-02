@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/url"
 	"os/exec"
 	"path"
@@ -31,32 +32,40 @@ var (
 
 var (
 	// Matchs: ^(<PHP_>|<PHP_>)<Tool>_(VER(SION(S)?)?)
-	phpProgramAndExtension = regex.MustCompile(`(?m)^((?P<Extension>(PHP|EXT)_)?(?P<Program>([a-zA-Z_][a-zA-Z0-9_]*))_(VER(SION(S)?)?))$`)
+	phpProgramAndExtension = regex.MustCompile(`(?m)^((?P<Extension>(PHP|EXT)_)?(?P<Program>([a-zA-Z0-9].*))_(VER(SION(S)?)?))$`)
 )
-
-type SourceInfo struct {
-	Version string   `json:"version"` // Version
-	Src     []string `json:"src"`     // Source and mirrors
-}
 
 // PHP Package info and origin
 type PHPSource struct {
-	PkgName  string        `json:"name"`     // Package name
-	Versions []*SourceInfo `json:"versions"` // Source and mirrors
+	PkgName  string              `json:"name"`     // Package name
+	Versions map[string][]string `json:"versions"` // Version source and mirror url
 }
 
 // Pocketmine PHP required and tools to build
 type PHP struct {
-	GitHash    string                  `json:"git_hash"`    // Commit hash to run script
-	GitRepo    string                  `json:"git_repo"`    // Git repository url
-	PHPVersion string                  `json:"php"`         // PHP versions
-	UnixScript string                  `json:"unix_script"` // Unix script to build
-	WinScript  string                  `json:"win_script"`  // Windows script
-	WinBat     string                  `json:"win_bat"`     // Windows script (bat)
-	WinOldPs   string                  `json:"win_old_ps"`  // Windows old script
-	WinSh      string                  `json:"win_sh"`      // Windows old bash script
-	Downloads  map[string]string       `json:"downloads"`   // Prebuilds php files
-	Tools      map[string][]*PHPSource `json:"tools"`       // Tools or extensions to PHP to install/build
+	GitHash    string                  `json:"git_hash"`             // Commit hash to run script
+	GitRepo    string                  `json:"git_repo"`             // Git repository url
+	GitTag     string                  `json:"git_tag,omitempty"`    // Git repository tag
+	PHPVersion string                  `json:"php"`                  // PHP versions
+	UnixScript string                  `json:"unix_script"`          // Unix script to build
+	WinScript  string                  `json:"win_script,omitempty"` // Windows script
+	WinBat     string                  `json:"win_bat,omitempty"`    // Windows script (bat)
+	WinOldPs   string                  `json:"win_old_ps,omitempty"` // Windows old script
+	WinSh      string                  `json:"win_sh,omitempty"`     // Windows old bash script
+	Downloads  map[string]string       `json:"downloads,omitempty"`  // Prebuilds php files
+	Tools      map[string][]*PHPSource `json:"tools,omitempty"`      // Tools or extensions to PHP to install/build
+}
+
+func gitRepo(repoPath, repoUrl string) (*git.Repository, error) {
+	repo, err := git.PlainClone(repoPath, false, &git.CloneOptions{URL: repoUrl})
+	if err == git.ErrRepositoryAlreadyExists {
+		if repo, err = git.PlainOpen(repoPath); err == nil {
+			if err := repo.Fetch(&git.FetchOptions{}); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return repo, err
 }
 
 // Return semver version from PHP
@@ -76,15 +85,9 @@ func (php PHP) Install(installPath string) error {
 }
 
 // Clone repo and checkout to hash
-func (php PHP) checkoutGitRepo(buildPath string, logWrite io.Writer) error {
-	repo, err := git.PlainClone(buildPath, false, &git.CloneOptions{URL: php.GitRepo, Progress: logWrite})
-	switch err {
-	case nil:
-	case git.ErrRepositoryAlreadyExists:
-		if repo, err = git.PlainOpen(buildPath); err != nil {
-			return err
-		}
-	default:
+func (php PHP) checkoutGitRepo(buildPath string) error {
+	repo, err := gitRepo(buildPath, php.GitRepo)
+	if err != nil {
 		return err
 	}
 
@@ -115,7 +118,7 @@ func (php PHP) Build(buildPath string, logWrite io.Writer) error {
 	case "windows":
 		cmd = exec.Command("powershell", fmt.Sprintf("irm %q | iex", php.WinScript))
 		if php.GitRepo != "" {
-			if err := php.checkoutGitRepo(buildPath, logWrite); err != nil {
+			if err := php.checkoutGitRepo(buildPath); err != nil {
 				return err
 			}
 			if scriptPath := filepath.Join(buildPath, "windows-compile-vs.ps1"); file_checker.IsFile(scriptPath) {
@@ -133,7 +136,7 @@ func (php PHP) Build(buildPath string, logWrite io.Writer) error {
 	default:
 		cmd = exec.Command("sh", "-c", fmt.Sprintf("curl -Ssl %q | bash -", php.UnixScript))
 		if php.GitRepo != "" {
-			if err := php.checkoutGitRepo(buildPath, logWrite); err != nil {
+			if err := php.checkoutGitRepo(buildPath); err != nil {
 				return err
 			}
 			cmd = exec.Command("bash", filepath.Join(buildPath, "compile.sh"))
@@ -154,18 +157,6 @@ func (php PHP) Build(buildPath string, logWrite io.Writer) error {
 // PHP versions from builds scripts tools
 type PHPs []*PHP
 
-func (PHPs) checkout(repoPath, repoUrl string) (*git.Repository, error) {
-	repo, err := git.PlainClone(repoPath, false, &git.CloneOptions{URL: repoUrl})
-	if err == git.ErrRepositoryAlreadyExists {
-		if repo, err = git.PlainOpen(repoPath); err == nil {
-			if err := repo.Fetch(&git.FetchOptions{}); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return repo, err
-}
-
 // Process build scripts from Pmmp and Pocketmine php build scripts
 func (phpBuildSlice *PHPs) FetchAllScripts(storageRepo string) error {
 	// job<-chan workerPayload, wg *sync.WaitGroup
@@ -178,9 +169,18 @@ func (phpBuildSlice *PHPs) FetchAllScripts(storageRepo string) error {
 		go commitWorker(jobs, &wg)
 	}
 
+	// Close jobs if not closed
+	defer func() {
+		select {
+		case <-jobs:
+		default:
+			close(jobs)
+		}
+	}()
+
 	for _, buildTarget := range PHPBuilds {
 		repoPath, repoUrl := filepath.Join(storageRepo, buildTarget[0]), buildTarget[1]
-		repo, err := phpBuildSlice.checkout(repoPath, repoUrl)
+		repo, err := gitRepo(repoPath, repoUrl)
 		if err != nil {
 			return err
 		}
@@ -207,11 +207,14 @@ func (phpBuildSlice *PHPs) FetchAllScripts(storageRepo string) error {
 
 			// Scripts and file Content
 			var UnixCompileContent, WinScriptContent, WinBatContent, WinOldPsContent, WinShContent string
-			if file, err := commitTree.File("compile.sh"); err == nil {
-				if UnixCompileContent, err = file.Contents(); err != nil {
-					return err
-				}
+
+			unixFile, err := commitTree.File("compile.sh")
+			if err != nil {
+				return err
+			} else if UnixCompileContent, err = unixFile.Contents(); err != nil {
+				return err
 			}
+
 			if file, err := commitTree.File("windows-compile-vs.ps1"); err == nil {
 				WinScriptContent, _ = file.Contents()
 			}
@@ -221,8 +224,6 @@ func (phpBuildSlice *PHPs) FetchAllScripts(storageRepo string) error {
 			if file, err := commitTree.File("windows-binaries.ps1"); err == nil {
 				WinOldPsContent, _ = file.Contents()
 			}
-			// This is garbarge to this scripts,
-			// in future before fix sh.Sh i return use this script to get php info
 			if file, err := commitTree.File("windows-binaries.sh"); err == nil {
 				WinShContent, _ = file.Contents()
 			}
@@ -274,11 +275,11 @@ func commitWorker(job <-chan workerPayload, wg *sync.WaitGroup) {
 
 		pkgs := processBuildScript(sh.BashWithValues(Worker.UnixCompileContent, PsExtra))
 		lastPhp := js_types.Slice[*PHPSource](pkgs).FindLast(func(input *PHPSource) bool { return input.PkgName == "php" })
-		if len(pkgs) == 0 || lastPhp == nil || len(lastPhp.Versions) == 0 || lastPhp.Versions[0].Version == "" {
+		if len(pkgs) == 0 || lastPhp == nil || len(lastPhp.Versions) == 0 || len(lastPhp.Versions) == 0 || slices.Collect(maps.Keys(lastPhp.Versions))[0] == "" {
 			continue
 		}
 		phpInfo.Tools["compile.sh"] = pkgs
-		phpInfo.PHPVersion = lastPhp.Versions[0].Version
+		phpInfo.PHPVersion = slices.Collect(maps.Keys(lastPhp.Versions))[0]
 
 		if WinScriptPkgs := processBuildScript(sh.PowershellWithValues(strings.ReplaceAll(Worker.WinScriptContent, "$wc.DownloadFile", "wc.DownloadFile"), PsExtra)); len(WinScriptPkgs) > 0 {
 			phpInfo.WinScript = "windows-compile-vs.ps1"
@@ -301,8 +302,10 @@ func commitWorker(job <-chan workerPayload, wg *sync.WaitGroup) {
 	}
 }
 
+// Parse php build script
 func processBuildScript(scriptInter sh.ProcessSh) []*PHPSource {
-	prePkg := map[string]*PHPSource{}
+	// Extensions and tools to build php to pocketmine
+	pkgs := map[string]*PHPSource{}
 	for _, vars := range scriptInter.Seq() {
 		pkgIndex := slices.IndexFunc(vars, func(v sh.Value) bool { return v.ValueType().IsSet() && phpProgramAndExtension.MatchString(v.KeyName()) })
 		if pkgIndex == -1 {
@@ -311,9 +314,9 @@ func processBuildScript(scriptInter sh.ProcessSh) []*PHPSource {
 		pkgVar := vars[pkgIndex]
 		pkgName := strings.ToLower(phpProgramAndExtension.FindAllGroup(pkgVar.KeyName())["Program"])
 		var pkg *PHPSource
-		if pkg = prePkg[pkgName]; pkg == nil {
-			pkg = &PHPSource{PkgName: pkgName, Versions: []*SourceInfo{}}
-			prePkg[pkgName] = pkg
+		if pkg = pkgs[pkgName]; pkg == nil {
+			pkg = &PHPSource{PkgName: pkgName, Versions: map[string][]string{}}
+			pkgs[pkgName] = pkg
 		}
 
 		for pkgVersion := range pkgVar.Array() {
@@ -328,20 +331,20 @@ func processBuildScript(scriptInter sh.ProcessSh) []*PHPSource {
 					continue
 				}
 
-				info := &SourceInfo{Version: pkgVersion}
+				info := []string{}
 				fields := js_types.Slice[string](fieldParse(line))
 			dw:
 				switch fields.At(0) {
 				case "get_github_extension", "#get_github_extension":
-					info.Src = append(info.Src, fmt.Sprintf("https://github.com/%s/%s/archive/%s%s.tar.gz", fields.At(3), fields.At(4), fields.At(5), fields.At(2)))
+					info = append(info, fmt.Sprintf("https://github.com/%s/%s/archive/%s%s.tar.gz", fields.At(3), fields.At(4), fields.At(5), fields.At(2)))
 				case "download_github_src", "#download_github_src":
-					info.Src = append(info.Src, fmt.Sprintf("https://github.com/%s/archive/%s.tar.gz", fields.At(1), fields.At(2)))
+					info = append(info, fmt.Sprintf("https://github.com/%s/archive/%s.tar.gz", fields.At(1), fields.At(2)))
 				case "download_from_mirror", "#download_from_mirror":
-					info.Src = append(info.Src, fmt.Sprintf("https://github.com/pmmp/DependencyMirror/releases/download/mirror/%s", fields.At(1)))
+					info = append(info, fmt.Sprintf("https://github.com/pmmp/DependencyMirror/releases/download/mirror/%s", fields.At(1)))
 				case "download_file", "#download_file":
-					info.Src = append(info.Src, fields.At(1))
+					info = append(info, fields.At(1))
 				case "get_pecl_extension", "#get_pecl_extension":
-					info.Src = append(info.Src, fmt.Sprintf("http://pecl.php.net/get/%s-%s.tgz", fields.At(1), fields.At(2)))
+					info = append(info, fmt.Sprintf("http://pecl.php.net/get/%s-%s.tgz", fields.At(1), fields.At(2)))
 				// $wc.DownloadFile("http://windows.php.net/downloads/releases/php-$PHP_VERSION-Win32-VC14-$target.zip", $tmp_path + "php.zip")
 				// case "wc.DownloadFile":
 				// 	panic(fmt.Sprint(fields.Slice(1, -1)))
@@ -349,7 +352,7 @@ func processBuildScript(scriptInter sh.ProcessSh) []*PHPSource {
 					if fields.At(1) == "clone" {
 						for _, field := range fields {
 							if strings.HasPrefix(field, "http") || strings.HasPrefix(field, "git:") || strings.HasPrefix(field, "ssh") {
-								info.Src = append(info.Src, field)
+								info = append(info, field)
 								break dw
 							}
 						}
@@ -364,36 +367,30 @@ func processBuildScript(scriptInter sh.ProcessSh) []*PHPSource {
 							if _, err := url.Parse(urlStr); err != nil {
 								continue
 							}
-							info.Src = append(info.Src, urlStr)
+							info = append(info, urlStr)
 							break dw
 						}
 					}
 				default:
 					for _, field := range fields {
 						if strings.HasPrefix(field, "http") || strings.HasPrefix(field, "ftp") || strings.HasPrefix(field, "git:") || strings.HasPrefix(field, "ssh") {
-							info.Src = append(info.Src, field)
+							info = append(info, field)
 							break dw
 						}
 					}
 				}
 
-				if len(info.Src) > 0 {
-					pkg.Versions = append(pkg.Versions, info)
+				for _, pkgSrc := range info {
+					if slices.Contains(pkg.Versions[pkgVersion], pkgSrc) {
+						continue
+					}
+					pkg.Versions[pkgVersion] = append(pkg.Versions[pkgVersion], pkgSrc)
 				}
 			}
 		}
 	}
 
-	pkgFilter := []*PHPSource{}
-	for _, info := range prePkg {
-		for index := range info.Versions {
-			for srcIndex := range info.Versions[index].Src {
-				info.Versions[index].Src[srcIndex] = strings.ReplaceAll(info.Versions[index].Src[srcIndex], "$OPTARG", "x64")
-			}
-		}
-		pkgFilter = append(pkgFilter, info)
-	}
-	return pkgFilter
+	return slices.Collect(maps.Values(pkgs))
 }
 
 func fieldParse(s string) []string {
@@ -415,24 +412,24 @@ func fieldParse(s string) []string {
 				// slows down this code by a several percent on amd64.
 				start = ^start
 			}
-		case '"':
+		case '"', '\'':
 			end++
-			endDouble := strings.IndexRune(s[end:], '"')
-			if endDouble == -1 {
-				endDouble = len(s[end:])
+			if start >= 0 {
+				endDouble := strings.IndexRune(s[end:], rune)
+				if endDouble == -1 {
+					endDouble = len(s[end:])
+				}
+				spans = append(spans, span{start, end + endDouble})
+				end = end + endDouble
+			} else {
+				endDouble := strings.IndexRune(s[end:], rune)
+				if endDouble == -1 {
+					endDouble = len(s[end:])
+				}
+				spans = append(spans, span{end, end + endDouble})
+				end = end + endDouble
 			}
-			spans = append(spans, span{end, end + endDouble})
-			end = end + endDouble
-			start = -1
-		case '\'':
-			end++
-			endDouble := strings.IndexRune(s[end:], '\'')
-			if endDouble == -1 {
-				endDouble = len(s[end:])
-			}
-			spans = append(spans, span{end, end + endDouble})
-			end = end + endDouble
-			start = -1
+			start = ^end
 		default:
 			if start < 0 {
 				start = end
