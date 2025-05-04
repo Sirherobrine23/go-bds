@@ -2,15 +2,11 @@ package allaymc
 
 import (
 	"bytes"
-	"net/http"
-	"net/url"
 	"path"
-	"strconv"
-	"strings"
 	"sync"
 
-	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/javaprebuild"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
 	"sirherobrine23.com.br/go-bds/request/github"
 	"sirherobrine23.com.br/go-bds/request/v2"
 )
@@ -18,8 +14,8 @@ import (
 // Server version info
 type Version struct {
 	Version     string                   `json:"version"`      // Server version
-	ServerURL   string                   `json:"download"`     // Server file to download
 	JavaVersion javaprebuild.JavaVersion `json:"java_version"` // Java Version, example: 21
+	ServerURL   string                   `json:"download"`     // Server file to download
 }
 
 func (ver Version) SemverVersion() semver.Version { return semver.New(ver.Version) }
@@ -96,65 +92,4 @@ func (versions *Versions) FetchFromGithub() error {
 	// Sort structs
 	semver.Sort(*versions)
 	return err
-}
-
-type githubPagination struct {
-	NextPage, PrevPage, FirstPage, LastPage int
-	NextPageToken, Cursor, Before, After    string
-}
-
-func newPaginator(he *http.Response) *githubPagination {
-	r := &githubPagination{}
-	if links, ok := he.Header["Link"]; ok && len(links) > 0 {
-		for link := range strings.SplitSeq(links[0], ",") {
-			segments := strings.Split(strings.TrimSpace(link), ";")
-			if len(segments) < 2 {
-				continue
-			}
-			if !strings.HasPrefix(segments[0], "<") || !strings.HasSuffix(segments[0], ">") {
-				continue
-			}
-			url, err := url.Parse(segments[0][1 : len(segments[0])-1])
-			if err != nil {
-				continue
-			}
-			q := url.Query()
-			if cursor := q.Get("cursor"); cursor != "" {
-				for _, segment := range segments[1:] {
-					switch strings.TrimSpace(segment) {
-					case `rel="next"`:
-						r.Cursor = cursor
-					}
-				}
-				continue
-			}
-			page := q.Get("page")
-			since := q.Get("since")
-			before := q.Get("before")
-			after := q.Get("after")
-			if page == "" && before == "" && after == "" && since == "" {
-				continue
-			}
-			if since != "" && page == "" {
-				page = since
-			}
-			for _, segment := range segments[1:] {
-				switch strings.TrimSpace(segment) {
-				case `rel="next"`:
-					if r.NextPage, err = strconv.Atoi(page); err != nil {
-						r.NextPageToken = page
-					}
-					r.After = after
-				case `rel="prev"`:
-					r.PrevPage, _ = strconv.Atoi(page)
-					r.Before = before
-				case `rel="first"`:
-					r.FirstPage, _ = strconv.Atoi(page)
-				case `rel="last"`:
-					r.LastPage, _ = strconv.Atoi(page)
-				}
-			}
-		}
-	}
-	return r
 }

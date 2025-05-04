@@ -4,17 +4,13 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	os_exec "os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
-	"sirherobrine23.com.br/go-bds/go-bds/utils/javaprebuild"
 )
 
 // Prepare AllayMC with basic setup to struct
@@ -32,21 +28,10 @@ func NewAllayMC(version *Version, versionFolder, javaFolder, cwd string) (*Allay
 		}
 	}
 
-	javaPath := filepath.Join(javaFolder, strconv.Itoa(int(version.JavaVersion)))
-	if !file_checker.IsDir(javaPath) {
-		err := version.JavaVersion.InstallLatest(javaPath)
-		switch err {
-		case nil:
-			if javaPath = filepath.Join(javaPath, "bin/java"); runtime.GOOS == "windows" {
-				javaPath += ".exe"
-			}
-		case javaprebuild.ErrSystem:
-			if javaPath, err = os_exec.LookPath("java"); err != nil {
-				return nil, fmt.Errorf("install java in u system: %s", err)
-			}
-		default:
-			return nil, err
-		}
+	// Java bin path
+	javaPath, err := version.JavaVersion.Install(filepath.Join(javaFolder, strconv.Itoa(int(version.JavaVersion))))
+	if err != nil {
+		return nil, err
 	}
 
 	allayMcConfig := &AllayMC{

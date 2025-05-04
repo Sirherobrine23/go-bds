@@ -9,6 +9,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.0
 	golang.org/x/sys v0.32.0
 	sirherobrine23.com.br/go-bds/request v1.2.5
+	sirherobrine23.com.br/sirherobrine23/go-dpkg v0.0.0-20250313174014-fb6024ec5dc8
 )
 
 require (

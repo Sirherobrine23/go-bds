@@ -5,18 +5,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	os_exec "os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"syscall"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
-	"sirherobrine23.com.br/go-bds/go-bds/utils/javaprebuild"
 )
 
 // Prepare folder to server
@@ -45,26 +41,9 @@ func NewServer(version Version, versionFolder, javaFolder, cwd string) (*Server,
 	}
 
 	// Java binary path
-	javaPath := filepath.Join(javaFolder, strconv.Itoa(int(version.JavaVersion())))
-	switch {
-	case file_checker.IsDir(javaPath):
-		if javaPath = filepath.Join(javaPath, "bin/java"); runtime.GOOS == "windows" {
-			javaPath += ".exe"
-		}
-	default:
-		err := version.JavaVersion().InstallLatest(javaPath)
-		switch err {
-		case nil:
-			if javaPath = filepath.Join(javaPath, "bin/java"); runtime.GOOS == "windows" {
-				javaPath += ".exe"
-			}
-		case javaprebuild.ErrSystem:
-			if javaPath, err = os_exec.LookPath("java"); err != nil {
-				return nil, fmt.Errorf("install java in u system: %s", err)
-			}
-		default:
-			return nil, err
-		}
+	javaPath, err := version.JavaVersion().Install(filepath.Join(javaFolder, strconv.Itoa(int(version.JavaVersion()))))
+	if err != nil {
+		return nil, err
 	}
 
 	javaServer := &Server{

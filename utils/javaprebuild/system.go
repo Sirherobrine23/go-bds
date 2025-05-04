@@ -3,6 +3,6 @@
 package javaprebuild
 
 // Current system not supported to install prebuild java files
-func InstallLatest(featVersion uint, installPath string) error {
+func (JavaVersion) InstallLatest(installPath string) error {
 	return ErrSystem
 }

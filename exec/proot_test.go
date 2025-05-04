@@ -10,7 +10,7 @@ func TestPRoot(t *testing.T) {
 	if !(runtime.GOOS == "linux" || runtime.GOOS == "android") {
 		t.Skipf("Cannot run test, current os is %q", runtime.GOOS)
 		return
-	} else if !LocalBinExist(ProcExec{Arguments: []string{"proot"}}) {
+	} else if !LookPathExist(ProcExec{Arguments: []string{"proot"}}) {
 		t.Skip("Cannot run test, proot not installed")
 		return
 	}

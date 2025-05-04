@@ -4,6 +4,8 @@ import "slices"
 
 type Slice[T any] []T
 
+func SliceFrom[T any](v []T) Slice[T] { return Slice[T](v) }
+
 func (s Slice[T]) ForEach(fn func(input T)) {
 	for _, data := range s {
 		fn(data)

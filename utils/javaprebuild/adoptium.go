@@ -8,13 +8,29 @@ import (
 	"net/http"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"sirherobrine23.com.br/go-bds/request/v2"
 )
 
+type adoptiumReleases struct {
+	MostRecentRelease uint   `json:"most_recent_feature_release"`
+	MostRecentLts     uint   `json:"most_recent_lts"`
+	MostRecent        uint   `json:"most_recent_feature_version"`
+	TIP               uint   `json:"tip_version"`
+	LTSRelease        []uint `json:"available_lts_releases"`
+	Release           []uint `json:"available_releases"`
+}
+
 // Install latest version from adoptium
-func InstallLatest(featVersion uint, installPath string) error {
+func (ver JavaVersion) InstallLatest(installPath string) error {
+	featVersion := uint(ver) - 44
+	releases, _, _ := request.JSON[adoptiumReleases]("https://api.adoptium.net/v3/info/available_releases", nil)
+	if !slices.Contains(releases.Release, featVersion) {
+		return ErrSystem
+	}
+
 	// architecture: x64, x86, x32, ppc64, ppc64le, s390x, aarch64, arm, sparcv9, riscv64
 	arch := runtime.GOARCH
 	switch arch {
@@ -26,13 +42,13 @@ func InstallLatest(featVersion uint, installPath string) error {
 		arch = "aarch64"
 	}
 
-	// os: linux, windows, mac, solaris, aix, alpine-linux
-	os := runtime.GOOS
-	switch os {
+	// goos: linux, windows, mac, solaris, aix, alpine-linux
+	goos := runtime.GOOS
+	switch goos {
 	case "darwin":
-		os = "mac"
+		goos = "mac"
 	case "sunos":
-		os = "solaris"
+		goos = "solaris"
 	}
 
 	processRedirect := func(res *http.Response) (*http.Response, error) {
@@ -50,9 +66,9 @@ func InstallLatest(featVersion uint, installPath string) error {
 		return res, request.Tar(RequestURL, extractOptions, nil)
 	}
 
-	_, err := request.Request(fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, os, arch), &request.Options{
+	_, err := request.Request(fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, goos, arch), &request.Options{
 		NotFollowRedirect: true,
-		CodeProcess:       request.MapCode{
+		CodeProcess: request.MapCode{
 			301: processRedirect,
 			302: processRedirect,
 			307: processRedirect,
