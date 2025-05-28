@@ -9,6 +9,8 @@ var _ Binary = (*Macho)(nil)
 // Linux elf binary
 type Macho macho.File
 
+func (*Macho) GoVariant() string     { return "" }
+func (binMacho *Macho) Close() error { return (*macho.File)(binMacho).Close() }
 func (binMacho *Macho) From() any    { return (*macho.File)(binMacho) }
 func (binMacho *Macho) GoOs() string { return "darwin" }
 

@@ -1,8 +1,8 @@
 package java
 
 import (
-	"bytes"
 	"fmt"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -48,15 +48,22 @@ func purpurWorkder(vers *Versions, job <-chan string, wg *sync.WaitGroup) {
 		}
 
 		downloadUrl := fmt.Sprintf("https://api.purpurmc.org/v2/purpur/%s/%s/download", Version, resBuild.Build)
-		jarFile, _, err := request.Buffer(downloadUrl, nil)
+		jarFile, _, err := request.SaveTmp(downloadUrl, "", nil)
 		if err != nil {
 			continue
 		}
+		defer os.Remove(jarFile.Name())
+		defer jarFile.Close()
+		stat, _ := jarFile.Stat()
 
-		jvm, err := javaprebuild.JarMajor(bytes.NewReader(jarFile), int64(len(jarFile)))
+		jvm, err := javaprebuild.JarMajor(jarFile, stat.Size())
 		if err != nil {
+			jarFile.Close()
+			os.Remove(jarFile.Name())
 			continue
 		}
+		jarFile.Close()
+		os.Remove(jarFile.Name())
 
 		*vers = append(*vers, GenericVersion{
 			ServerVersion: resBuild.MCStarget,

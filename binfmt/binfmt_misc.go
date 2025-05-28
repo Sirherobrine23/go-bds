@@ -92,8 +92,10 @@ type LinuxMisc struct {
 	Mask        []byte
 }
 
-func (m LinuxMisc) From() any      { return m }
-func (m LinuxMisc) GoArch() string { return m.Arch }
+func (LinuxMisc) GoVariant() string { return "" }
+func (LinuxMisc) Close() error      { return nil }
+func (m LinuxMisc) From() any       { return m }
+func (m LinuxMisc) GoArch() string  { return m.Arch }
 func (m LinuxMisc) GoOs() string {
 	if m.OS == "" {
 		return "linux"
@@ -112,8 +114,19 @@ func MiscGoTarget(GOOS, GOARCH string) (bool, error) {
 	}
 
 	for _, bin := range misc {
-		if (GOOS != "" && bin.GoOs() != GOOS) || (GOARCH != "" && bin.GoArch() != GOARCH) {
-			continue
+		switch {
+		case GOOS != "" && GOARCH != "":
+			if bin.GoOs() != GOOS || bin.GoArch() != GOARCH {
+				continue
+			}
+		case GOOS != "":
+			if bin.GoOs() != GOOS {
+				continue
+			}
+		case GOARCH != "":
+			if bin.GoArch() != GOARCH {
+				continue
+			}
 		}
 		return true, nil
 	}
@@ -121,7 +134,7 @@ func MiscGoTarget(GOOS, GOARCH string) (bool, error) {
 	return false, nil
 }
 
-// List all emulator from linux binfmt_misc, another GOOS return [sirherobrine23.com.br/go-bds/go-bds/binfmt.ErrNotDetect]
+// List all emulator from linux binfmt_misc, another GOOS return [ErrNotDetect]
 func LinuxMiscs() ([]Binary, error) {
 	files, err := os.ReadDir(miscDir)
 	if err != nil {

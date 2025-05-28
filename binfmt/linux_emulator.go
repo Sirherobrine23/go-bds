@@ -158,8 +158,10 @@ type LinuxEmulator struct {
 	EmulatorCommand []string
 }
 
-func (s LinuxEmulator) GoOs() string { return "linux" }
-func (s LinuxEmulator) From() any    { return s }
+func (LinuxEmulator) Close() error      { return nil }
+func (LinuxEmulator) GoVariant() string { return "" }
+func (s LinuxEmulator) GoOs() string    { return "linux" }
+func (s LinuxEmulator) From() any       { return s }
 
 func (s LinuxEmulator) GoArch() string {
 	if s.GolangArch != "" {

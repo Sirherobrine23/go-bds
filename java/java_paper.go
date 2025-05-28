@@ -1,9 +1,9 @@
 package java
 
 import (
-	"bytes"
 	"fmt"
 	"maps"
+	"os"
 	"runtime"
 	"slices"
 	"sync"
@@ -50,17 +50,23 @@ func paperWorkder(vers *Versions, ProjectTarget string, job <-chan paperBuilds, 
 		}
 
 		downloadUrl := fmt.Sprintf(paperProjectGetBuildsURL, ProjectTarget, latestBuild.Version, latestBuild.Build, latestBuild.Downloads["application"].Name)
-		jarFile, _, err := request.Buffer(downloadUrl, nil)
+		jarFile, _, err := request.SaveTmp(downloadUrl, "", nil)
 		if err != nil {
 			*errPtr = err
 			continue
 		}
-
-		jvm, err := javaprebuild.JarMajor(bytes.NewReader(jarFile), int64(len(jarFile)))
+		defer os.Remove(jarFile.Name())
+		defer jarFile.Close()
+		stat, _ := jarFile.Stat()
+		jvm, err := javaprebuild.JarMajor(jarFile, stat.Size())
 		if err != nil {
+			jarFile.Close()
+			os.Remove(jarFile.Name())
 			*errPtr = err
 			continue
 		}
+		jarFile.Close()
+		os.Remove(jarFile.Name())
 		*vers = append(*vers, GenericVersion{ServerVersion: latestBuild.Version, DownloadURL: downloadUrl, JVM: jvm})
 	}
 }
