@@ -1,17 +1,16 @@
-//go:build (aix && ppc64) || darwin || (windows && amd64) || (linux && (amd64 || arm64 || riscv64 || ppc64le || s390x)) || (solaris && (amd64 || sparcv9))
-
-// Download java with builds from adoptium
 package javaprebuild
 
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 
 	"sirherobrine23.com.br/go-bds/request/v2"
+	"sirherobrine23.com.br/sirherobrine23/go-dpkg/dpkg"
 )
 
 type adoptiumReleases struct {
@@ -24,7 +23,7 @@ type adoptiumReleases struct {
 }
 
 // Install latest version from adoptium
-func (ver JavaVersion) InstallLatest(installPath string) error {
+func (ver JavaVersion) InstallLatestAdoptium(installPath string) error {
 	featVersion := uint(ver) - 44
 	releases, _, _ := request.JSON[adoptiumReleases]("https://api.adoptium.net/v3/info/available_releases", nil)
 	if !slices.Contains(releases.Release, featVersion) {
@@ -51,37 +50,47 @@ func (ver JavaVersion) InstallLatest(installPath string) error {
 		goos = "solaris"
 	}
 
-	processRedirect := func(res *http.Response) (*http.Response, error) {
-		defer res.Body.Close()
-		var RequestURL string
-		if RequestURL = res.Header.Get("Location"); RequestURL == "" {
-			if RequestURL = res.Header.Get("location"); RequestURL == "" {
-				return res, ErrSystem
-			}
-		}
-		extractOptions := request.ExtractOptions{Cwd: installPath, Strip: 1}
-		if strings.ToLower(filepath.Ext(RequestURL)) == ".zip" {
-			return res, request.Zip(RequestURL, extractOptions, nil)
-		}
-		return res, request.Tar(RequestURL, extractOptions, nil)
-	}
-
-	_, err := request.Request(fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, goos, arch), &request.Options{
+	opt := &request.Options{
 		NotFollowRedirect: true,
 		CodeProcess: request.MapCode{
-			301: processRedirect,
-			302: processRedirect,
-			307: processRedirect,
-			404: func(res *http.Response) (*http.Response, error) {
-				if res != nil {
-					res.Body.Close()
-				}
-				return nil, ErrSystem
+			301: func(res *http.Response) (*http.Response, error) {
+				res.StatusCode = 200
+				return res, nil
+			},
+			302: func(res *http.Response) (*http.Response, error) {
+				res.StatusCode = 200
+				return res, nil
 			},
 		},
-	})
+	}
+
+	res, err := request.Request(fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jdk/hotspot/normal/eclipse", featVersion, goos, arch), opt)
 	if err != nil {
 		return err
 	}
+
+	downloadUrl := res.Header.Get("Location")
+	if downloadUrl == "" {
+		return ErrSystem
+	}
+
+	switch strings.ToLower(filepath.Ext(path.Base(downloadUrl))) {
+	case ".tar", ".tar.gz":
+		return request.Tar(downloadUrl, request.ExtractOptions{Strip: 1, Cwd: installPath}, nil)
+	case ".zip":
+		return request.Zip(downloadUrl, request.ExtractOptions{Strip: 1, Cwd: installPath}, nil)
+	case ".deb":
+		res, err := request.Request(downloadUrl, nil)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		_, pkgData, err := dpkg.NewReader(res.Body)
+		if err != nil {
+			return err
+		}
+		return extractTar(pkgData, request.ExtractOptions{Strip: 0, Cwd: installPath})
+	}
+
 	return nil
 }

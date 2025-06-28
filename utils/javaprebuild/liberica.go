@@ -1,6 +1,3 @@
-//go:build linux && arm
-
-// Download java from liberica (BellSoft)
 package javaprebuild
 
 import (
@@ -30,11 +27,11 @@ type libericaVersion struct {
 }
 
 // Install latest liberica file
-func (ver JavaVersion) InstallLatest(installPath string) error {
+func (ver JavaVersion) InstallLatestLiberica(installPath string) error {
 	requUrl, _ := url.Parse("https://api.bell-sw.com/v1/liberica/releases")
 	query := requUrl.Query()
 	query.Set("version-modifier", "latest")
-	query.Set("package-type", "tar.gz")
+	// query.Set("package-type", "tar.gz")
 	query.Set("bundle-type", "jre")
 	query.Set("version-feature", fmt.Sprint(uint(ver)-44))
 
@@ -73,7 +70,7 @@ func (ver JavaVersion) InstallLatest(installPath string) error {
 	}
 
 	requUrl.RawQuery = query.Encode()
-	releases, _, err := request.JSON[[]libericaVersion](requUrl.String(), nil)
+	releases, _, err := request.MakeJSON[[]libericaVersion](requUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -91,7 +88,7 @@ func (ver JavaVersion) InstallLatest(installPath string) error {
 				return err
 			}
 			defer res.Body.Close()
-			_, pkgData, err := dpkg.ParseDpkg(res.Body)
+			_, pkgData, err := dpkg.NewReader(res.Body)
 			if err != nil {
 				return err
 			}

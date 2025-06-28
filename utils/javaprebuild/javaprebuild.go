@@ -1,3 +1,4 @@
+// Prebuild java binarys from adoptium or liberica
 package javaprebuild
 
 import (
@@ -29,7 +30,7 @@ type JavaVersion uint16
 
 func (ver JavaVersion) MarshalText() (text []byte, err error) {
 	if ver <= 44 {
-		return nil, fmt.Errorf("Invalid jar class version")
+		return nil, fmt.Errorf("invalid jar class version")
 	}
 
 	switch v := int(ver) - 44; v {
@@ -122,6 +123,16 @@ func (ver JavaVersion) Install(installPath string) (string, error) {
 	}
 
 	return file_checker.FindFile(installPath, binName)
+}
+
+// Install last version of Java version if avaible
+func (ver JavaVersion) InstallLatest(installPath string) error {
+	if err := ver.InstallLatestAdoptium(installPath); err != nil && err != ErrSystem {
+		return err
+	} else if err = ver.InstallLatestLiberica(installPath); err != nil && err != ErrSystem {
+		return err
+	}
+	return ErrSystem
 }
 
 // Return jar file java version
