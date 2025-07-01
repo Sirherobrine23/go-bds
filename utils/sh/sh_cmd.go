@@ -135,7 +135,7 @@ func (cmd *CmdProcess) SetKey(keyName, value string) {
 	// For simplicity here, we just append. findValueCmd will find the latest.
 	cmd.previusValues = append(cmd.previusValues, &CmdValue{
 		Type:          Set,
-		Name:          normalizedKey,    // Store normalized name
+		Name:          normalizedKey,  // Store normalized name
 		Value:         processedValue, // Store processed value
 		OriginalValue: value,          // Store original value as provided
 	})
@@ -207,9 +207,9 @@ func (cmd *CmdProcess) Seq(limit ...int) Sh {
 	limitRead := -1 // Default: read all lines
 	return func(yield func(string, []Value) bool) {
 		if len(limit) >= 1 {
-			cmd.SavePoint()       // Save state before potentially limiting/moving
-			defer cmd.Rollback()  // Ensure state is restored after limited sequence
-			limitRead = limit[0]   // Number of lines to read
+			cmd.SavePoint()      // Save state before potentially limiting/moving
+			defer cmd.Rollback() // Ensure state is restored after limited sequence
+			limitRead = limit[0] // Number of lines to read
 			if len(limit) > 1 {
 				cmd.Add(limit[1]) // Move current line (relative jump)
 			}
@@ -272,7 +272,9 @@ func (cmd *CmdProcess) Seq(limit ...int) Sh {
 				} else {
 					// Handle SET VAR (displays variable, not setting) or SET (displays all)
 					// We are only parsing SET VAR=..., so skip lines without '='
-					if !yield(line, lineValues) { return } // Yield original line, no values set/accessed
+					if !yield(line, lineValues) {
+						return
+					} // Yield original line, no values set/accessed
 					continue
 				}
 
@@ -286,7 +288,7 @@ func (cmd *CmdProcess) Seq(limit ...int) Sh {
 
 					shInfo := &CmdValue{
 						Type:          valueType,
-						Name:          normalizedKey,    // Store normalized name
+						Name:          normalizedKey,  // Store normalized name
 						Value:         processedValue, // Store processed value
 						OriginalValue: rawValue,       // Store original raw value
 					}

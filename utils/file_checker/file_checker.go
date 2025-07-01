@@ -1,6 +1,8 @@
 package file_checker
 
 import (
+	"fmt"
+	"io"
 	"io/fs"
 	"iter"
 	"os"
@@ -27,7 +29,7 @@ func IsDir(path string) bool {
 // Check if folder contains file
 func FolderIsEmpty(path string) bool {
 	fileEntrys, _ := os.ReadDir(path)
-	return len(fileEntrys) > 0
+	return len(fileEntrys) == 0
 }
 
 func FindFile(folder, file string) (string, error) {
@@ -50,4 +52,51 @@ func walkSeq(folder string) iter.Seq2[string, fs.DirEntry] {
 			return err
 		})
 	}
+}
+
+func RemoveFiles(dir string, entrys []os.DirEntry) error {
+	for _, entry := range entrys {
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func ReplaceFiles(from, to string, entrys []os.DirEntry) error {
+	for _, entry := range entrys {
+		to, from := filepath.Join(to, entry.Name()), filepath.Join(from, entry.Name())
+		if entry.IsDir() {
+			if _, err := os.Stat(to); err == nil {
+				if err = os.RemoveAll(to); err != nil {
+					return err
+				}
+			}
+			if err := os.CopyFS(to, os.DirFS(from)); err != nil {
+				return err
+			}
+		} else {
+			if entry.Type().IsRegular() {
+				toFile, err := os.OpenFile(to, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, entry.Type().Perm())
+				if err != nil {
+					return fmt.Errorf("cannot make file target: %s", err)
+				}
+				defer toFile.Close()
+
+				fromFile, err := os.OpenFile(to, os.O_RDONLY, entry.Type().Perm())
+				if err != nil {
+					return fmt.Errorf("cannot open file: %s", err)
+				}
+				defer fromFile.Close()
+
+				// Copy file
+				if _, err = io.Copy(toFile, fromFile); err != nil {
+					return err
+				}
+				toFile.Close()
+				fromFile.Close()
+			}
+		}
+	}
+	return nil
 }

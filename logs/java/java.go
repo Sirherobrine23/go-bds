@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"sirherobrine23.com.br/go-bds/go-bds/logs"
-	"sirherobrine23.com.br/go-bds/go-bds/utils/regex"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
+	"sirherobrine23.com.br/go-bds/go-bds/utils/regex"
 )
 
 var (

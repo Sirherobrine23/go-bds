@@ -170,8 +170,10 @@ func (versions *Versions) FetchFromMinecraftDotNet() error {
 	}
 
 	for _, value := range pageVersions {
-		if !strings.HasSuffix(value.URL, ".zip") { continue }
-		
+		if !strings.HasSuffix(value.URL, ".zip") {
+			continue
+		}
+
 		// Get server version from file server
 		// example: bedrock-server-1.6.1.0.zip => 1.6.1.0
 		value.Version = strings.TrimSuffix(strings.TrimPrefix(path.Base(value.URL), "bedrock-server-"), ".zip")

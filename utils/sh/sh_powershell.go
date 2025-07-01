@@ -234,7 +234,7 @@ func (pws *PowershellProcess) parseLine(line string) (string, []Value) {
 				lastIndex = len(line)
 				i = len(line) // Stop processing
 			} else {
-				end += i + 1 // Adjust index relative to start of line
+				end += i + 1                               // Adjust index relative to start of line
 				processedLine.WriteString(line[i : end+1]) // Write the quoted string
 				i = end + 1
 				lastIndex = i
@@ -429,7 +429,7 @@ func (pws *PowershellProcess) parseVariableConstruct(line string, startIndex int
 
 		val := &ShValue{ // Or &BashValue{...}
 			Type:          accessType,
-			Name:          varName, // Base variable name being accessed
+			Name:          varName,            // Base variable name being accessed
 			OriginalValue: originalAccessPath, // Full access path ($var or $var.prop)
 			// Value field will be populated by findValue if found during line processing substitution
 		}

@@ -340,7 +340,7 @@ func (bash *BashProcess) Seq(limit ...int) Sh {
 						processedValue := originalAssignedValue
 						subProcessor := BashWithValues(originalAssignedValue, bash.previusValues)
 						subSeq := subProcessor.Seq(1)
-						for subLine, _ := range subSeq {
+						for subLine := range subSeq {
 							processedValue = subLine
 							break
 						}
@@ -400,7 +400,7 @@ func (bash *BashProcess) Seq(limit ...int) Sh {
 						processedValue := originalAssignedValue
 						subProcessor := BashWithValues(originalAssignedValue, bash.previusValues)
 						subSeq := subProcessor.Seq(1)
-						for subLine, _ := range subSeq {
+						for subLine := range subSeq {
 							processedValue = subLine
 							break
 						}

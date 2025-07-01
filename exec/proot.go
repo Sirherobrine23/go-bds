@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"sirherobrine23.com.br/go-bds/request/v2"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
+	"sirherobrine23.com.br/go-bds/request/v2"
 )
 
 var (

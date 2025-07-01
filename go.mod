@@ -3,11 +3,10 @@ module sirherobrine23.com.br/go-bds/go-bds
 go 1.24
 
 require (
-	github.com/aegistudio/go-winfsp v1.0.0
 	github.com/docker/docker v28.1.0+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/go-git/go-git/v5 v5.16.0
-	golang.org/x/sys v0.33.0
+	sirherobrine23.com.br/go-bds/overlayfs v0.0.0-20250601175432-193014de1add
 	sirherobrine23.com.br/go-bds/request v1.2.6
 	sirherobrine23.com.br/sirherobrine23/go-dpkg v0.0.2-0.20250623012816-8498030b4f2a
 )
@@ -18,6 +17,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.3.0 // indirect
 	github.com/PuerkitoBio/goquery v1.10.3 // indirect
+	github.com/aegistudio/go-winfsp v1.0.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -55,6 +55,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gotest.tools/v3 v3.5.1 // indirect

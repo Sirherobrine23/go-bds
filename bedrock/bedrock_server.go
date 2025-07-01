@@ -13,10 +13,18 @@ import (
 
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
+	"sirherobrine23.com.br/go-bds/overlayfs"
 )
+
+type Bedrock struct {
+	PID            exec.Proc            // process status
+	ServerStart    exec.ProcExec        // Server command
+	Overlayfs      *overlayfs.Overlayfs // Overlayfs mounted
+	Version        *Version             // Server version
+	PlaformVersion *PlatformVersion     // Server version target
+}
 
 // Make new bedrock config
 func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*Bedrock, error) {
@@ -37,6 +45,11 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 
 	// Folder path to storage server version
 	versionFolder = filepath.Join(versionFolder, version.Version)
+	if _, err := os.Stat(versionFolder); os.IsNotExist(err) {
+		if err = os.MkdirAll(versionFolder, 0777); err != nil {
+			return nil, err
+		}
+	}
 
 	// Correct config to GOOS
 	switch runtime.GOOS {
@@ -46,6 +59,7 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 		if !ok {
 			return nil, ErrNoVersion
 		}
+		bedrockConfig.PlaformVersion = target
 
 		if file_checker.FolderIsEmpty(versionFolder) {
 			if err := target.Extract(versionFolder); err != nil {
@@ -62,6 +76,7 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 				return nil, ErrNoVersion
 			}
 		}
+		bedrockConfig.PlaformVersion = target
 
 		if file_checker.FolderIsEmpty(versionFolder) {
 			if err := target.Extract(versionFolder); err != nil {
@@ -72,35 +87,8 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 		return nil, ErrPlatform
 	}
 
-	// Copy server if
-	if !overlayfs.OverlayfsAvaible() && !file_checker.FolderIsEmpty(cwd) {
-		// Files to not delete
-		filesToIgnore := []string{"allowlist.json", "permissions.json", "server.properties", "worlds"}
-
-		// List current fileNames
-		fileNames, err := os.ReadDir(cwd)
-		if err != nil {
-			return nil, err
-		}
-		fileNames = js_types.Slice[os.DirEntry](fileNames).Filter(func(input os.DirEntry) bool { return !slices.Contains(filesToIgnore, input.Name()) })
-
-		for _, fileToDelete := range fileNames {
-			if err := os.RemoveAll(filepath.Join(cwd, fileToDelete.Name())); err != nil && !os.IsNotExist(err) {
-				return nil, err
-			}
-		}
-
-		// Copy server folder
-		if fileNames, err = os.ReadDir(versionFolder); err != nil {
-			return nil, err
-		}
-		fileNames = js_types.Slice[os.DirEntry](fileNames).Filter(func(input os.DirEntry) bool { return !slices.Contains(filesToIgnore, input.Name()) })
-		for _, fileToCopy := range fileNames {
-			if err := os.CopyFS(filepath.Join(cwd, fileToCopy.Name()), os.DirFS(filepath.Join(versionFolder, fileToCopy.Name()))); err != nil {
-				return nil, err
-			}
-		}
-	} else if overlayfs.OverlayfsAvaible() {
+	// Attemp boot server with overlayfs
+	if overlayfs.OverlayfsAvaible() {
 		bedrockConfig.Overlayfs = &overlayfs.Overlayfs{
 			Target:  cwd,
 			Upper:   upper,
@@ -109,20 +97,38 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 				versionFolder,
 			},
 		}
-	} else if file_checker.FolderIsEmpty(cwd) {
+	} else if file_checker.FolderIsEmpty(cwd) { // Copy server
 		if err := os.CopyFS(cwd, os.DirFS(versionFolder)); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot copy bedrock server to cwd: %s", err)
+		}
+	} else { // Delete file from old server and copy
+		// 1. Copy to cwd+".old"
+		// 2. Remove all files
+		// 3. Copy old files to new fresh copy
+		oldCwd := cwd + "_old"
+
+		// Files to not delete
+		FilesToCopy := []string{"allowlist.json", "permissions.json", "server.properties", "worlds"}
+
+		remoteFile, _ := os.ReadDir(cwd)
+		copyFiles := js_types.Slice[os.DirEntry](remoteFile).Filter(func(input os.DirEntry) bool { return slices.Contains(FilesToCopy, input.Name()) })
+
+		// Make server backup
+		if err := os.CopyFS(oldCwd, os.DirFS(cwd)); err != nil {
+			os.RemoveAll(oldCwd)
+			return nil, fmt.Errorf("cannot move old server: %s", err)
+		} else if err = file_checker.RemoveFiles(cwd, remoteFile); err != nil {
+			return nil, fmt.Errorf("cannot delete files inside on cwd: %s", err)
+		} else if err = os.CopyFS(cwd, os.DirFS(versionFolder)); err != nil {
+			return nil, fmt.Errorf("cannot copy bedrock server to cwd: %s", err)
+		} else if err = file_checker.ReplaceFiles(oldCwd, cwd, copyFiles); err != nil {
+			return nil, fmt.Errorf("cannot copy old files to new copy: %s", err)
+		} else if err = os.RemoveAll(oldCwd); err != nil {
+			return nil, fmt.Errorf("cannot remove server copy: %s", err)
 		}
 	}
 
 	return bedrockConfig, nil
-}
-
-type Bedrock struct {
-	PID         exec.Proc            // process status
-	ServerStart exec.ProcExec        // Server command
-	Version     *Version             // Server version
-	Overlayfs   *overlayfs.Overlayfs // Overlayfs mounted
 }
 
 // Make server backup with [*archive/tar.Writer]

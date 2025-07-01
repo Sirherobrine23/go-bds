@@ -10,8 +10,8 @@ import (
 	"runtime"
 
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
-	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
+	"sirherobrine23.com.br/go-bds/overlayfs"
 )
 
 // Create and setup basics info to start Pocketmine-PMMP

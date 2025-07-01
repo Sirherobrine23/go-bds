@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/overlayfs"
+	"sirherobrine23.com.br/go-bds/overlayfs"
 )
 
 var (
