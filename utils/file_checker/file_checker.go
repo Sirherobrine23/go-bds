@@ -77,24 +77,28 @@ func ReplaceFiles(from, to string, entrys []os.DirEntry) error {
 			}
 		} else {
 			if entry.Type().IsRegular() {
+				// Openfile to read
+				fromFile, err := os.Open(from)
+				if err != nil {
+					return fmt.Errorf("cannot open file: %s", err)
+				}
+				defer fromFile.Close()
+
+				// Create new file in target
 				toFile, err := os.OpenFile(to, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, entry.Type().Perm())
 				if err != nil {
 					return fmt.Errorf("cannot make file target: %s", err)
 				}
 				defer toFile.Close()
 
-				fromFile, err := os.OpenFile(to, os.O_RDONLY, entry.Type().Perm())
-				if err != nil {
-					return fmt.Errorf("cannot open file: %s", err)
-				}
-				defer fromFile.Close()
-
 				// Copy file
 				if _, err = io.Copy(toFile, fromFile); err != nil {
 					return err
 				}
-				toFile.Close()
+
+				// Close files R/W
 				fromFile.Close()
+				toFile.Close()
 			}
 		}
 	}
