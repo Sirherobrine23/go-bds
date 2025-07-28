@@ -3,10 +3,10 @@ module sirherobrine23.com.br/go-bds/go-bds
 go 1.24
 
 require (
-	github.com/docker/docker v28.3.1+incompatible
+	github.com/docker/docker v28.3.2+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/go-git/go-git/v5 v5.16.2
-	sirherobrine23.com.br/go-bds/overlayfs v0.0.0-20250601175432-193014de1add
+	sirherobrine23.com.br/go-bds/overlayfs v0.1.0
 	sirherobrine23.com.br/go-bds/request v1.2.7
 	sirherobrine23.com.br/sirherobrine23/go-dpkg v0.0.2
 )
@@ -17,7 +17,6 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.3.0 // indirect
 	github.com/PuerkitoBio/goquery v1.10.3 // indirect
-	github.com/aegistudio/go-winfsp v1.0.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
@@ -43,7 +42,7 @@ require (
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pjbgf/sha1cd v0.3.2 // indirect
+	github.com/pjbgf/sha1cd v0.4.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
@@ -55,10 +54,11 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.33.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
-	golang.org/x/crypto v0.39.0 // indirect
-	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
+	sirherobrine23.com.br/Sirherobrine23/cgofuse v1.7.6 // indirect
 )

@@ -3,6 +3,7 @@ package pmmp
 import (
 	"archive/tar"
 	"archive/zip"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -120,14 +121,14 @@ func (pmmp Pocketmine) Zip(w io.Writer) error {
 	return wr.AddFS(os.DirFS(pmmp.Overlayfs.Upper))
 }
 
-func (pmmp *Pocketmine) Start() error {
+func (pmmp *Pocketmine) Start(ctx context.Context) error {
 	if pmmp == nil || pmmp.PID == nil {
 		return errors.New("cannot start server, server proc not defined")
 	}
 
 	// If overlayfs configured mount before start server
 	if pmmp.Overlayfs != nil {
-		if err := pmmp.Overlayfs.Mount(); err != nil {
+		if err := pmmp.Overlayfs.Mount(ctx); err != nil {
 			return err
 		}
 	}

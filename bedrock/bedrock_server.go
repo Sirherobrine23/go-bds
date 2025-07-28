@@ -3,6 +3,7 @@ package bedrock
 import (
 	"archive/tar"
 	"archive/zip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
 	"sirherobrine23.com.br/go-bds/go-bds/exec"
@@ -17,6 +19,14 @@ import (
 	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
 	"sirherobrine23.com.br/go-bds/overlayfs"
 )
+
+var currentPlatform = func() string {
+	bin, err := binfmt.Open(os.Args[0])
+	if err != nil {
+		return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+	return strings.ReplaceAll(binfmt.String(bin), "android", "linux")
+}()
 
 type Bedrock struct {
 	PID            exec.Proc            // process status
@@ -53,6 +63,8 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 
 	// Correct config to GOOS
 	switch runtime.GOOS {
+	default:
+		return nil, ErrPlatform
 	case "windows":
 		bedrockConfig.ServerStart.Arguments = []string{"bedrock_server.exe"}
 		target, ok := version.Plaforms["windows/amd64"]
@@ -70,7 +82,7 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 		bedrockConfig.ServerStart.Environment = exec.Env{"LD_LIBRARY_PATH": "."}
 		bedrockConfig.ServerStart.Arguments = []string{"./bedrock_server"}
 
-		target, ok := version.Plaforms[fmt.Sprintf("linux/%s", runtime.GOARCH)]
+		target, ok := version.Plaforms[currentPlatform]
 		if !ok {
 			if target, ok = version.Plaforms["linux/amd64"]; !ok {
 				return nil, ErrNoVersion
@@ -83,29 +95,20 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 				return nil, err
 			}
 		}
-	default:
-		return nil, ErrPlatform
 	}
 
-	// Attemp boot server with overlayfs
-	if overlayfs.OverlayfsAvaible() {
-		bedrockConfig.Overlayfs = &overlayfs.Overlayfs{
-			Target:  cwd,
-			Upper:   upper,
-			Workdir: workdir,
-			Lower: []string{
-				versionFolder,
-			},
-		}
-	} else if file_checker.FolderIsEmpty(cwd) { // Copy server
+	switch {
+	case overlayfs.OverlayfsAvaible(): // Attemp boot server with overlayfs if else copy files
+		bedrockConfig.Overlayfs = overlayfs.NewOverlayFS(cwd, upper, workdir, versionFolder)
+	case file_checker.FolderIsEmpty(cwd): // Copy server
 		if err := os.CopyFS(cwd, os.DirFS(versionFolder)); err != nil {
 			return nil, fmt.Errorf("cannot copy bedrock server to cwd: %s", err)
 		}
-	} else { // Delete file from old server and copy
+	default: // Delete file from old server and copy
 		// 1. Copy to cwd+".old"
 		// 2. Remove all files
 		// 3. Copy old files to new fresh copy
-		oldCwd := cwd + "_old"
+		oldCwd := cwd + "old"
 
 		// Files to not delete
 		FilesToCopy := []string{"allowlist.json", "permissions.json", "server.properties", "worlds"}
@@ -113,18 +116,24 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 		remoteFile, _ := os.ReadDir(cwd)
 		copyFiles := js_types.Slice[os.DirEntry](remoteFile).Filter(func(input os.DirEntry) bool { return slices.Contains(FilesToCopy, input.Name()) })
 
+
+		// Remove old backup if exists
+		if _, err := os.Stat(oldCwd); err == nil {
+			if err = os.RemoveAll(oldCwd); err != nil {
+				return nil, fmt.Errorf("cannot remove old server: %s", err)
+			}
+		}
+
 		// Make server backup
-		if err := os.CopyFS(oldCwd, os.DirFS(cwd)); err != nil {
+		if err := os.CopyFS(oldCwd, os.DirFS(cwd)); err != nil { // Copy server to Cwd+"old"
 			os.RemoveAll(oldCwd)
 			return nil, fmt.Errorf("cannot move old server: %s", err)
-		} else if err = file_checker.RemoveFiles(cwd, remoteFile); err != nil {
+		} else if err = file_checker.RemoveFiles(cwd, remoteFile); err != nil { // Delete files from cwd folder
 			return nil, fmt.Errorf("cannot delete files inside on cwd: %s", err)
-		} else if err = os.CopyFS(cwd, os.DirFS(versionFolder)); err != nil {
+		} else if err = os.CopyFS(cwd, os.DirFS(versionFolder)); err != nil { // Copy new server version
 			return nil, fmt.Errorf("cannot copy bedrock server to cwd: %s", err)
-		} else if err = file_checker.ReplaceFiles(oldCwd, cwd, copyFiles); err != nil {
+		} else if err = file_checker.ReplaceFiles(oldCwd, cwd, copyFiles); err != nil { // Replace files from old installation
 			return nil, fmt.Errorf("cannot copy old files to new copy: %s", err)
-		} else if err = os.RemoveAll(oldCwd); err != nil {
-			return nil, fmt.Errorf("cannot remove server copy: %s", err)
 		}
 	}
 
@@ -158,7 +167,7 @@ func (bed Bedrock) Zip(w io.Writer) error {
 }
 
 // Start server
-func (bed *Bedrock) Start() error {
+func (bed *Bedrock) Start(ctx context.Context) error {
 	// if server not configured correctly return error
 	if bed == nil || bed.PID == nil {
 		return errors.New("cannot start server, server proc not defined")
@@ -166,7 +175,7 @@ func (bed *Bedrock) Start() error {
 
 	// If overlayfs configured mount before start server
 	if bed.Overlayfs != nil {
-		if err := bed.Overlayfs.Mount(); err != nil {
+		if err := bed.Overlayfs.Mount(ctx); err != nil {
 			return err
 		}
 	}
