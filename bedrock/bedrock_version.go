@@ -68,83 +68,54 @@ func (versions Versions) LatestPreview() *Version {
 	return previewVersions.At(-1)
 }
 
+// Get latest version compatible with host
+func (versions Versions) HostLatest() (*PlatformVersion, error) {
+	semver.Sort(versions)
+	for _, ver := range slices.Backward(versions) {
+		if ver.IsPreview {
+			continue
+		}
+
+		if target, ok := ver.Plaforms[currentPlatform]; ok {
+			return target, nil
+		}
+
+		if runtime.GOOS == "linux" || runtime.GOOS == "android" {
+			if target, ok := ver.Plaforms["linux/amd64"]; ok {
+				return target, nil
+			}
+		}
+	}
+
+	return nil, ErrPlatform
+}
+
+// Get latest preview version compatible with host
+func (versions Versions) HostPreview() (*PlatformVersion, error) {
+	semver.Sort(versions)
+	for _, ver := range slices.Backward(versions) {
+		if !ver.IsPreview {
+			continue
+		}
+
+		if target, ok := ver.Plaforms[currentPlatform]; ok {
+			return target, nil
+		}
+
+		if runtime.GOOS == "linux" || runtime.GOOS == "android" {
+			if target, ok := ver.Plaforms["linux/amd64"]; ok {
+				return target, nil
+			}
+		}
+	}
+
+	return nil, ErrPlatform
+}
+
 type MojangApiVersion struct {
 	Type    string `json:"downloadType"`
 	URL     string `json:"downloadUrl"`
 	Version string
-}
-
-func (versions *Versions) versionProcess(newVersions <-chan MojangApiVersion, errChan chan<- error, wait *sync.WaitGroup) {
-	defer wait.Done() // Workder done after newVersions close
-	for value := range newVersions {
-		zipFile, _, err := request.SaveTmp(value.URL, "", &request.Options{Method: "GET", Header: MojangHeaders})
-		if err != nil {
-			errChan <- err
-			continue
-		}
-
-		// Make SHA1 to zip File
-		sha1 := sha1.New()
-		io.Copy(sha1, zipFile)
-
-		// Start Platform struct with current UTC time
-		platformVersion := &PlatformVersion{
-			ZipFile:     value.URL,
-			ZipSHA1:     hex.EncodeToString(sha1.Sum(nil)),
-			ReleaseDate: time.Now().UTC(),
-		}
-
-		// Process Zip File
-		stat, _ := zipFile.Stat()
-		zipFiles, err := zip.NewReader(zipFile, stat.Size())
-		if err != nil {
-			zipFile.Close()
-			os.Remove(zipFile.Name())
-			errChan <- err
-			continue
-		}
-
-		// Get platform string <os>/<arch>(/<variant>) docker style
-		var platform string
-		if fileIndex := slices.IndexFunc(zipFiles.File, func(file *zip.File) bool { return strings.HasPrefix(file.Name, "bedrock_server") }); fileIndex >= 0 {
-			file := zipFiles.File[fileIndex]
-			platformVersion.ReleaseDate = file.Modified
-
-			// Openfile
-			serveRead, err := file.Open()
-			if err != nil {
-				zipFile.Close()
-				os.Remove(zipFile.Name())
-				errChan <- err
-				continue
-			}
-
-			serverFile, err := io.ReadAll(serveRead)
-			serveRead.Close()
-			if err != nil {
-				zipFile.Close()
-				os.Remove(zipFile.Name())
-				errChan <- err
-				continue
-			}
-
-			// Get platform
-			bin, err := binfmt.GetBinary(bytes.NewReader(serverFile))
-			if err != nil {
-				zipFile.Close()
-				os.Remove(zipFile.Name())
-				errChan <- err
-				continue
-			}
-			platform = binfmt.String(bin)
-		}
-
-		zipFile.Close()
-		os.Remove(zipFile.Name())
-		if version, _ := versions.Get(value.Version); version.Plaforms[platform] == nil {
-			version.Plaforms[platform] = platformVersion
-		}
-	}
 }
 
 // Fetch versions from minecraft.net and append to [*Versions] if not exists.
@@ -165,8 +136,77 @@ func (versions *Versions) FetchFromMinecraftDotNet() error {
 
 	var wait sync.WaitGroup
 	for range runtime.NumCPU() {
-		wait.Add(1)
-		go versions.versionProcess(newVersions, errChan, &wait)
+		wait.Go(func() {
+			for value := range newVersions {
+				zipFile, _, err := request.SaveTmp(value.URL, "", &request.Options{Method: "GET", Header: MojangHeaders})
+				if err != nil {
+					errChan <- err
+					continue
+				}
+
+				// Make SHA1 to zip File
+				sha1 := sha1.New()
+				io.Copy(sha1, zipFile)
+
+				// Start Platform struct with current UTC time
+				platformVersion := &PlatformVersion{
+					ZipFile:     value.URL,
+					ZipSHA1:     hex.EncodeToString(sha1.Sum(nil)),
+					ReleaseDate: time.Now().UTC(),
+				}
+
+				// Process Zip File
+				stat, _ := zipFile.Stat()
+				zipFiles, err := zip.NewReader(zipFile, stat.Size())
+				if err != nil {
+					zipFile.Close()
+					os.Remove(zipFile.Name())
+					errChan <- err
+					continue
+				}
+
+				// Get platform string <os>/<arch>(/<variant>) docker style
+				var platform string
+				if fileIndex := slices.IndexFunc(zipFiles.File, func(file *zip.File) bool { return strings.HasPrefix(file.Name, "bedrock_server") }); fileIndex >= 0 {
+					file := zipFiles.File[fileIndex]
+					platformVersion.ReleaseDate = file.Modified
+
+					// Openfile
+					serveRead, err := file.Open()
+					if err != nil {
+						zipFile.Close()
+						os.Remove(zipFile.Name())
+						errChan <- err
+						continue
+					}
+
+					serverFile, err := io.ReadAll(serveRead)
+					serveRead.Close()
+					if err != nil {
+						zipFile.Close()
+						os.Remove(zipFile.Name())
+						errChan <- err
+						continue
+					}
+
+					// Get platform
+					bin, err := binfmt.GetBinary(bytes.NewReader(serverFile))
+					if err != nil {
+						zipFile.Close()
+						os.Remove(zipFile.Name())
+						errChan <- err
+						continue
+					}
+					platform = binfmt.String(bin)
+				}
+
+				zipFile.Close()
+				os.Remove(zipFile.Name())
+				if version, _ := versions.Get(value.Version); version.Plaforms[platform] == nil {
+					version.Plaforms[platform] = platformVersion
+				}
+			}
+		})
 	}
 
 	for _, value := range pageVersions {
@@ -231,12 +271,12 @@ func (target PlatformVersion) Download(w io.Writer) error {
 	}
 
 	sha1Sum := sha1.New()
-	if _, err = io.Copy(io.MultiWriter(sha1Sum, w), response.Body); err != nil {
-		return err
-	} else if hex.EncodeToString(sha1Sum.Sum(nil)) != fileSHA1 {
-		return errors.New("invalid file dowloaded")
+	if _, err = io.Copy(io.MultiWriter(sha1Sum, w), response.Body); err == nil {
+		if hex.EncodeToString(sha1Sum.Sum(nil)) != fileSHA1 {
+			err = errors.New("invalid file dowloaded")
+		}
 	}
-	return nil
+	return err
 }
 
 // Extract server to folder path
@@ -258,7 +298,6 @@ func (target PlatformVersion) ConvertTar(w io.Writer) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot download server: %w", err)
 	}
-	defer os.Remove(zipFile.Name())
 	defer zipFile.Close()
 
 	stat, _ := zipFile.Stat()

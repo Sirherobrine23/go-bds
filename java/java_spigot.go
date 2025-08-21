@@ -8,7 +8,9 @@ import (
 	"runtime"
 	"strings"
 
-	"sirherobrine23.com.br/go-bds/go-bds/exec"
+	"sirherobrine23.com.br/go-bds/exec/exec"
+	"sirherobrine23.com.br/go-bds/exec/host"
+
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/javaprebuild"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/semver"
@@ -106,11 +108,11 @@ func (ver *SpigotMC) Install(InstallPath string) error {
 	}
 
 	// Make build struct
-	build := &exec.Os{}
+	build := &host.Os{}
 
 	// --compile <[NONE,CRAFTBUKKIT,SPIGOT]>  Software to compile
 	for _, buildTarget := range []string{"spigot", "craftbukkit"} {
-		buildFlag := exec.ProcExec{
+		buildFlag := &exec.Exec{
 			Cwd: BuildDir,
 			Arguments: []string{
 				javaPath, "-jar", "SpigotBuildTools.jar",

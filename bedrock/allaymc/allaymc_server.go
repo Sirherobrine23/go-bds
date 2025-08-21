@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"sirherobrine23.com.br/go-bds/go-bds/exec"
+	"sirherobrine23.com.br/go-bds/exec/exec"
+	"sirherobrine23.com.br/go-bds/exec/host"
+
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
 )
 
@@ -35,9 +37,9 @@ func NewAllayMC(version *Version, versionFolder, javaFolder, cwd string) (*Allay
 	}
 
 	allayMcConfig := &AllayMC{
-		PID:     &exec.Os{},
+		PID:     &host.Os{},
 		Version: version,
-		ServerStart: exec.ProcExec{
+		ServerStart: &exec.Exec{
 			Cwd: cwd,
 			Arguments: []string{
 				javaPath,
@@ -51,9 +53,9 @@ func NewAllayMC(version *Version, versionFolder, javaFolder, cwd string) (*Allay
 }
 
 type AllayMC struct {
-	PID         exec.Proc     // process status
-	ServerStart exec.ProcExec // Server command
-	Version     *Version      // Server version
+	PID         exec.Proc  // process status
+	ServerStart *exec.Exec // Server command
+	Version     *Version   // Server version
 }
 
 // Make server backup with [*archive/tar.Writer]

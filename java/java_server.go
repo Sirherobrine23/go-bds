@@ -11,7 +11,8 @@ import (
 	"strconv"
 	"syscall"
 
-	"sirherobrine23.com.br/go-bds/go-bds/exec"
+	"sirherobrine23.com.br/go-bds/exec/exec"
+	"sirherobrine23.com.br/go-bds/exec/host"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
 )
 
@@ -47,9 +48,9 @@ func NewServer(version Version, versionFolder, javaFolder, cwd string) (*Server,
 	}
 
 	javaServer := &Server{
-		PID:     &exec.Os{},
+		PID:     &host.Os{},
 		Version: version,
-		ServerStart: exec.ProcExec{
+		ServerStart: &exec.Exec{
 			Cwd: cwd,
 			Arguments: []string{
 				javaPath,
@@ -64,9 +65,9 @@ func NewServer(version Version, versionFolder, javaFolder, cwd string) (*Server,
 }
 
 type Server struct {
-	PID         exec.Proc     // Struct to start server
-	ServerStart exec.ProcExec // Process start
-	Version     Version       // Server info
+	PID         exec.Proc  // Struct to start server
+	ServerStart *exec.Exec // Process start
+	Version     Version    // Server info
 
 	stopCalled int8 // Server call stop command
 }
@@ -104,8 +105,9 @@ func (javaServer *Server) Stop() error {
 	switch javaServer.stopCalled {
 	case 0:
 		javaServer.stopCalled = 1
-		_, err := javaServer.PID.Write([]byte("stop\n"))
-		return err
+		// _, err := javaServer.PID.Write([]byte("stop\n"))
+		// return err
+		fallthrough
 	case 1:
 		javaServer.stopCalled = 2
 		return javaServer.PID.Signal(syscall.SIGINT)

@@ -13,8 +13,10 @@ import (
 	"slices"
 	"strings"
 
+	"sirherobrine23.com.br/go-bds/exec/exec"
+	"sirherobrine23.com.br/go-bds/exec/host"
+
 	"sirherobrine23.com.br/go-bds/go-bds/binfmt"
-	"sirherobrine23.com.br/go-bds/go-bds/exec"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
 	"sirherobrine23.com.br/go-bds/go-bds/utils/js_types"
 	"sirherobrine23.com.br/go-bds/overlayfs"
@@ -30,7 +32,7 @@ var currentPlatform = func() string {
 
 type Bedrock struct {
 	PID            exec.Proc            // process status
-	ServerStart    exec.ProcExec        // Server command
+	ServerStart    *exec.Exec           // Server command
 	Overlayfs      *overlayfs.Overlayfs // Overlayfs mounted
 	Version        *Version             // Server version
 	PlaformVersion *PlatformVersion     // Server version target
@@ -43,10 +45,10 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 	}
 
 	bedrockConfig := &Bedrock{
-		PID:       &exec.Os{},
+		PID:       &host.Os{},
 		Version:   version,
 		Overlayfs: nil,
-		ServerStart: exec.ProcExec{
+		ServerStart: &exec.Exec{
 			Cwd:         cwd,
 			Arguments:   []string{},
 			Environment: exec.Env{},
@@ -115,7 +117,6 @@ func NewBedrock(version *Version, versionFolder, cwd, upper, workdir string) (*B
 
 		remoteFile, _ := os.ReadDir(cwd)
 		copyFiles := js_types.Slice[os.DirEntry](remoteFile).Filter(func(input os.DirEntry) bool { return slices.Contains(FilesToCopy, input.Name()) })
-
 
 		// Remove old backup if exists
 		if _, err := os.Stat(oldCwd); err == nil {

@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"sirherobrine23.com.br/go-bds/go-bds/exec"
+	"sirherobrine23.com.br/go-bds/exec/exec"
+	"sirherobrine23.com.br/go-bds/exec/host"
+
 	"sirherobrine23.com.br/go-bds/go-bds/utils/file_checker"
 	"sirherobrine23.com.br/go-bds/overlayfs"
 )
@@ -51,10 +53,10 @@ func NewPocketmine(version *Version, versionFolder, cwd, upper, workdir string) 
 
 	// Config to Pocketmine
 	pmmpConfig := &Pocketmine{
-		PID:       &exec.Os{},
+		PID:       &host.Os{},
 		Version:   version,
 		Overlayfs: nil,
-		ServerStart: exec.ProcExec{
+		ServerStart: &exec.Exec{
 			Cwd: cwd,
 			Arguments: []string{
 				phpFolder,
@@ -90,7 +92,7 @@ func NewPocketmine(version *Version, versionFolder, cwd, upper, workdir string) 
 
 type Pocketmine struct {
 	PID         exec.Proc            // process status
-	ServerStart exec.ProcExec        // Server command
+	ServerStart *exec.Exec           // Server command
 	Version     *Version             // Server version
 	Overlayfs   *overlayfs.Overlayfs // Overlayfs mounted
 }
