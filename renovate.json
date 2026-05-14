@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base"
+  ],
+  "go": {
+    "rangeStrategy": "auto"
+  },
+  "postUpdateOptions": [
+    "gomodTidy"
+  ],
+  "schedule": [
+    "before 3am on Monday"
+  ],
+  "vulnerabilityAlerts": {
+    "labels": [
+      "security",
+      "dependencies"
+    ],
+    "assignees": [
+      "@Sirherobrine23"
+    ]
+  },
+  "dependencyDashboard": true,
+  "commitMessagePrefix": "chore(deps): "
+}
